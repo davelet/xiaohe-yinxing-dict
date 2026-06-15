@@ -21,7 +21,6 @@
 
 ```bash
 cargo build --release
-cargo build --release  # macOS
 ```
 
 > 开发进度请查看 [PROGRESS.md](./PROGRESS.md)。
