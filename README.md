@@ -21,17 +21,7 @@
 
 ```bash
 cargo build --release
+cargo build --release  # macOS
 ```
 
-## 进度
-
-| 阶段 | 状态 |
-|---|---|
-| 项目骨架（窗口 + 字体） | ✅ |
-| 字典数据内建（Rust 常量/代码生成） | ⬜ |
-| 搜索功能（输入文字查编码） | ⬜ |
-| 反向查询（输入编码查文字） | ⬜ |
-| 分类浏览 | ⬜ |
-| 复制编码到剪贴板 | ⬜ |
-| RIME 配置指导 | ⬜ |
-| macOS / Windows / Linux 发布 | ⬜ |
+> 开发进度请查看 [PROGRESS.md](./PROGRESS.md)。
