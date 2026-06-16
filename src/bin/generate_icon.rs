@@ -14,9 +14,7 @@ fn main() {
 
 #[cfg(feature = "generate-icon")]
 fn main() {
-    let out_dir = std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| ".".to_string());
+    let out_dir = std::env::args().nth(1).unwrap_or_else(|| ".".to_string());
 
     let iconset_dir = format!("{out_dir}/AppIcon.iconset");
     std::fs::create_dir_all(&iconset_dir).expect("Failed to create iconset directory");
@@ -154,11 +152,11 @@ fn write_png(path: &str, size: u32, rgba: &[u8]) -> std::io::Result<()> {
     let mut encoder = png::Encoder::new(std::io::BufWriter::new(file), size, size);
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
-    let mut writer = encoder.write_header().map_err(|e| {
-        std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
-    })?;
-    writer.write_image_data(rgba).map_err(|e| {
-        std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
-    })?;
+    let mut writer = encoder
+        .write_header()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    writer
+        .write_image_data(rgba)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
     Ok(())
 }
