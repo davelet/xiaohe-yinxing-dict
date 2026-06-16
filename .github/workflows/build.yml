@@ -1,16 +1,14 @@
 name: Build & Release
 
+# 仅在推送 v* 标签时触发
 on:
   push:
-    branches: [main, develop]
     tags: ["v*"]
-  pull_request:
-    branches: [main]
 
-# tag push 不允许被取消（只跑一次），PR 可取消
+# tag push 不允许被取消
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -24,7 +22,6 @@ jobs:
   # ---------------------------------------------------------------
   lint:
     name: Lint & Test
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -50,12 +47,11 @@ jobs:
         run: cargo test --locked
 
   # ---------------------------------------------------------------
-  # 2. macOS Build — push 阶段跑（含 tag），PR 跳过
+  # 2. macOS Build
   # ---------------------------------------------------------------
   build-macos:
     name: Build macOS
     needs: lint
-    if: ${{ github.event_name == 'push' }}
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -219,7 +215,6 @@ jobs:
   build-windows:
     name: Build Windows
     needs: lint
-    if: ${{ github.event_name == 'push' }}
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -257,7 +252,7 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------
-  # 4. Release — 仅在 tag 触发时跑
+  # 4. Release — 仅在 tag 触发时跑（当前唯一触发器）
   # ---------------------------------------------------------------
   release:
     name: Publish GitHub Release
