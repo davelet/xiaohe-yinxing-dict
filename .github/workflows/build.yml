@@ -67,10 +67,25 @@ jobs:
       - name: Cache cargo & target
         uses: Swatinem/rust-cache@v2
 
-      - name: Build (Release)
-        run: cargo build --release --locked
+      - name: Add Rust targets (x86_64 + aarch64)
+        run: rustup target add x86_64-apple-darwin aarch64-apple-darwin
 
-      - name: Strip binary
+      - name: Build for x86_64 (Intel)
+        run: cargo build --release --locked --target x86_64-apple-darwin
+
+      - name: Build for aarch64 (Apple Silicon)
+        run: cargo build --release --locked --target aarch64-apple-darwin
+
+      - name: Create universal binary with lipo
+        run: |
+          set -euo pipefail
+          mkdir -p target/release
+          lipo -create \
+            target/x86_64-apple-darwin/release/${APP_NAME} \
+            target/aarch64-apple-darwin/release/${APP_NAME} \
+            -output target/release/${APP_NAME}
+
+      - name: Strip universal binary
         run: strip -x target/release/${APP_NAME}
 
       - name: Get version from Cargo.toml
