@@ -106,9 +106,9 @@ jobs:
           fi
           echo "Tag v$TAG matches Cargo.toml version $APP_VERSION"
 
-      # ---- 图标准备：assets/AppIcon.icns 已在仓库中，直接复制即可 ----
+      # ---- 图标准备：静态文件，与运行时图标由相同算法生成 ----
       - name: Copy AppIcon.icns
-        run: cp assets/AppIcon.icns icon.icns
+        run: cp assets/AppIcon.icns AppIcon.icns
 
       - name: Create x86_64 .app bundle
         run: |
@@ -116,7 +116,7 @@ jobs:
           APP_DIR="target/x86_64-apple-darwin/release/${APP_NAME}.app"
           mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
           cp "target/x86_64-apple-darwin/release/${APP_NAME}" "$APP_DIR/Contents/MacOS/"
-          [ -f icon.icns ] && cp icon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
+          [ -f AppIcon.icns ] && cp AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
           cat > "$APP_DIR/Contents/Info.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -158,7 +158,7 @@ jobs:
           APP_DIR="target/aarch64-apple-darwin/release/${APP_NAME}.app"
           mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
           cp "target/aarch64-apple-darwin/release/${APP_NAME}" "$APP_DIR/Contents/MacOS/"
-          [ -f icon.icns ] && cp icon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
+          [ -f AppIcon.icns ] && cp AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
           cat > "$APP_DIR/Contents/Info.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -250,16 +250,24 @@ jobs:
       - name: Create x86_64 DMG
         run: |
           set -euo pipefail
+          STAGING="target/x86_64-apple-darwin/release/dmg_staging"
+          rm -rf "$STAGING" && mkdir -p "$STAGING"
+          cp -R "target/x86_64-apple-darwin/release/${APP_NAME}.app" "$STAGING/"
+          ln -s /Applications "$STAGING/Applications"
           hdiutil create -volname "${DMG_VOLNAME} (Intel)" \
-            -srcfolder "target/x86_64-apple-darwin/release/${APP_NAME}.app" \
+            -srcfolder "$STAGING" \
             -ov -format UDZO \
             "target/x86_64-apple-darwin/release/${APP_NAME}-macos-x86_64.dmg"
 
       - name: Create aarch64 DMG
         run: |
           set -euo pipefail
+          STAGING="target/aarch64-apple-darwin/release/dmg_staging"
+          rm -rf "$STAGING" && mkdir -p "$STAGING"
+          cp -R "target/aarch64-apple-darwin/release/${APP_NAME}.app" "$STAGING/"
+          ln -s /Applications "$STAGING/Applications"
           hdiutil create -volname "${DMG_VOLNAME} (Apple Silicon)" \
-            -srcfolder "target/aarch64-apple-darwin/release/${APP_NAME}.app" \
+            -srcfolder "$STAGING" \
             -ov -format UDZO \
             "target/aarch64-apple-darwin/release/${APP_NAME}-macos-aarch64.dmg"
 

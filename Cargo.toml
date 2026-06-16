@@ -5,3 +5,7 @@ edition = "2024"
 
 [dependencies]
 eframe = "0.34.3"
+png = { version = "0.17", optional = true }
+
+[features]
+generate-icon = ["png"]
