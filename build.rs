@@ -105,6 +105,7 @@ fn parse_all(content: &str) -> Vec<(String, String, &'static str, bool)> {
     let mut entries = Vec::new();
     let mut current_category = "";
     let mut current_format: Option<TableFormat> = None;
+    let mut seen_separator = false;
 
     for line in content.lines() {
         let trimmed = line.trim();
@@ -119,6 +120,7 @@ fn parse_all(content: &str) -> Vec<(String, String, &'static str, bool)> {
                 current_category = "";
                 current_format = None;
             }
+            seen_separator = false;
             continue;
         }
 
@@ -142,6 +144,11 @@ fn parse_all(content: &str) -> Vec<(String, String, &'static str, bool)> {
         }
 
         if is_separator_row(&parts) {
+            seen_separator = true;
+            continue;
+        }
+
+        if !seen_separator {
             continue;
         }
 

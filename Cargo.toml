@@ -5,7 +5,14 @@ edition = "2024"
 
 [dependencies]
 eframe = "0.34.3"
+image = { version = "0.25", features = ["webp"] }
 png = { version = "0.17", optional = true }
 
 [features]
 generate-icon = ["png"]
+
+[package.metadata.bundle]
+name = "小鹤音形词典"
+identifier = "com.xiaohe.yinxing-dict"
+icon = ["AppIcon.icns"]
+category = "Education"

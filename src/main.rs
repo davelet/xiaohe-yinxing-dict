@@ -12,8 +12,9 @@ use search::SearchEngine;
 include!(concat!(env!("OUT_DIR"), "/generated_dict.rs"));
 
 impl DictApp {
-    fn new(engine: SearchEngine) -> Self {
+    fn new(engine: SearchEngine, ctx: &egui::Context) -> Self {
         let categories = DictEntry::all_categories();
+        let help_image = Self::load_help_image(ctx);
         Self {
             engine,
             categories,
@@ -23,6 +24,20 @@ impl DictApp {
             search_results: Vec::new(),
             copied_feedback: None,
             feedback_timer: 0.0,
+            help_image,
+            show_help_tooltip: false,
+        }
+    }
+
+    fn load_help_image(ctx: &egui::Context) -> Option<egui::TextureHandle> {
+        let image_data = include_bytes!("../assets/xhzg.webp");
+        if let Ok(img) = image::load_from_memory(image_data) {
+            let size = [img.width() as _, img.height() as _];
+            let pixels = img.to_rgba8().into_flat_samples().samples;
+            let image = egui::ColorImage::from_rgba_unmultiplied(size, &pixels);
+            Some(ctx.load_texture("help_image", image, egui::TextureOptions::default()))
+        } else {
+            None
         }
     }
 }
@@ -36,29 +51,44 @@ struct DictApp {
     search_results: Vec<(usize, search::MatchKind)>,
     copied_feedback: Option<(usize, String)>,
     feedback_timer: f32,
+    help_image: Option<egui::TextureHandle>,
+    show_help_tooltip: bool,
 }
 
 impl eframe::App for DictApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        // Allow clean exit when window close is requested
-        if ui.input(|i| i.viewport().close_requested()) {
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-        }
+        let ctx = ui.ctx().clone();
 
         // Handle feedback timer - get context up front
         if self.feedback_timer > 0.0 {
-            let dt = ui.ctx().input(|i| i.unstable_dt);
+            let dt = ctx.input(|i| i.unstable_dt);
             self.feedback_timer -= dt;
             if self.feedback_timer <= 0.0 {
                 self.copied_feedback = None;
             }
-            ui.ctx().request_repaint();
+            ctx.request_repaint();
         }
 
         // Top panel: title + category filter
         egui::Panel::top("header_panel").show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("小鹤音形词典");
+                
+                // Help button with image tooltip
+                let help_btn = ui.button("❓ 键位帮助");
+                self.show_help_tooltip = help_btn.hovered();
+
+                // Show help image tooltip
+                if self.show_help_tooltip {
+                    if let Some(texture) = &self.help_image {
+                        help_btn.on_hover_ui(|ui| {
+                            ui.image(texture);
+                        });
+                    } else {
+                        help_btn.on_hover_text("图片加载失败");
+                    }
+                }
+
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // Keyboard nav for category cycling (works even without popup open)
                     let k_down = ui.input(|i| i.key_pressed(egui::Key::ArrowDown));
@@ -142,8 +172,6 @@ impl eframe::App for DictApp {
 
         // Central panel: search bar + results
         egui::CentralPanel::default().show_inside(ui, |ui| {
-            let ctx = ui.ctx().clone();
-
             // Search bar
             let _search_changed = ui
                 .add_sized(
@@ -190,21 +218,41 @@ impl eframe::App for DictApp {
                     egui::vec2(550.0, available_height),
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
-                        // Table header (fixed) - use exact same widths as body
-                        let col_widths = [120.0, 100.0, 150.0, 90.0];
+                        // Table layout constants
+                        const COL_WIDTHS: [f32; 4] = [120.0, 100.0, 150.0, 80.0];
+                        const HEADER_HEIGHT: f32 = 20.0;
+                        const ROW_HEIGHT: f32 = 28.0;
+
+                        fn render_cell<F>(ui: &mut egui::Ui, width: f32, height: f32, align_center: bool, content: F)
+                        where
+                            F: FnOnce(&mut egui::Ui),
+                        {
+                            let (rect, _) = ui.allocate_exact_size(
+                                egui::vec2(width, height),
+                                egui::Sense::hover(),
+                            );
+                            let layout = if align_center {
+                                egui::Layout::centered_and_justified(egui::Direction::LeftToRight)
+                            } else {
+                                egui::Layout::left_to_right(egui::Align::Center)
+                                    .with_main_wrap(false)
+                            };
+                            let mut child_ui = ui.new_child(
+                                egui::UiBuilder::new()
+                                    .max_rect(rect)
+                                    .layout(layout),
+                            );
+                            content(&mut child_ui);
+                        }
+
+                        // Table header (fixed)
                         ui.horizontal(|ui| {
-                            ui.allocate_ui(egui::vec2(col_widths[0], 20.0), |ui| {
-                                ui.strong("文字");
-                            });
-                            ui.allocate_ui(egui::vec2(col_widths[1], 20.0), |ui| {
-                                ui.strong("编码");
-                            });
-                            ui.allocate_ui(egui::vec2(col_widths[2], 20.0), |ui| {
-                                ui.strong("分类");
-                            });
-                            ui.allocate_ui(egui::vec2(col_widths[3], 20.0), |ui| {
-                                ui.strong("操作");
-                            });
+                            let headers = ["文字", "编码", "分类", "操作"];
+                            for (i, header) in headers.iter().enumerate() {
+                                render_cell(ui, COL_WIDTHS[i], HEADER_HEIGHT, i != 0, |ui| {
+                                    ui.strong(*header);
+                                });
+                            }
                         });
                         ui.separator();
 
@@ -220,95 +268,54 @@ impl eframe::App for DictApp {
                                         let entry = &DICT_ENTRIES[*idx];
 
                                         ui.horizontal(|ui| {
-                                            // Text column (with highlight) - fixed width
-                                            ui.allocate_ui(egui::vec2(col_widths[0], 28.0), |ui| {
-                                                ui.with_layout(
-                                                    egui::Layout::left_to_right(
-                                                        egui::Align::Center,
-                                                    )
-                                                    .with_main_wrap(false),
-                                                    |ui| {
-                                                        if let search::MatchKind::Text(
-                                                            matched_range,
-                                                        ) = match_kind
-                                                        {
-                                                            let (before, matched, after) =
-                                                                split_at_range(
-                                                                    entry.text,
-                                                                    matched_range.clone(),
-                                                                );
-                                                            ui.label(&before);
-                                                            ui.colored_label(
-                                                                egui::Color32::from_rgb(0, 130, 0),
-                                                                &matched,
-                                                            );
-                                                            ui.monospace(&after);
-                                                        } else {
-                                                            ui.label(entry.text);
-                                                        }
-                                                    },
-                                                );
+                                            // Text column (with highlight) - left aligned
+                                            render_cell(ui, COL_WIDTHS[0], ROW_HEIGHT, false, |ui| {
+                                                if let search::MatchKind::Text(matched_range) = match_kind {
+                                                    let (before, matched, after) =
+                                                        split_at_range(entry.text, matched_range.clone());
+                                                    ui.label(&before);
+                                                    ui.colored_label(egui::Color32::from_rgb(0, 130, 0), &matched);
+                                                    ui.monospace(&after);
+                                                } else {
+                                                    ui.label(entry.text);
+                                                }
                                             });
 
-                                            // Code column - fixed width
-                                            ui.allocate_ui(egui::vec2(col_widths[1], 28.0), |ui| {
-                                                ui.with_layout(
-                                                    egui::Layout::left_to_right(
-                                                        egui::Align::Center,
-                                                    ),
-                                                    |ui| {
-                                                        ui.monospace(entry.code);
-                                                    },
-                                                );
+                                            // Code column - centered
+                                            render_cell(ui, COL_WIDTHS[1], ROW_HEIGHT, true, |ui| {
+                                                ui.monospace(entry.code);
                                             });
 
-                                            // Category column - fixed width
-                                            ui.allocate_ui(egui::vec2(col_widths[2], 28.0), |ui| {
-                                                ui.with_layout(
-                                                    egui::Layout::left_to_right(
-                                                        egui::Align::Center,
-                                                    ),
-                                                    |ui| {
-                                                        ui.label(entry.category.display_name());
-                                                    },
-                                                );
+                                            // Category column - centered
+                                            render_cell(ui, COL_WIDTHS[2], ROW_HEIGHT, true, |ui| {
+                                                ui.label(entry.category.display_name());
                                             });
 
-                                            // Copy button column - fixed width
-                                            ui.allocate_ui(egui::vec2(col_widths[3], 28.0), |ui| {
-                                                ui.with_layout(
-                                                    egui::Layout::left_to_right(
-                                                        egui::Align::Center,
-                                                    ),
-                                                    |ui| {
-                                                        let btn_label = if self
-                                                            .copied_feedback
-                                                            .as_ref()
-                                                            .is_some_and(|(id, _)| *id == *idx)
-                                                        {
-                                                            "✅ 已复制"
-                                                        } else {
-                                                            "📋 复制"
-                                                        };
-                                                        let btn_response = ui.add_sized(
-                                                            [80.0, 24.0],
-                                                            egui::Button::new(btn_label),
+                                            // Copy button column - centered
+                                            render_cell(ui, COL_WIDTHS[3], ROW_HEIGHT, true, |ui| {
+                                                let btn_label = if self
+                                                    .copied_feedback
+                                                    .as_ref()
+                                                    .is_some_and(|(id, _)| *id == *idx)
+                                                {
+                                                    "✅ 已复制"
+                                                } else {
+                                                    "📋 复制"
+                                                };
+                                                let btn_response = ui.add_sized(
+                                                    [76.0, 24.0],
+                                                    egui::Button::new(btn_label),
+                                                );
+                                                if btn_response.clicked() {
+                                                    let code = entry.code.to_owned();
+                                                    ctx.output_mut(|o| {
+                                                        o.commands.push(
+                                                            OutputCommand::CopyText(code.clone()),
                                                         );
-                                                        if btn_response.clicked() {
-                                                            let code = entry.code.to_owned();
-                                                            ctx.output_mut(|o| {
-                                                                o.commands.push(
-                                                                    OutputCommand::CopyText(
-                                                                        code.clone(),
-                                                                    ),
-                                                                );
-                                                            });
-                                                            self.copied_feedback =
-                                                                Some((*idx, entry.code.to_owned()));
-                                                            self.feedback_timer = 2.0;
-                                                        }
-                                                    },
-                                                );
+                                                    });
+                                                    self.copied_feedback = Some((*idx, entry.code.to_owned()));
+                                                    self.feedback_timer = 2.0;
+                                                }
                                             });
                                         });
                                     }
@@ -424,6 +431,7 @@ fn create_app_icon() -> egui::IconData {
 fn main() -> eframe::Result {
     let icon = create_app_icon();
     let options = eframe::NativeOptions {
+        run_and_return: false,
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([950.0, 650.0])
             .with_resizable(true)
@@ -438,7 +446,7 @@ fn main() -> eframe::Result {
         Box::new(|cc| {
             setup_chinese_fonts(&cc.egui_ctx);
             let engine = SearchEngine::build(&DICT_ENTRIES);
-            Ok(Box::new(DictApp::new(engine)))
+            Ok(Box::new(DictApp::new(engine, &cc.egui_ctx)))
         }),
     )
 }
