@@ -278,7 +278,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "小鹤音形词典 v${{ github.ref_name }}"
+          name: "小鹤音形词典 ${{ github.ref_name }}"
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
