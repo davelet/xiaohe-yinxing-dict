@@ -76,17 +76,11 @@ jobs:
       - name: Build for aarch64 (Apple Silicon)
         run: cargo build --release --locked --target aarch64-apple-darwin
 
-      - name: Create universal binary with lipo
-        run: |
-          set -euo pipefail
-          mkdir -p target/release
-          lipo -create \
-            target/x86_64-apple-darwin/release/${APP_NAME} \
-            target/aarch64-apple-darwin/release/${APP_NAME} \
-            -output target/release/${APP_NAME}
+      - name: Strip x86_64 binary
+        run: strip -x target/x86_64-apple-darwin/release/${APP_NAME}
 
-      - name: Strip universal binary
-        run: strip -x target/release/${APP_NAME}
+      - name: Strip aarch64 binary
+        run: strip -x target/aarch64-apple-darwin/release/${APP_NAME}
 
       - name: Get version from Cargo.toml
         id: get_version
@@ -116,12 +110,54 @@ jobs:
       - name: Copy AppIcon.icns
         run: cp assets/AppIcon.icns icon.icns
 
-      - name: Create .app bundle
+      - name: Create x86_64 .app bundle
         run: |
           set -euo pipefail
-          APP_DIR="target/release/${APP_NAME}.app"
+          APP_DIR="target/x86_64-apple-darwin/release/${APP_NAME}.app"
           mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
-          cp "target/release/${APP_NAME}" "$APP_DIR/Contents/MacOS/"
+          cp "target/x86_64-apple-darwin/release/${APP_NAME}" "$APP_DIR/Contents/MacOS/"
+          [ -f icon.icns ] && cp icon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
+          cat > "$APP_DIR/Contents/Info.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>${APP_NAME}</string>
+              <key>CFBundleIdentifier</key>
+              <string>${APP_BUNDLE_ID}</string>
+              <key>CFBundleName</key>
+              <string>${DMG_VOLNAME}</string>
+              <key>CFBundleDisplayName</key>
+              <string>${DMG_VOLNAME}</string>
+              <key>CFBundleVersion</key>
+              <string>${APP_VERSION}</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${APP_VERSION}</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleIconFile</key>
+              <string>AppIcon</string>
+              <key>CFBundleIconName</key>
+              <string>AppIcon</string>
+              <key>CFBundleSignature</key>
+              <string>????</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>11.0</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+              <key>NSPrincipalClass</key>
+              <string>NSApplication</string>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Create aarch64 .app bundle
+        run: |
+          set -euo pipefail
+          APP_DIR="target/aarch64-apple-darwin/release/${APP_NAME}.app"
+          mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
+          cp "target/aarch64-apple-darwin/release/${APP_NAME}" "$APP_DIR/Contents/MacOS/"
           [ -f icon.icns ] && cp icon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
           cat > "$APP_DIR/Contents/Info.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -159,8 +195,6 @@ jobs:
           EOF
 
       # ---- 可选：Apple Developer ID 代码签名 + 公证 ----
-      # 如未配置下列 secrets，签名/公证步骤自动跳过，DMG 仍会生成（未签名）
-      # 配置方法见 README "macOS 签名与公证" 小节
       - name: Import signing certificate
         if: ${{ env.APPLE_CERT_P12_BASE64 != '' }}
         env:
@@ -181,18 +215,20 @@ jobs:
             -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           echo "Certificate imported"
 
-      - name: Code sign .app
+      - name: Code sign both apps
         if: ${{ env.APPLE_CERT_P12_BASE64 != '' }}
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
-          codesign --deep --force --options runtime --timestamp \
-            --sign "Developer ID Application: ${APPLE_TEAM_ID}" \
-            "target/release/${APP_NAME}.app"
-          codesign --verify --deep --strict --verbose=2 "target/release/${APP_NAME}.app"
+          for arch in x86_64-apple-darwin aarch64-apple-darwin; do
+            APP="target/$arch/release/${APP_NAME}.app"
+            codesign --deep --force --options runtime --timestamp \
+              --sign "Developer ID Application: ${APPLE_TEAM_ID}" "$APP"
+            codesign --verify --deep --strict --verbose=2 "$APP"
+          done
 
-      - name: Notarize and staple
+      - name: Notarize and staple both apps
         if: ${{ env.APPLE_CERT_P12_BASE64 != '' }}
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -200,28 +236,45 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
-          APP="target/release/${APP_NAME}.app"
-          ditto -c -k --sequesterRsrc --keepParent "$APP" "${APP}.zip"
-          xcrun notarytool submit "${APP}.zip" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait
-          xcrun stapler staple "$APP"
+          for arch in x86_64-apple-darwin aarch64-apple-darwin; do
+            APP="target/$arch/release/${APP_NAME}.app"
+            ditto -c -k --sequesterRsrc --keepParent "$APP" "${APP}.zip"
+            xcrun notarytool submit "${APP}.zip" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait
+            xcrun stapler staple "$APP"
+          done
 
-      - name: Create DMG
+      - name: Create x86_64 DMG
         run: |
           set -euo pipefail
-          hdiutil create -volname "${DMG_VOLNAME}" \
-            -srcfolder "target/release/${APP_NAME}.app" \
+          hdiutil create -volname "${DMG_VOLNAME} (Intel)" \
+            -srcfolder "target/x86_64-apple-darwin/release/${APP_NAME}.app" \
             -ov -format UDZO \
-            "target/release/${APP_NAME}.dmg"
+            "target/x86_64-apple-darwin/release/${APP_NAME}-macos-x86_64.dmg"
 
-      - name: Upload DMG (artifact)
+      - name: Create aarch64 DMG
+        run: |
+          set -euo pipefail
+          hdiutil create -volname "${DMG_VOLNAME} (Apple Silicon)" \
+            -srcfolder "target/aarch64-apple-darwin/release/${APP_NAME}.app" \
+            -ov -format UDZO \
+            "target/aarch64-apple-darwin/release/${APP_NAME}-macos-aarch64.dmg"
+
+      - name: Upload x86_64 DMG (artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: xiaohe-yinxing-dict-macos
-          path: target/release/xiaohe-yinxing-dict.dmg
+          name: xiaohe-yinxing-dict-macos-x86_64
+          path: target/x86_64-apple-darwin/release/xiaohe-yinxing-dict-macos-x86_64.dmg
+          if-no-files-found: error
+
+      - name: Upload aarch64 DMG (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaohe-yinxing-dict-macos-aarch64
+          path: target/aarch64-apple-darwin/release/xiaohe-yinxing-dict-macos-aarch64.dmg
           if-no-files-found: error
 
   # ---------------------------------------------------------------
@@ -277,10 +330,16 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download macOS DMG
+      - name: Download macOS x86_64 DMG
         uses: actions/download-artifact@v4
         with:
-          name: xiaohe-yinxing-dict-macos
+          name: xiaohe-yinxing-dict-macos-x86_64
+          path: artifacts
+
+      - name: Download macOS aarch64 DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: xiaohe-yinxing-dict-macos-aarch64
           path: artifacts
 
       - name: Download Windows zip
@@ -297,5 +356,6 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
-            artifacts/xiaohe-yinxing-dict.dmg
+            artifacts/xiaohe-yinxing-dict-macos-x86_64.dmg
+            artifacts/xiaohe-yinxing-dict-macos-aarch64.dmg
             artifacts/xiaohe-yinxing-dict-windows.zip
