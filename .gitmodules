@@ -1,0 +1,3 @@
+[submodule "my-mac-rime-data"]
+	path = my-mac-rime-data
+	url = https://github.com/davelet/my-mac-rime-data

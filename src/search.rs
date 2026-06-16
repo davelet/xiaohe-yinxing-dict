@@ -47,7 +47,9 @@ impl SearchEngine {
         let query_lower = query.to_lowercase();
 
         // 判断是否纯字母（编码查询）
-        let is_code_query = query_lower.chars().all(|c| c.is_ascii_lowercase() || c == ';');
+        let is_code_query = query_lower
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c == ';');
 
         let candidates: Vec<(usize, MatchKind)> = if is_code_query {
             self.search_by_code(&query_lower)
@@ -96,7 +98,7 @@ impl SearchEngine {
                 continue;
             }
             let code = entry.code.to_lowercase();
-            if let Some(pos) = code.find(&query) {
+            if let Some(pos) = code.find(query) {
                 seen.insert(idx);
                 results.push((idx, MatchKind::Code(pos..pos + query.len())));
             }

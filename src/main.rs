@@ -37,6 +37,11 @@ struct DictApp {
 
 impl eframe::App for DictApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // Allow clean exit when window close is requested
+        if ui.input(|i| i.viewport().close_requested()) {
+            // eframe handles the exit, just allow it
+        }
+
         // Handle feedback timer - get context up front
         if self.feedback_timer > 0.0 {
             let dt = ui.ctx().input(|i| i.unstable_dt);
@@ -52,13 +57,35 @@ impl eframe::App for DictApp {
             ui.horizontal(|ui| {
                 ui.heading("小鹤音形词典");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    egui::ComboBox::from_label("分类筛选")
+                    // Keyboard nav for category cycling (works even without popup open)
+                    let k_down = ui.input(|i| i.key_pressed(egui::Key::ArrowDown));
+                    let k_up = ui.input(|i| i.key_pressed(egui::Key::ArrowUp));
+                    if k_down || k_up {
+                        let all_cats: Vec<Option<Category>> = std::iter::once(None)
+                            .chain(self.categories.iter().copied().map(Some))
+                            .collect();
+                        let curr = all_cats
+                            .iter()
+                            .position(|&c| c == self.selected_category)
+                            .unwrap_or(0);
+                        let next = if k_down {
+                            (curr + 1) % all_cats.len()
+                        } else {
+                            (curr + all_cats.len() - 1) % all_cats.len()
+                        };
+                        self.selected_category = all_cats[next];
+                    }
+
+                    // ComboBox (handles mouse clicks natively)
+                    ui.style_mut().spacing.combo_height = 480.0;
+                    egui::ComboBox::from_id_salt("category_combo")
                         .selected_text(
                             self.selected_category
                                 .map(|c| c.display_name())
                                 .unwrap_or("全部"),
                         )
-                        .width(180.0)
+                        .width(350.0)
+                        .height(480.0)
                         .show_ui(ui, |ui| {
                             ui.selectable_value(
                                 &mut self.selected_category,
@@ -73,6 +100,7 @@ impl eframe::App for DictApp {
                                 );
                             }
                         });
+                    ui.label("分类筛选");
                 });
             });
             ui.separator();
@@ -112,10 +140,9 @@ impl eframe::App for DictApp {
 
             // Perform search
             if !self.query.is_empty() {
-                self.search_results = self.engine.search(
-                    self.query.trim(),
-                    self.selected_category,
-                );
+                self.search_results = self
+                    .engine
+                    .search(self.query.trim(), self.selected_category);
             } else {
                 self.search_results.clear();
             }
@@ -152,39 +179,22 @@ impl eframe::App for DictApp {
 
                                     // Text column (with highlight)
                                     if let search::MatchKind::Text(matched_range) = match_kind {
-                                        let (before, matched, after) = split_at_range(
-                                            entry.text,
-                                            matched_range.clone(),
-                                        );
+                                        let (before, matched, after) =
+                                            split_at_range(entry.text, matched_range.clone());
                                         ui.horizontal(|ui| {
                                             ui.label(&before);
                                             ui.colored_label(
-                                                egui::Color32::YELLOW,
-                                                &matched,
-                                            );
-                                            ui.label(&after);
-                                        });
-                                    } else {
-                                        ui.label(entry.text);
-                                    }
-
-                                    // Code column (with highlight)
-                                    if let search::MatchKind::Code(matched_range) = match_kind {
-                                        let (before, matched, after) = split_at_range(
-                                            entry.code,
-                                            matched_range.clone(),
-                                        );
-                                        ui.horizontal(|ui| {
-                                            ui.monospace(&before);
-                                            ui.colored_label(
-                                                egui::Color32::YELLOW,
+                                                egui::Color32::from_rgb(0, 130, 0),
                                                 &matched,
                                             );
                                             ui.monospace(&after);
                                         });
                                     } else {
-                                        ui.monospace(entry.code);
+                                        ui.label(entry.text);
                                     }
+
+                                    // Code column
+                                    ui.monospace(entry.code);
 
                                     // Category column
                                     ui.label(entry.category.display_name());
@@ -193,24 +203,20 @@ impl eframe::App for DictApp {
                                     let btn_label = if self
                                         .copied_feedback
                                         .as_ref()
-                                        .map_or(false, |(id, _)| *id == *idx)
+                                        .is_some_and(|(id, _)| *id == *idx)
                                     {
                                         "✅ 已复制"
                                     } else {
                                         "📋 复制"
                                     };
-                                    let btn_response = ui.add_sized(
-                                        [80.0, 24.0],
-                                        egui::Button::new(btn_label),
-                                    );
+                                    let btn_response =
+                                        ui.add_sized([80.0, 24.0], egui::Button::new(btn_label));
                                     if btn_response.clicked() {
                                         let code = entry.code.to_owned();
                                         ctx.output_mut(|o| {
-                                            o.commands
-                                                .push(OutputCommand::CopyText(code.clone()));
+                                            o.commands.push(OutputCommand::CopyText(code.clone()));
                                         });
-                                        self.copied_feedback =
-                                            Some((*idx, entry.code.to_owned()));
+                                        self.copied_feedback = Some((*idx, entry.code.to_owned()));
                                         self.feedback_timer = 2.0;
                                     }
 
@@ -221,6 +227,8 @@ impl eframe::App for DictApp {
             }
         });
     }
+
+    fn on_exit(&mut self) {}
 }
 
 fn split_at_range(s: &str, range: std::ops::Range<usize>) -> (String, String, String) {
@@ -230,16 +238,113 @@ fn split_at_range(s: &str, range: std::ops::Range<usize>) -> (String, String, St
     (before, matched, after)
 }
 
+fn create_app_icon() -> egui::IconData {
+    let size = 64u32;
+    let mut rgba = vec![0u8; (size * size * 4) as usize];
+    let half = size as f32 / 2.0;
+    let radius = half - 1.0;
+
+    for y in 0..size {
+        for x in 0..size {
+            let i = (y * size + x) as usize * 4;
+            let dx = x as f32 - half;
+            let dy = y as f32 - half;
+            let dist = (dx * dx + dy * dy).sqrt();
+
+            if dist > radius {
+                rgba[i + 3] = 0; // transparent outside circle
+                continue;
+            }
+
+            // Background: teal (#0d9488) to indigo (#4338ca) gradient
+            let t = dist / radius;
+            rgba[i] = (13.0 + (67.0 - 13.0) * t) as u8;
+            rgba[i + 1] = (148.0 - (148.0 - 56.0) * t) as u8;
+            rgba[i + 2] = (136.0 - (136.0 - 202.0) * t) as u8;
+            rgba[i + 3] = 255;
+
+            let nx = dx / radius; // -1..1
+            let ny = dy / radius; // -1..1
+            let _n_dist = dist / radius; // 0..1
+
+            // Draw white "crane in flight" silhouette
+            let mut white = false;
+
+            // Head: small circle at top
+            let hx = 0.0;
+            let hy = -0.45;
+            if (nx - hx).powi(2) + (ny - hy).powi(2) < 0.035 {
+                white = true;
+            }
+
+            // Beak: small triangle pointing right from head
+            if ny > -0.50 && ny < -0.40 && nx > 0.12 && nx < 0.30 {
+                let beak_top = -0.50 + (nx - 0.12) * 0.2;
+                let beak_bot = -0.40 - (nx - 0.12) * 0.2;
+                if ny > beak_top && ny < beak_bot {
+                    white = true;
+                }
+            }
+
+            // Body: thin vertical oval
+            if nx.abs() < 0.08 && ny > -0.35 && ny < 0.25 {
+                white = true;
+            }
+
+            // Left wing: triangular shape spreading up-left
+            if nx < -0.05 && ny > -0.45 && ny < 0.05 {
+                let wing_upper = -0.45 + (nx + 0.7) * 0.6;
+                let wing_lower = 0.05 - (nx + 0.7) * 0.4;
+                if ny > wing_upper && ny < wing_lower && nx > -0.7 {
+                    white = true;
+                }
+            }
+
+            // Right wing: triangular shape spreading up-right
+            if nx > 0.05 && ny > -0.45 && ny < 0.05 {
+                let wing_upper = -0.45 + (0.7 - nx) * 0.6;
+                let wing_lower = 0.05 - (0.7 - nx) * 0.4;
+                if ny > wing_upper && ny < wing_lower && nx < 0.7 {
+                    white = true;
+                }
+            }
+
+            // Tail feathers: small fan at bottom
+            if ny > 0.20 && ny < 0.45 && nx.abs() < 0.15 {
+                let tail_width = 0.15 * (1.0 - (ny - 0.20) / 0.25);
+                if nx.abs() < tail_width {
+                    white = true;
+                }
+            }
+
+            if white {
+                rgba[i] = 255;
+                rgba[i + 1] = 255;
+                rgba[i + 2] = 255;
+            }
+        }
+    }
+
+    egui::IconData {
+        rgba,
+        width: size,
+        height: size,
+    }
+}
+
 fn main() -> eframe::Result {
+    let icon = create_app_icon();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([800.0, 600.0])
-            .with_min_inner_size([400.0, 300.0]),
+            .with_resizable(false)
+            .with_maximize_button(false)
+            .with_icon(icon),
         ..Default::default()
     };
 
     eframe::run_native(
-        "xiaohe-yinxing-dict",
+        "小鹤音形词典",
         options,
         Box::new(|cc| {
             setup_chinese_fonts(&cc.egui_ctx);

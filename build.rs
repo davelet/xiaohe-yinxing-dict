@@ -12,7 +12,7 @@ fn main() {
     let dest_path = Path::new(&out_dir).join("generated_dict.rs");
 
     let mut code = String::new();
-    code.push_str("#[allow(non_upper_case_globals)]\n");
+    code.push_str("#[allow(non_upper_case_globals, clippy::large_const_arrays)]\n");
     // NOTE: no `use` imports here; included via `include!` into main.rs which has its own imports.
     code.push_str(&format!(
         "pub const DICT_ENTRIES: [crate::dict::DictEntry; {}] = [\n",
@@ -30,7 +30,10 @@ fn main() {
     code.push_str("];\n");
 
     fs::write(&dest_path, &code).unwrap();
-    println!("cargo::warning=Generated {} dictionary entries.", entries.len());
+    println!(
+        "cargo::warning=Generated {} dictionary entries.",
+        entries.len()
+    );
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,23 +44,41 @@ enum TableFormat {
 
 fn category_name_from_header(header: &str) -> &'static str {
     let h = header.trim();
-    if h.contains("一级简码") { "YiJiJianMa" }
-    else if h.contains("二重简码") { "ErChongJianMa" }
-    else if h.contains("三码填空") { "SanMaTianKong" }
-    else if h.contains("四码全码（字") { "SiMaQuanMaZi" }
-    else if h.contains("四码全码（词）置顶") { "SiMaQuanMaCiZhiDing" }
-    else if h.contains("四码全码（词）") { "SiMaQuanMaCi" }
-    else if h.contains("快符") { "KuaiFu" }
-    else if h.contains("符号（o") { "FuHao" }
-    else if h.contains("部首部件") { "BuShouBuJian" }
-    else if h.contains("Emoji") { "Emoji" }
-    else if h.contains("微信表情") { "WeiXinBiaoQing" }
-    else if h.contains("网站直达") { "WangZhanZhiDa" }
-    else if h.contains("随心所欲") { "SuiXinSuoYu" }
-    else if h.contains("二简（次选字") { "ErJianCiXuan" }
-    else if h.contains("四码全码（次选词") { "SiMaCiXuan" }
-    else if h.contains("首选四码全码") { "ShouXuanSiMa" }
-    else { "" }
+    if h.contains("一级简码") {
+        "YiJiJianMa"
+    } else if h.contains("二重简码") {
+        "ErChongJianMa"
+    } else if h.contains("三码填空") {
+        "SanMaTianKong"
+    } else if h.contains("四码全码（字") {
+        "SiMaQuanMaZi"
+    } else if h.contains("四码全码（词）置顶") {
+        "SiMaQuanMaCiZhiDing"
+    } else if h.contains("四码全码（词）") {
+        "SiMaQuanMaCi"
+    } else if h.contains("快符") {
+        "KuaiFu"
+    } else if h.contains("符号（o") {
+        "FuHao"
+    } else if h.contains("部首部件") {
+        "BuShouBuJian"
+    } else if h.contains("Emoji") {
+        "Emoji"
+    } else if h.contains("微信表情") {
+        "WeiXinBiaoQing"
+    } else if h.contains("网站直达") {
+        "WangZhanZhiDa"
+    } else if h.contains("随心所欲") {
+        "SuiXinSuoYu"
+    } else if h.contains("二简（次选字") {
+        "ErJianCiXuan"
+    } else if h.contains("四码全码（次选词") {
+        "SiMaCiXuan"
+    } else if h.contains("首选四码全码") {
+        "ShouXuanSiMa"
+    } else {
+        ""
+    }
 }
 
 fn is_secondary_for_category(cat_name: &str) -> bool {
@@ -136,7 +157,12 @@ fn parse_all(content: &str) -> Vec<(String, String, &'static str, bool)> {
                 if text.is_empty() || code.is_empty() {
                     continue;
                 }
-                entries.push((text.to_string(), code.to_string(), current_category, is_secondary));
+                entries.push((
+                    text.to_string(),
+                    code.to_string(),
+                    current_category,
+                    is_secondary,
+                ));
             }
             TableFormat::KeyCharPairs => {
                 if parts.len() < 2 || parts.len() % 2 != 0 {
@@ -148,7 +174,12 @@ fn parse_all(content: &str) -> Vec<(String, String, &'static str, bool)> {
                     if key.is_empty() || ch.is_empty() {
                         continue;
                     }
-                    entries.push((ch.to_string(), key.to_string(), current_category, is_secondary));
+                    entries.push((
+                        ch.to_string(),
+                        key.to_string(),
+                        current_category,
+                        is_secondary,
+                    ));
                 }
             }
         }

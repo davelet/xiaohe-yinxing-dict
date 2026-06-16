@@ -1,0 +1,291 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+# tag push 不允许被取消（只跑一次），PR 可取消
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  APP_NAME: xiaohe-yinxing-dict
+  APP_BUNDLE_ID: com.xiaohe.yinxing-dict
+  DMG_VOLNAME: 小鹤音形词典
+
+jobs:
+  # ---------------------------------------------------------------
+  # 1. Lint & Test — PR / push 阶段跑，tag 不跑（避免重复）
+  # ---------------------------------------------------------------
+  lint:
+    name: Lint & Test
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo & target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --locked
+
+      - name: Test
+        run: cargo test --locked
+
+  # ---------------------------------------------------------------
+  # 2. macOS Build — push 阶段跑（含 tag），PR 跳过
+  # ---------------------------------------------------------------
+  build-macos:
+    name: Build macOS
+    needs: lint
+    if: ${{ github.event_name == 'push' }}
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo & target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build (Release)
+        run: cargo build --release --locked
+
+      - name: Strip binary
+        run: strip -x target/release/${APP_NAME}
+
+      - name: Get version from Cargo.toml
+        id: get_version
+        run: |
+          set -euo pipefail
+          VERSION=$(awk -F'"' '/^version =/ {print $2; exit}' Cargo.toml)
+          if [ -z "$VERSION" ]; then
+            echo "::error::Failed to parse version from Cargo.toml"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Verify tag version matches Cargo.toml
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$TAG" != "$APP_VERSION" ]; then
+            echo "::error::Tag version (v$TAG) does not match Cargo.toml version ($APP_VERSION)"
+            echo "::error::Bump version in Cargo.toml or fix the tag."
+            exit 1
+          fi
+          echo "Tag v$TAG matches Cargo.toml version $APP_VERSION"
+
+      # ---- 图标准备：assets/AppIcon.icns 已在仓库中，直接复制即可 ----
+      - name: Copy AppIcon.icns
+        run: cp assets/AppIcon.icns icon.icns
+
+      - name: Create .app bundle
+        run: |
+          set -euo pipefail
+          APP_DIR="target/release/${APP_NAME}.app"
+          mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
+          cp "target/release/${APP_NAME}" "$APP_DIR/Contents/MacOS/"
+          [ -f icon.icns ] && cp icon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
+          cat > "$APP_DIR/Contents/Info.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>${APP_NAME}</string>
+              <key>CFBundleIdentifier</key>
+              <string>${APP_BUNDLE_ID}</string>
+              <key>CFBundleName</key>
+              <string>${DMG_VOLNAME}</string>
+              <key>CFBundleDisplayName</key>
+              <string>${DMG_VOLNAME}</string>
+              <key>CFBundleVersion</key>
+              <string>${APP_VERSION}</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${APP_VERSION}</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleIconFile</key>
+              <string>AppIcon</string>
+              <key>CFBundleIconName</key>
+              <string>AppIcon</string>
+              <key>CFBundleSignature</key>
+              <string>????</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>11.0</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+              <key>NSPrincipalClass</key>
+              <string>NSApplication</string>
+          </dict>
+          </plist>
+          EOF
+
+      # ---- 可选：Apple Developer ID 代码签名 + 公证 ----
+      # 如未配置下列 secrets，签名/公证步骤自动跳过，DMG 仍会生成（未签名）
+      # 配置方法见 README "macOS 签名与公证" 小节
+      - name: Import signing certificate
+        if: ${{ env.APPLE_CERT_P12_BASE64 != '' }}
+        env:
+          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+          echo "$APPLE_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" \
+            -P "$APPLE_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          echo "Certificate imported"
+
+      - name: Code sign .app
+        if: ${{ env.APPLE_CERT_P12_BASE64 != '' }}
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          codesign --deep --force --options runtime --timestamp \
+            --sign "Developer ID Application: ${APPLE_TEAM_ID}" \
+            "target/release/${APP_NAME}.app"
+          codesign --verify --deep --strict --verbose=2 "target/release/${APP_NAME}.app"
+
+      - name: Notarize and staple
+        if: ${{ env.APPLE_CERT_P12_BASE64 != '' }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          APP="target/release/${APP_NAME}.app"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "${APP}.zip"
+          xcrun notarytool submit "${APP}.zip" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$APP"
+
+      - name: Create DMG
+        run: |
+          set -euo pipefail
+          hdiutil create -volname "${DMG_VOLNAME}" \
+            -srcfolder "target/release/${APP_NAME}.app" \
+            -ov -format UDZO \
+            "target/release/${APP_NAME}.dmg"
+
+      - name: Upload DMG (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaohe-yinxing-dict-macos
+          path: target/release/xiaohe-yinxing-dict.dmg
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------
+  # 3. Windows Build — push 阶段跑，PR 跳过
+  # ---------------------------------------------------------------
+  build-windows:
+    name: Build Windows
+    needs: lint
+    if: ${{ github.event_name == 'push' }}
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo & target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build (Release)
+        run: cargo build --release --locked
+
+      - name: Package Windows (zip)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dst = "target/release/xiaohe-yinxing-dict-windows"
+          New-Item -ItemType Directory -Force -Path $dst | Out-Null
+          Copy-Item "target/release/xiaohe-yinxing-dict.exe" "$dst/"
+          if (Test-Path README.md) { Copy-Item README.md "$dst/README.txt" }
+          Compress-Archive -Path $dst -DestinationPath "target/release/xiaohe-yinxing-dict-windows.zip"
+          Get-ChildItem "target/release/xiaohe-yinxing-dict-windows.zip"
+
+      - name: Upload zip (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaohe-yinxing-dict-windows
+          path: target/release/xiaohe-yinxing-dict-windows.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------
+  # 4. Release — 仅在 tag 触发时跑
+  # ---------------------------------------------------------------
+  release:
+    name: Publish GitHub Release
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download macOS DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: xiaohe-yinxing-dict-macos
+          path: artifacts
+
+      - name: Download Windows zip
+        uses: actions/download-artifact@v4
+        with:
+          name: xiaohe-yinxing-dict-windows
+          path: artifacts
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "小鹤音形词典 v${{ github.ref_name }}"
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/xiaohe-yinxing-dict.dmg
+            artifacts/xiaohe-yinxing-dict-windows.zip
