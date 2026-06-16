@@ -19,6 +19,7 @@ impl DictApp {
             categories,
             query: String::new(),
             selected_category: None,
+            last_category: None,
             search_results: Vec::new(),
             copied_feedback: None,
             feedback_timer: 0.0,
@@ -31,6 +32,7 @@ struct DictApp {
     categories: Vec<Category>,
     query: String,
     selected_category: Option<Category>,
+    last_category: Option<Category>,
     search_results: Vec<(usize, search::MatchKind)>,
     copied_feedback: Option<(usize, String)>,
     feedback_timer: f32,
@@ -116,9 +118,24 @@ impl eframe::App for DictApp {
                     .selected_category
                     .map(|c| c.display_name())
                     .unwrap_or("全部");
+                
+                // Get real category count when query is empty
+                let display_count = if self.query.trim().is_empty() {
+                    self.engine.count_by_category(self.selected_category)
+                } else {
+                    filtered
+                };
+                
+                // Show "max 100" note when needed
+                let max_note = if self.query.trim().is_empty() && display_count > 100 {
+                    " (最多显示100条)"
+                } else {
+                    ""
+                };
+                
                 ui.label(format!(
-                    "找到 {} 条结果 | 词典共 {} 条 | 分类: {}",
-                    filtered, total, cat_label
+                    "找到 {} 条结果{} | 词典共 {} 条 | 分类: {}",
+                    display_count, max_note, total, cat_label
                 ));
             });
         });
@@ -139,93 +156,158 @@ impl eframe::App for DictApp {
 
             ui.separator();
 
-            // Perform search
+            // Check if category changed
+            let category_changed = self.last_category != self.selected_category;
+            self.last_category = self.selected_category;
+
+            // Perform search or show category content
             if !self.query.is_empty() {
                 self.search_results = self
                     .engine
                     .search(self.query.trim(), self.selected_category);
-            } else {
-                self.search_results.clear();
+            } else if category_changed || self.search_results.is_empty() {
+                // When query is empty and category changed (or first load), show all content for this category
+                self.search_results = self.engine.get_by_category(self.selected_category);
             }
 
             // Results header
             let result_count = self.search_results.len();
             let result_text = if self.query.trim().is_empty() {
-                "输入文字或编码开始搜索".to_string()
+                String::new()
             } else {
                 format!("找到 {} 条结果", result_count)
             };
-            ui.label(result_text);
+            if !result_text.is_empty() {
+                ui.label(result_text);
+            }
 
-            // Results table
-            if !self.search_results.is_empty() {
-                egui::ScrollArea::vertical()
-                    .max_height(ui.available_height())
-                    .show(ui, |ui| {
-                        use egui::Grid;
-
-                        Grid::new("results_grid")
-                            .striped(true)
-                            .min_col_width(80.0)
-                            .show(ui, |ui| {
+            // Main content area: table (left) + category description (right)
+            let available_height = ui.available_height();
+            
+            ui.horizontal(|ui| {
+                // Left side: table
+                ui.allocate_ui_with_layout(
+                    egui::vec2(550.0, available_height),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        // Table header (fixed) - use exact same widths as body
+                        let col_widths = [120.0, 100.0, 150.0, 90.0];
+                        ui.horizontal(|ui| {
+                            ui.allocate_ui(egui::vec2(col_widths[0], 20.0), |ui| {
                                 ui.strong("文字");
+                            });
+                            ui.allocate_ui(egui::vec2(col_widths[1], 20.0), |ui| {
                                 ui.strong("编码");
+                            });
+                            ui.allocate_ui(egui::vec2(col_widths[2], 20.0), |ui| {
                                 ui.strong("分类");
+                            });
+                            ui.allocate_ui(egui::vec2(col_widths[3], 20.0), |ui| {
                                 ui.strong("操作");
-                                ui.end_row();
+                            });
+                        });
+                        ui.separator();
 
-                                let results = self.search_results.clone();
-                                for (idx, match_kind) in &results {
-                                    let entry = &DICT_ENTRIES[*idx];
-
-                                    // Text column (with highlight)
-                                    if let search::MatchKind::Text(matched_range) = match_kind {
-                                        let (before, matched, after) =
-                                            split_at_range(entry.text, matched_range.clone());
+                        // Table body (scrollable) - use exact same widths as header
+                        let body_height = ui.available_height();
+                        egui::ScrollArea::vertical()
+                            .id_salt("table_scroll")
+                            .max_height(body_height)
+                            .show(ui, |ui| {
+                                if !self.search_results.is_empty() {
+                                    let results = self.search_results.clone();
+                                    for (idx, match_kind) in &results {
+                                        let entry = &DICT_ENTRIES[*idx];
+                                        
                                         ui.horizontal(|ui| {
-                                            ui.label(&before);
-                                            ui.colored_label(
-                                                egui::Color32::from_rgb(0, 130, 0),
-                                                &matched,
-                                            );
-                                            ui.monospace(&after);
+                                            // Text column (with highlight) - fixed width
+                                            ui.allocate_ui(egui::vec2(col_widths[0], 28.0), |ui| {
+                                                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false), |ui| {
+                                                    if let search::MatchKind::Text(matched_range) = match_kind {
+                                                        let (before, matched, after) =
+                                                            split_at_range(entry.text, matched_range.clone());
+                                                        ui.label(&before);
+                                                        ui.colored_label(
+                                                            egui::Color32::from_rgb(0, 130, 0),
+                                                            &matched,
+                                                        );
+                                                        ui.monospace(&after);
+                                                    } else {
+                                                        ui.label(entry.text);
+                                                    }
+                                                });
+                                            });
+
+                                            // Code column - fixed width
+                                            ui.allocate_ui(egui::vec2(col_widths[1], 28.0), |ui| {
+                                                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                                    ui.monospace(entry.code);
+                                                });
+                                            });
+
+                                            // Category column - fixed width
+                                            ui.allocate_ui(egui::vec2(col_widths[2], 28.0), |ui| {
+                                                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                                    ui.label(entry.category.display_name());
+                                                });
+                                            });
+
+                                            // Copy button column - fixed width
+                                            ui.allocate_ui(egui::vec2(col_widths[3], 28.0), |ui| {
+                                                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                                    let btn_label = if self
+                                                        .copied_feedback
+                                                        .as_ref()
+                                                        .is_some_and(|(id, _)| *id == *idx)
+                                                    {
+                                                        "✅ 已复制"
+                                                    } else {
+                                                        "📋 复制"
+                                                    };
+                                                    let btn_response =
+                                                        ui.add_sized([80.0, 24.0], egui::Button::new(btn_label));
+                                                    if btn_response.clicked() {
+                                                        let code = entry.code.to_owned();
+                                                        ctx.output_mut(|o| {
+                                                            o.commands.push(OutputCommand::CopyText(code.clone()));
+                                                        });
+                                                        self.copied_feedback = Some((*idx, entry.code.to_owned()));
+                                                        self.feedback_timer = 2.0;
+                                                    }
+                                                });
+                                            });
                                         });
-                                    } else {
-                                        ui.label(entry.text);
                                     }
-
-                                    // Code column
-                                    ui.monospace(entry.code);
-
-                                    // Category column
-                                    ui.label(entry.category.display_name());
-
-                                    // Copy button column
-                                    let btn_label = if self
-                                        .copied_feedback
-                                        .as_ref()
-                                        .is_some_and(|(id, _)| *id == *idx)
-                                    {
-                                        "✅ 已复制"
-                                    } else {
-                                        "📋 复制"
-                                    };
-                                    let btn_response =
-                                        ui.add_sized([80.0, 24.0], egui::Button::new(btn_label));
-                                    if btn_response.clicked() {
-                                        let code = entry.code.to_owned();
-                                        ctx.output_mut(|o| {
-                                            o.commands.push(OutputCommand::CopyText(code.clone()));
-                                        });
-                                        self.copied_feedback = Some((*idx, entry.code.to_owned()));
-                                        self.feedback_timer = 2.0;
-                                    }
-
-                                    ui.end_row();
+                                } else {
+                                    ui.label("无匹配结果");
                                 }
                             });
-                    });
-            }
+                    },
+                );
+
+                // Right side: category description (always visible)
+                ui.separator();
+                ui.allocate_ui_with_layout(
+                    egui::vec2(ui.available_width(), available_height),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        let cat_label = self
+                            .selected_category
+                            .map(|c| c.display_name())
+                            .unwrap_or("全部");
+                        ui.heading(cat_label);
+                        ui.separator();
+
+                        let desc = get_category_description(self.selected_category);
+                        egui::ScrollArea::vertical()
+                            .id_salt("description_scroll")
+                            .max_height(ui.available_height())
+                            .show(ui, |ui| {
+                                ui.label(desc);
+                            });
+                    },
+                );
+            });
         });
     }
 
@@ -237,6 +319,28 @@ fn split_at_range(s: &str, range: std::ops::Range<usize>) -> (String, String, St
     let matched = s[range.start..range.end].to_string();
     let after = s[range.end..].to_string();
     (before, matched, after)
+}
+
+fn get_category_description(category: Option<Category>) -> &'static str {
+    match category {
+        Some(Category::YiJiJianMa) => "一级简码是小鹤音形中最常用的26个汉字，每个字母对应一个高频字。\n\n例如：\n- q = 起\n- w = 我\n- e = 而\n- r = 人\n直接按一个字母加空格即可输入。",
+        Some(Category::ErChongJianMa) => "二重简码是使用两个字母编码的常用汉字，约有600多个。\n\n例如：\n- qb = 情\n- qc = 请\n- qd = 巧\n输入两个字母后按空格即可输入。",
+        Some(Category::SanMaTianKong) => "三码填空是指三码编码的汉字，在输入三码后系统会自动填空上屏。\n\n这是小鹤音形的特色功能，无需按空格确认，大大提升输入速度。",
+        Some(Category::SiMaQuanMaZi) => "四码全码（单字）是完整的四码编码汉字。\n\n编码规则：声 + 韵 + 首形 + 尾形\n\n当输入四码时，如果只有一个候选字，会自动上屏。",
+        Some(Category::SiMaQuanMaCiZhiDing) => "四码全码（词置顶）是指在词库中优先级最高的词组，会在候选框中置顶显示。\n\n这些词组通常是最常用的固定搭配。",
+        Some(Category::SiMaQuanMaCi) => "四码全码（词）是普通词组，按照词组编码规则输入。\n\n双字词：首字前两码 + 次字前两码\n三字词：前两字首码 + 第三字前两码\n四字及以上词：前三字首码 + 末字首码",
+        Some(Category::KuaiFu) => "快符是快速输入特殊符号的功能。\n\n例如：\n- ; = 。\n- ;; = ；\n- ;a = ！\n- ;b = （\n输入分号后跟一个字母即可快速输入对应符号。",
+        Some(Category::FuHao) => "符号分类包含各种特殊符号和标点。\n\n包含：数学符号、标点符号、箭头符号、括号符号等。\n\n可以通过编码反查来快速找到需要的符号。",
+        Some(Category::BuShouBuJian) => "部首部件是汉字的基本组成部分，了解这些部件有助于理解和记忆字形编码。\n\n每个部首都有对应的编码，掌握后可以更准确地拆分生僻字。",
+        Some(Category::Emoji) => "Emoji表情符号，可以通过编码输入各种表情。\n\n例如：\n- hh = 😄 (哈哈)\n- kx = 😊 (开心)\n- wq = 😢 (委屈)\n通过拼音首字母即可快速输入常用表情。",
+        Some(Category::WeiXinBiaoQing) => "微信表情是微信中常用的表情图。\n\n可以通过编码快速输入对应的微信表情文字描述或快捷短语。",
+        Some(Category::WangZhanZhiDa) => "网站直达是通过编码快速打开常用网站的功能。\n\n例如输入对应编码后按指定键即可在浏览器中打开网站。",
+        Some(Category::SuiXinSuoYu) => "随心所欲是一些自定义的特殊短语和快捷输入。\n\n包含各种实用的快捷短语和特殊功能，方便快速输入长文本。",
+        Some(Category::ErJianCiXuan) => "二简（次选字）是二重简码的次选字，即两个字母编码的第二个候选字。\n\n通常按分号键选择次选，按引号键选择三选。",
+        Some(Category::SiMaCiXuan) => "四码（次选词）是四码全码词组的次选候选词。\n\n当多个词组编码相同时，按分号可以选择次选词，按引号可以选择三选词。",
+        Some(Category::ShouXuanSiMa) => "首选四码（词/短语）是四码词组中的首选候选，即第一个候选词。\n\n这些是最常用的词组，输入四码后直接按空格即可上屏。",
+        None => "全部分类显示词典中所有类型的条目。\n\n小鹤音形是一款音形码输入法，结合了拼音和字形的优点：\n\n• 音码：双拼方案，每个拼音两码完成\n• 形码：基于汉字首尾部结构\n\n特点：\n- 低重码：音形结合大幅降低重码\n- 盲打：低重码支持真正的盲打\n- 易学：双拼+简单字形规则\n- 高效：自动填空、四码唯一自动上屏\n\n建议从一级简码和二重简码开始学习，逐步掌握三码和四码全码。",
+    }
 }
 
 fn create_app_icon() -> egui::IconData {
@@ -253,9 +357,9 @@ fn main() -> eframe::Result {
     let icon = create_app_icon();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([800.0, 600.0])
-            .with_resizable(false)
-            .with_maximize_button(false)
+            .with_inner_size([950.0, 650.0])
+            .with_resizable(true)
+            .with_maximize_button(true)
             .with_icon(icon),
         ..Default::default()
     };

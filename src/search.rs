@@ -203,4 +203,32 @@ impl SearchEngine {
     pub fn entries(&self) -> &[DictEntry] {
         &self.entries
     }
+
+    /// 获取分类的真实条目数量
+    pub fn count_by_category(&self, category_filter: Option<Category>) -> usize {
+        match category_filter {
+            Some(cat) => self.entries.iter().filter(|e| e.category == cat).count(),
+            None => self.entries.len(),
+        }
+    }
+
+    /// 按分类获取所有条目（最多100条）
+    pub fn get_by_category(&self, category_filter: Option<Category>) -> Vec<(usize, MatchKind)> {
+        let mut results = Vec::new();
+        for (idx, entry) in self.entries.iter().enumerate() {
+            match category_filter {
+                Some(cat) if entry.category == cat => {
+                    results.push((idx, MatchKind::Code(0..0)));
+                }
+                None => {
+                    results.push((idx, MatchKind::Code(0..0)));
+                }
+                _ => {}
+            }
+            if results.len() >= 100 {
+                break;
+            }
+        }
+        results
+    }
 }
