@@ -88,133 +88,133 @@ impl eframe::App for DictApp {
 
         // Top panel: title + category filter (hidden in help mode)
         if !self.show_help_panel {
-        egui::Panel::top("header_panel").show_inside(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading("小鹤音形词典");
+            egui::Panel::top("header_panel").show_inside(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.heading("小鹤音形词典");
 
-                // Help button with image tooltip (click to toggle, stays on hover)
-                let help_btn = ui.button("❓ 部件字根键位图");
+                    // Help button with image tooltip (click to toggle, stays on hover)
+                    let help_btn = ui.button("❓ 部件字根键位图");
 
-                if help_btn.clicked() {
-                    self.show_help_image = !self.show_help_image;
-                }
+                    if help_btn.clicked() {
+                        self.show_help_image = !self.show_help_image;
+                    }
 
-                if self.show_help_image {
-                    if let Some(texture) = &self.help_image {
-                        let tooltip_pos = help_btn.rect.left_bottom() + egui::vec2(0.0, 4.0);
-                        let area_response = egui::Area::new("help_tooltip".into())
-                            .fixed_pos(tooltip_pos)
-                            .order(egui::Order::Tooltip)
-                            .show(ui.ctx(), |ui| {
-                                egui::Frame::popup(ui.style()).show(ui, |ui| {
-                                    let max_w = 750.0;
-                                    let max_h = 600.0;
-                                    let [iw, ih] = texture.size();
-                                    let img_size = egui::vec2(iw as f32, ih as f32);
-                                    let scale =
-                                        (max_w / img_size.x).min(max_h / img_size.y).min(1.0);
-                                    ui.image((texture.id(), img_size * scale));
+                    if self.show_help_image {
+                        if let Some(texture) = &self.help_image {
+                            let tooltip_pos = help_btn.rect.left_bottom() + egui::vec2(0.0, 4.0);
+                            let area_response = egui::Area::new("help_tooltip".into())
+                                .fixed_pos(tooltip_pos)
+                                .order(egui::Order::Tooltip)
+                                .show(ui.ctx(), |ui| {
+                                    egui::Frame::popup(ui.style()).show(ui, |ui| {
+                                        let max_w = 750.0;
+                                        let max_h = 600.0;
+                                        let [iw, ih] = texture.size();
+                                        let img_size = egui::vec2(iw as f32, ih as f32);
+                                        let scale =
+                                            (max_w / img_size.x).min(max_h / img_size.y).min(1.0);
+                                        ui.image((texture.id(), img_size * scale));
+                                    });
                                 });
-                            });
 
-                        // Hide only when mouse leaves both button and image
-                        if !help_btn.hovered() && !area_response.response.hovered() {
-                            self.show_help_image = false;
+                            // Hide only when mouse leaves both button and image
+                            if !help_btn.hovered() && !area_response.response.hovered() {
+                                self.show_help_image = false;
+                            }
                         }
                     }
-                }
 
-                // Help documentation button
-                let help_doc_btn = ui.button("📖 帮助文档");
-                if help_doc_btn.clicked() {
-                    self.show_help_panel = !self.show_help_panel;
-                    if self.show_help_panel && self.selected_help_chapter.is_none() {
-                        self.selected_help_chapter = Some("readme".to_string());
-                    }
-                }
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // Keyboard nav for category cycling (works even without popup open)
-                    let k_down = ui.input(|i| i.key_pressed(egui::Key::ArrowDown));
-                    let k_up = ui.input(|i| i.key_pressed(egui::Key::ArrowUp));
-                    if k_down || k_up {
-                        let all_cats: Vec<Option<Category>> = std::iter::once(None)
-                            .chain(self.categories.iter().copied().map(Some))
-                            .collect();
-                        let curr = all_cats
-                            .iter()
-                            .position(|&c| c == self.selected_category)
-                            .unwrap_or(0);
-                        let next = if k_down {
-                            (curr + 1) % all_cats.len()
-                        } else {
-                            (curr + all_cats.len() - 1) % all_cats.len()
-                        };
-                        self.selected_category = all_cats[next];
+                    // Help documentation button
+                    let help_doc_btn = ui.button("📖 帮助文档");
+                    if help_doc_btn.clicked() {
+                        self.show_help_panel = !self.show_help_panel;
+                        if self.show_help_panel && self.selected_help_chapter.is_none() {
+                            self.selected_help_chapter = Some("readme".to_string());
+                        }
                     }
 
-                    // ComboBox (handles mouse clicks natively)
-                    ui.style_mut().spacing.combo_height = 480.0;
-                    egui::ComboBox::from_id_salt("category_combo")
-                        .selected_text(
-                            self.selected_category
-                                .map(|c| c.display_name())
-                                .unwrap_or("全部"),
-                        )
-                        .width(350.0)
-                        .height(480.0)
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut self.selected_category,
-                                None::<Category>,
-                                "全部",
-                            );
-                            for &cat in &self.categories {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // Keyboard nav for category cycling (works even without popup open)
+                        let k_down = ui.input(|i| i.key_pressed(egui::Key::ArrowDown));
+                        let k_up = ui.input(|i| i.key_pressed(egui::Key::ArrowUp));
+                        if k_down || k_up {
+                            let all_cats: Vec<Option<Category>> = std::iter::once(None)
+                                .chain(self.categories.iter().copied().map(Some))
+                                .collect();
+                            let curr = all_cats
+                                .iter()
+                                .position(|&c| c == self.selected_category)
+                                .unwrap_or(0);
+                            let next = if k_down {
+                                (curr + 1) % all_cats.len()
+                            } else {
+                                (curr + all_cats.len() - 1) % all_cats.len()
+                            };
+                            self.selected_category = all_cats[next];
+                        }
+
+                        // ComboBox (handles mouse clicks natively)
+                        ui.style_mut().spacing.combo_height = 480.0;
+                        egui::ComboBox::from_id_salt("category_combo")
+                            .selected_text(
+                                self.selected_category
+                                    .map(|c| c.display_name())
+                                    .unwrap_or("全部"),
+                            )
+                            .width(350.0)
+                            .height(480.0)
+                            .show_ui(ui, |ui| {
                                 ui.selectable_value(
                                     &mut self.selected_category,
-                                    Some(cat),
-                                    cat.display_name(),
+                                    None::<Category>,
+                                    "全部",
                                 );
-                            }
-                        });
-                    ui.label("分类筛选");
+                                for &cat in &self.categories {
+                                    ui.selectable_value(
+                                        &mut self.selected_category,
+                                        Some(cat),
+                                        cat.display_name(),
+                                    );
+                                }
+                            });
+                        ui.label("分类筛选");
+                    });
                 });
+                ui.separator();
             });
-            ui.separator();
-        });
         } // end if !self.show_help_panel
 
         // Bottom panel: status bar (hidden in help mode)
         if !self.show_help_panel {
-        egui::Panel::bottom("status_panel").show_inside(ui, |ui| {
-            ui.horizontal(|ui| {
-                let total = DICT_ENTRIES.len();
-                let filtered = self.search_results.len();
-                let cat_label = self
-                    .selected_category
-                    .map(|c| c.display_name())
-                    .unwrap_or("全部");
+            egui::Panel::bottom("status_panel").show_inside(ui, |ui| {
+                ui.horizontal(|ui| {
+                    let total = DICT_ENTRIES.len();
+                    let filtered = self.search_results.len();
+                    let cat_label = self
+                        .selected_category
+                        .map(|c| c.display_name())
+                        .unwrap_or("全部");
 
-                // Get real category count when query is empty
-                let display_count = if self.query.trim().is_empty() {
-                    self.engine.count_by_category(self.selected_category)
-                } else {
-                    filtered
-                };
+                    // Get real category count when query is empty
+                    let display_count = if self.query.trim().is_empty() {
+                        self.engine.count_by_category(self.selected_category)
+                    } else {
+                        filtered
+                    };
 
-                // Show "max 100" note when needed
-                let max_note = if self.query.trim().is_empty() && display_count > 100 {
-                    " (最多显示100条)"
-                } else {
-                    ""
-                };
+                    // Show "max 100" note when needed
+                    let max_note = if self.query.trim().is_empty() && display_count > 100 {
+                        " (最多显示100条)"
+                    } else {
+                        ""
+                    };
 
-                ui.label(format!(
-                    "找到 {} 条结果{} | 词典共 {} 条 | 分类: {}",
-                    display_count, max_note, total, cat_label
-                ));
+                    ui.label(format!(
+                        "找到 {} 条结果{} | 词典共 {} 条 | 分类: {}",
+                        display_count, max_note, total, cat_label
+                    ));
+                });
             });
-        });
         } // end if !self.show_help_panel
 
         // Central panel: search bar + results OR help documentation
@@ -296,15 +296,12 @@ impl DictApp {
                     ) where
                         F: FnOnce(&mut egui::Ui),
                     {
-                        let (rect, _) = ui.allocate_exact_size(
-                            egui::vec2(width, height),
-                            egui::Sense::hover(),
-                        );
+                        let (rect, _) =
+                            ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
                         let layout = if align_center {
                             egui::Layout::centered_and_justified(egui::Direction::LeftToRight)
                         } else {
-                            egui::Layout::left_to_right(egui::Align::Center)
-                                .with_main_wrap(false)
+                            egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false)
                         };
                         let mut child_ui =
                             ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(layout));
@@ -321,15 +318,9 @@ impl DictApp {
                             ui.horizontal(|ui| {
                                 let headers = ["文字", "编码", "分类", "操作", ""];
                                 for (i, header) in headers.iter().enumerate() {
-                                    render_cell(
-                                        ui,
-                                        COL_WIDTHS[i],
-                                        HEADER_HEIGHT,
-                                        i != 0,
-                                        |ui| {
-                                            ui.strong(*header);
-                                        },
-                                    );
+                                    render_cell(ui, COL_WIDTHS[i], HEADER_HEIGHT, i != 0, |ui| {
+                                        ui.strong(*header);
+                                    });
                                 }
                             });
                             ui.separator();
@@ -341,135 +332,96 @@ impl DictApp {
 
                                     ui.horizontal(|ui| {
                                         // Text column (with highlight) - left aligned with horizontal scroll
-                                        render_cell(
-                                            ui,
-                                            COL_WIDTHS[0],
-                                            ROW_HEIGHT,
-                                            false,
-                                            |ui| {
-                                                egui::ScrollArea::horizontal()
-                                                    .id_salt(format!("text_scroll_{}", idx))
-                                                    .show(ui, |ui| {
-                                                        ui.set_min_height(ROW_HEIGHT);
-                                                        if let search::MatchKind::Text(
-                                                            matched_range,
-                                                        ) = match_kind
-                                                        {
-                                                            let (before, matched, after) =
-                                                                split_at_range(
-                                                                    entry.text,
-                                                                    matched_range.clone(),
-                                                                );
-                                                            ui.label(&before);
-                                                            ui.colored_label(
-                                                                egui::Color32::from_rgb(
-                                                                    0, 130, 0,
-                                                                ),
-                                                                &matched,
+                                        render_cell(ui, COL_WIDTHS[0], ROW_HEIGHT, false, |ui| {
+                                            egui::ScrollArea::horizontal()
+                                                .id_salt(format!("text_scroll_{}", idx))
+                                                .show(ui, |ui| {
+                                                    ui.set_min_height(ROW_HEIGHT);
+                                                    if let search::MatchKind::Text(matched_range) =
+                                                        match_kind
+                                                    {
+                                                        let (before, matched, after) =
+                                                            split_at_range(
+                                                                entry.text,
+                                                                matched_range.clone(),
                                                             );
-                                                            ui.monospace(&after);
-                                                        } else {
-                                                            ui.label(entry.text);
-                                                        }
-                                                    });
-                                            },
-                                        );
+                                                        ui.label(&before);
+                                                        ui.colored_label(
+                                                            egui::Color32::from_rgb(0, 130, 0),
+                                                            &matched,
+                                                        );
+                                                        ui.monospace(&after);
+                                                    } else {
+                                                        ui.label(entry.text);
+                                                    }
+                                                });
+                                        });
 
                                         // Code column - centered
-                                        render_cell(
-                                            ui,
-                                            COL_WIDTHS[1],
-                                            ROW_HEIGHT,
-                                            true,
-                                            |ui| {
-                                                ui.monospace(entry.code);
-                                            },
-                                        );
+                                        render_cell(ui, COL_WIDTHS[1], ROW_HEIGHT, true, |ui| {
+                                            ui.monospace(entry.code);
+                                        });
 
                                         // Category column - centered
-                                        render_cell(
-                                            ui,
-                                            COL_WIDTHS[2],
-                                            ROW_HEIGHT,
-                                            true,
-                                            |ui| {
-                                                ui.label(entry.category.display_name());
-                                            },
-                                        );
+                                        render_cell(ui, COL_WIDTHS[2], ROW_HEIGHT, true, |ui| {
+                                            ui.label(entry.category.display_name());
+                                        });
 
                                         // Copy text button
-                                        render_cell(
-                                            ui,
-                                            COL_WIDTHS[3],
-                                            ROW_HEIGHT,
-                                            true,
-                                            |ui| {
-                                                let copied_text = self
-                                                    .copied_feedback
-                                                    .as_ref()
-                                                    .is_some_and(|(id, kind)| {
-                                                        *id == *idx && *kind == CopyKind::Text
-                                                    });
-                                                let btn_label = if copied_text {
-                                                    "✅文字"
-                                                } else {
-                                                    "📋文字"
-                                                };
-                                                let btn_response = ui.add_sized(
-                                                    [64.0, 24.0],
-                                                    egui::Button::new(btn_label),
-                                                );
-                                                if btn_response.clicked() {
-                                                    ctx.output_mut(|o| {
-                                                        o.commands.push(
-                                                            OutputCommand::CopyText(
-                                                                entry.text.to_owned(),
-                                                            ),
-                                                        );
-                                                    });
-                                                    self.copied_feedback =
-                                                        Some((*idx, CopyKind::Text));
-                                                    self.feedback_timer = 2.0;
-                                                }
-                                            },
-                                        );
+                                        render_cell(ui, COL_WIDTHS[3], ROW_HEIGHT, true, |ui| {
+                                            let copied_text = self
+                                                .copied_feedback
+                                                .as_ref()
+                                                .is_some_and(|(id, kind)| {
+                                                    *id == *idx && *kind == CopyKind::Text
+                                                });
+                                            let btn_label = if copied_text {
+                                                "✅文字"
+                                            } else {
+                                                "📋文字"
+                                            };
+                                            let btn_response = ui.add_sized(
+                                                [64.0, 24.0],
+                                                egui::Button::new(btn_label),
+                                            );
+                                            if btn_response.clicked() {
+                                                ctx.output_mut(|o| {
+                                                    o.commands.push(OutputCommand::CopyText(
+                                                        entry.text.to_owned(),
+                                                    ));
+                                                });
+                                                self.copied_feedback = Some((*idx, CopyKind::Text));
+                                                self.feedback_timer = 2.0;
+                                            }
+                                        });
 
                                         // Copy code button
-                                        render_cell(
-                                            ui,
-                                            COL_WIDTHS[4],
-                                            ROW_HEIGHT,
-                                            true,
-                                            |ui| {
-                                                let copied_code = self
-                                                    .copied_feedback
-                                                    .as_ref()
-                                                    .is_some_and(|(id, kind)| {
-                                                        *id == *idx && *kind == CopyKind::Code
-                                                    });
-                                                let btn_label = if copied_code {
-                                                    "✅编码"
-                                                } else {
-                                                    "📋编码"
-                                                };
-                                                let btn_response = ui.add_sized(
-                                                    [64.0, 24.0],
-                                                    egui::Button::new(btn_label),
-                                                );
-                                                if btn_response.clicked() {
-                                                    ctx.output_mut(|o| {
-                                                        o.commands.push(
-                                                            OutputCommand::CopyText(
-                                                                entry.code.to_owned(),
-                                                            ),
-                                                        );
-                                                    });
-                                                    self.copied_feedback =
-                                                        Some((*idx, CopyKind::Code));
-                                                    self.feedback_timer = 2.0;
-                                                }
-                                            },
-                                        );
+                                        render_cell(ui, COL_WIDTHS[4], ROW_HEIGHT, true, |ui| {
+                                            let copied_code = self
+                                                .copied_feedback
+                                                .as_ref()
+                                                .is_some_and(|(id, kind)| {
+                                                    *id == *idx && *kind == CopyKind::Code
+                                                });
+                                            let btn_label = if copied_code {
+                                                "✅编码"
+                                            } else {
+                                                "📋编码"
+                                            };
+                                            let btn_response = ui.add_sized(
+                                                [64.0, 24.0],
+                                                egui::Button::new(btn_label),
+                                            );
+                                            if btn_response.clicked() {
+                                                ctx.output_mut(|o| {
+                                                    o.commands.push(OutputCommand::CopyText(
+                                                        entry.code.to_owned(),
+                                                    ));
+                                                });
+                                                self.copied_feedback = Some((*idx, CopyKind::Code));
+                                                self.feedback_timer = 2.0;
+                                            }
+                                        });
                                     });
                                 }
                             } else {
@@ -528,13 +480,10 @@ impl DictApp {
                     .id_salt("help_chapter_list")
                     .show(ui, |ui| {
                         for chapter in &chapters {
-                            let is_selected =
-                                current_chapter.as_deref() == Some(chapter.id);
-                            let button =
-                                ui.selectable_label(is_selected, chapter.title);
+                            let is_selected = current_chapter.as_deref() == Some(chapter.id);
+                            let button = ui.selectable_label(is_selected, chapter.title);
                             if button.clicked() {
-                                self.selected_help_chapter =
-                                    Some(chapter.id.to_string());
+                                self.selected_help_chapter = Some(chapter.id.to_string());
                             }
                         }
                     });
