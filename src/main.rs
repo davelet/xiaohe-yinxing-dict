@@ -81,7 +81,7 @@ impl eframe::App for DictApp {
         egui::Panel::top("header_panel").show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("小鹤音形词典");
-                
+
                 // Help button with image tooltip (click to toggle, stays on hover)
                 let help_btn = ui.button("❓ 部件字根键位图");
 
@@ -101,9 +101,8 @@ impl eframe::App for DictApp {
                                     let max_h = 600.0;
                                     let [iw, ih] = texture.size();
                                     let img_size = egui::vec2(iw as f32, ih as f32);
-                                    let scale = (max_w / img_size.x)
-                                        .min(max_h / img_size.y)
-                                        .min(1.0);
+                                    let scale =
+                                        (max_w / img_size.x).min(max_h / img_size.y).min(1.0);
                                     ui.image((texture.id(), img_size * scale));
                                 });
                             });
@@ -253,8 +252,13 @@ impl eframe::App for DictApp {
                         const HEADER_HEIGHT: f32 = 20.0;
                         const ROW_HEIGHT: f32 = 28.0;
 
-                        fn render_cell<F>(ui: &mut egui::Ui, width: f32, height: f32, align_center: bool, content: F)
-                        where
+                        fn render_cell<F>(
+                            ui: &mut egui::Ui,
+                            width: f32,
+                            height: f32,
+                            align_center: bool,
+                            content: F,
+                        ) where
                             F: FnOnce(&mut egui::Ui),
                         {
                             let (rect, _) = ui.allocate_exact_size(
@@ -267,11 +271,8 @@ impl eframe::App for DictApp {
                                 egui::Layout::left_to_right(egui::Align::Center)
                                     .with_main_wrap(false)
                             };
-                            let mut child_ui = ui.new_child(
-                                egui::UiBuilder::new()
-                                    .max_rect(rect)
-                                    .layout(layout),
-                            );
+                            let mut child_ui =
+                                ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(layout));
                             content(&mut child_ui);
                         }
 
@@ -285,9 +286,15 @@ impl eframe::App for DictApp {
                                 ui.horizontal(|ui| {
                                     let headers = ["文字", "编码", "分类", "操作", ""];
                                     for (i, header) in headers.iter().enumerate() {
-                                        render_cell(ui, COL_WIDTHS[i], HEADER_HEIGHT, i != 0, |ui| {
-                                            ui.strong(*header);
-                                        });
+                                        render_cell(
+                                            ui,
+                                            COL_WIDTHS[i],
+                                            HEADER_HEIGHT,
+                                            i != 0,
+                                            |ui| {
+                                                ui.strong(*header);
+                                            },
+                                        );
                                     }
                                 });
                                 ui.separator();
@@ -299,72 +306,135 @@ impl eframe::App for DictApp {
 
                                         ui.horizontal(|ui| {
                                             // Text column (with highlight) - left aligned with horizontal scroll
-                                            render_cell(ui, COL_WIDTHS[0], ROW_HEIGHT, false, |ui| {
-                                                egui::ScrollArea::horizontal()
-                                                    .id_salt(format!("text_scroll_{}", idx))
-                                                    .show(ui, |ui| {
-                                                        ui.set_min_height(ROW_HEIGHT);
-                                                        if let search::MatchKind::Text(matched_range) = match_kind {
-                                                            let (before, matched, after) =
-                                                                split_at_range(entry.text, matched_range.clone());
-                                                            ui.label(&before);
-                                                            ui.colored_label(egui::Color32::from_rgb(0, 130, 0), &matched);
-                                                            ui.monospace(&after);
-                                                        } else {
-                                                            ui.label(entry.text);
-                                                        }
-                                                    });
-                                            });
+                                            render_cell(
+                                                ui,
+                                                COL_WIDTHS[0],
+                                                ROW_HEIGHT,
+                                                false,
+                                                |ui| {
+                                                    egui::ScrollArea::horizontal()
+                                                        .id_salt(format!("text_scroll_{}", idx))
+                                                        .show(ui, |ui| {
+                                                            ui.set_min_height(ROW_HEIGHT);
+                                                            if let search::MatchKind::Text(
+                                                                matched_range,
+                                                            ) = match_kind
+                                                            {
+                                                                let (before, matched, after) =
+                                                                    split_at_range(
+                                                                        entry.text,
+                                                                        matched_range.clone(),
+                                                                    );
+                                                                ui.label(&before);
+                                                                ui.colored_label(
+                                                                    egui::Color32::from_rgb(
+                                                                        0, 130, 0,
+                                                                    ),
+                                                                    &matched,
+                                                                );
+                                                                ui.monospace(&after);
+                                                            } else {
+                                                                ui.label(entry.text);
+                                                            }
+                                                        });
+                                                },
+                                            );
 
                                             // Code column - centered
-                                            render_cell(ui, COL_WIDTHS[1], ROW_HEIGHT, true, |ui| {
-                                                ui.monospace(entry.code);
-                                            });
+                                            render_cell(
+                                                ui,
+                                                COL_WIDTHS[1],
+                                                ROW_HEIGHT,
+                                                true,
+                                                |ui| {
+                                                    ui.monospace(entry.code);
+                                                },
+                                            );
 
                                             // Category column - centered
-                                            render_cell(ui, COL_WIDTHS[2], ROW_HEIGHT, true, |ui| {
-                                                ui.label(entry.category.display_name());
-                                            });
+                                            render_cell(
+                                                ui,
+                                                COL_WIDTHS[2],
+                                                ROW_HEIGHT,
+                                                true,
+                                                |ui| {
+                                                    ui.label(entry.category.display_name());
+                                                },
+                                            );
 
                                             // Copy text button
-                                            render_cell(ui, COL_WIDTHS[3], ROW_HEIGHT, true, |ui| {
-                                                let copied_text = self
-                                                    .copied_feedback
-                                                    .as_ref()
-                                                    .is_some_and(|(id, kind)| *id == *idx && *kind == CopyKind::Text);
-                                                let btn_label = if copied_text { "✅文字" } else { "📋文字" };
-                                                let btn_response = ui.add_sized(
-                                                    [64.0, 24.0],
-                                                    egui::Button::new(btn_label),
-                                                );
-                                                if btn_response.clicked() {
-                                                    ctx.output_mut(|o| {
-                                                        o.commands.push(OutputCommand::CopyText(entry.text.to_owned()));
-                                                    });
-                                                    self.copied_feedback = Some((*idx, CopyKind::Text));
-                                                    self.feedback_timer = 2.0;
-                                                }
-                                            });
+                                            render_cell(
+                                                ui,
+                                                COL_WIDTHS[3],
+                                                ROW_HEIGHT,
+                                                true,
+                                                |ui| {
+                                                    let copied_text = self
+                                                        .copied_feedback
+                                                        .as_ref()
+                                                        .is_some_and(|(id, kind)| {
+                                                            *id == *idx && *kind == CopyKind::Text
+                                                        });
+                                                    let btn_label = if copied_text {
+                                                        "✅文字"
+                                                    } else {
+                                                        "📋文字"
+                                                    };
+                                                    let btn_response = ui.add_sized(
+                                                        [64.0, 24.0],
+                                                        egui::Button::new(btn_label),
+                                                    );
+                                                    if btn_response.clicked() {
+                                                        ctx.output_mut(|o| {
+                                                            o.commands.push(
+                                                                OutputCommand::CopyText(
+                                                                    entry.text.to_owned(),
+                                                                ),
+                                                            );
+                                                        });
+                                                        self.copied_feedback =
+                                                            Some((*idx, CopyKind::Text));
+                                                        self.feedback_timer = 2.0;
+                                                    }
+                                                },
+                                            );
 
                                             // Copy code button
-                                            render_cell(ui, COL_WIDTHS[4], ROW_HEIGHT, true, |ui| {
-                                                let copied_code = self
-                                                    .copied_feedback
-                                                    .as_ref()
-                                                    .is_some_and(|(id, kind)| *id == *idx && *kind == CopyKind::Code);
-                                                let btn_label = if copied_code { "✅编码" } else { "📋编码" };
-                                                let btn_response = ui.add_sized(
-                                                    [64.0, 24.0],
-                                                    egui::Button::new(btn_label),
-                                                );
-                                                if btn_response.clicked() {
-                                                    ctx.output_mut(|o| {
-                                                        o.commands.push(OutputCommand::CopyText(entry.code.to_owned()));
-                                                    });
-                                                    self.copied_feedback = Some((*idx, CopyKind::Code));
-                                                    self.feedback_timer = 2.0;
-                                                }
-                                            });
+                                            render_cell(
+                                                ui,
+                                                COL_WIDTHS[4],
+                                                ROW_HEIGHT,
+                                                true,
+                                                |ui| {
+                                                    let copied_code = self
+                                                        .copied_feedback
+                                                        .as_ref()
+                                                        .is_some_and(|(id, kind)| {
+                                                            *id == *idx && *kind == CopyKind::Code
+                                                        });
+                                                    let btn_label = if copied_code {
+                                                        "✅编码"
+                                                    } else {
+                                                        "📋编码"
+                                                    };
+                                                    let btn_response = ui.add_sized(
+                                                        [64.0, 24.0],
+                                                        egui::Button::new(btn_label),
+                                                    );
+                                                    if btn_response.clicked() {
+                                                        ctx.output_mut(|o| {
+                                                            o.commands.push(
+                                                                OutputCommand::CopyText(
+                                                                    entry.code.to_owned(),
+                                                                ),
+                                                            );
+                                                        });
+                                                        self.copied_feedback =
+                                                            Some((*idx, CopyKind::Code));
+                                                        self.feedback_timer = 2.0;
+                                                    }
+                                                },
+                                            );
                                         });
                                     }
                                 } else {
