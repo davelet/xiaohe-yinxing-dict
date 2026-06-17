@@ -7,6 +7,12 @@ pub mod search;
 mod trie;
 
 use dict::{Category, DictEntry};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CopyKind {
+    Text,
+    Code,
+}
 use search::SearchEngine;
 
 include!(concat!(env!("OUT_DIR"), "/generated_dict.rs"));
@@ -19,13 +25,14 @@ impl DictApp {
             engine,
             categories,
             query: String::new(),
+            last_query: String::new(),
             selected_category: None,
             last_category: None,
             search_results: Vec::new(),
             copied_feedback: None,
             feedback_timer: 0.0,
             help_image,
-            show_help_tooltip: false,
+            show_help_image: false,
         }
     }
 
@@ -46,13 +53,14 @@ struct DictApp {
     engine: SearchEngine,
     categories: Vec<Category>,
     query: String,
+    last_query: String,
     selected_category: Option<Category>,
     last_category: Option<Category>,
     search_results: Vec<(usize, search::MatchKind)>,
-    copied_feedback: Option<(usize, String)>,
+    copied_feedback: Option<(usize, CopyKind)>,
     feedback_timer: f32,
     help_image: Option<egui::TextureHandle>,
-    show_help_tooltip: bool,
+    show_help_image: bool,
 }
 
 impl eframe::App for DictApp {
@@ -74,18 +82,36 @@ impl eframe::App for DictApp {
             ui.horizontal(|ui| {
                 ui.heading("小鹤音形词典");
                 
-                // Help button with image tooltip
-                let help_btn = ui.button("❓ 键位帮助");
-                self.show_help_tooltip = help_btn.hovered();
+                // Help button with image tooltip (click to toggle, stays on hover)
+                let help_btn = ui.button("❓ 部件字根键位图");
 
-                // Show help image tooltip
-                if self.show_help_tooltip {
+                if help_btn.clicked() {
+                    self.show_help_image = !self.show_help_image;
+                }
+
+                if self.show_help_image {
                     if let Some(texture) = &self.help_image {
-                        help_btn.on_hover_ui(|ui| {
-                            ui.image(texture);
-                        });
-                    } else {
-                        help_btn.on_hover_text("图片加载失败");
+                        let tooltip_pos = help_btn.rect.left_bottom() + egui::vec2(0.0, 4.0);
+                        let area_response = egui::Area::new("help_tooltip".into())
+                            .fixed_pos(tooltip_pos)
+                            .order(egui::Order::Tooltip)
+                            .show(ui.ctx(), |ui| {
+                                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                                    let max_w = 750.0;
+                                    let max_h = 600.0;
+                                    let [iw, ih] = texture.size();
+                                    let img_size = egui::vec2(iw as f32, ih as f32);
+                                    let scale = (max_w / img_size.x)
+                                        .min(max_h / img_size.y)
+                                        .min(1.0);
+                                    ui.image((texture.id(), img_size * scale));
+                                });
+                            });
+
+                        // Hide only when mouse leaves both button and image
+                        if !help_btn.hovered() && !area_response.response.hovered() {
+                            self.show_help_image = false;
+                        }
                     }
                 }
 
@@ -188,13 +214,17 @@ impl eframe::App for DictApp {
             let category_changed = self.last_category != self.selected_category;
             self.last_category = self.selected_category;
 
+            // Check if query was just cleared (non-empty -> empty)
+            let query_cleared = !self.last_query.is_empty() && self.query.is_empty();
+            self.last_query = self.query.clone();
+
             // Perform search or show category content
             if !self.query.is_empty() {
                 self.search_results = self
                     .engine
                     .search(self.query.trim(), self.selected_category);
-            } else if category_changed || self.search_results.is_empty() {
-                // When query is empty and category changed (or first load), show all content for this category
+            } else if query_cleared || category_changed || self.search_results.is_empty() {
+                // Reload when: query cleared, category changed, or first load
                 self.search_results = self.engine.get_by_category(self.selected_category);
             }
 
@@ -219,7 +249,7 @@ impl eframe::App for DictApp {
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
                         // Table layout constants
-                        const COL_WIDTHS: [f32; 4] = [120.0, 100.0, 150.0, 80.0];
+                        const COL_WIDTHS: [f32; 5] = [120.0, 100.0, 150.0, 70.0, 70.0];
                         const HEADER_HEIGHT: f32 = 20.0;
                         const ROW_HEIGHT: f32 = 28.0;
 
@@ -245,40 +275,45 @@ impl eframe::App for DictApp {
                             content(&mut child_ui);
                         }
 
-                        // Table header (fixed)
-                        ui.horizontal(|ui| {
-                            let headers = ["文字", "编码", "分类", "操作"];
-                            for (i, header) in headers.iter().enumerate() {
-                                render_cell(ui, COL_WIDTHS[i], HEADER_HEIGHT, i != 0, |ui| {
-                                    ui.strong(*header);
-                                });
-                            }
-                        });
-                        ui.separator();
-
-                        // Table body (scrollable) - use exact same widths as header
+                        // Table header + body
                         let body_height = ui.available_height();
                         egui::ScrollArea::vertical()
                             .id_salt("table_scroll")
                             .max_height(body_height)
                             .show(ui, |ui| {
+                                // Table header
+                                ui.horizontal(|ui| {
+                                    let headers = ["文字", "编码", "分类", "操作", ""];
+                                    for (i, header) in headers.iter().enumerate() {
+                                        render_cell(ui, COL_WIDTHS[i], HEADER_HEIGHT, i != 0, |ui| {
+                                            ui.strong(*header);
+                                        });
+                                    }
+                                });
+                                ui.separator();
+
                                 if !self.search_results.is_empty() {
                                     let results = self.search_results.clone();
                                     for (idx, match_kind) in &results {
                                         let entry = &DICT_ENTRIES[*idx];
 
                                         ui.horizontal(|ui| {
-                                            // Text column (with highlight) - left aligned
+                                            // Text column (with highlight) - left aligned with horizontal scroll
                                             render_cell(ui, COL_WIDTHS[0], ROW_HEIGHT, false, |ui| {
-                                                if let search::MatchKind::Text(matched_range) = match_kind {
-                                                    let (before, matched, after) =
-                                                        split_at_range(entry.text, matched_range.clone());
-                                                    ui.label(&before);
-                                                    ui.colored_label(egui::Color32::from_rgb(0, 130, 0), &matched);
-                                                    ui.monospace(&after);
-                                                } else {
-                                                    ui.label(entry.text);
-                                                }
+                                                egui::ScrollArea::horizontal()
+                                                    .id_salt(format!("text_scroll_{}", idx))
+                                                    .show(ui, |ui| {
+                                                        ui.set_min_height(ROW_HEIGHT);
+                                                        if let search::MatchKind::Text(matched_range) = match_kind {
+                                                            let (before, matched, after) =
+                                                                split_at_range(entry.text, matched_range.clone());
+                                                            ui.label(&before);
+                                                            ui.colored_label(egui::Color32::from_rgb(0, 130, 0), &matched);
+                                                            ui.monospace(&after);
+                                                        } else {
+                                                            ui.label(entry.text);
+                                                        }
+                                                    });
                                             });
 
                                             // Code column - centered
@@ -291,29 +326,42 @@ impl eframe::App for DictApp {
                                                 ui.label(entry.category.display_name());
                                             });
 
-                                            // Copy button column - centered
+                                            // Copy text button
                                             render_cell(ui, COL_WIDTHS[3], ROW_HEIGHT, true, |ui| {
-                                                let btn_label = if self
+                                                let copied_text = self
                                                     .copied_feedback
                                                     .as_ref()
-                                                    .is_some_and(|(id, _)| *id == *idx)
-                                                {
-                                                    "✅ 已复制"
-                                                } else {
-                                                    "📋 复制"
-                                                };
+                                                    .is_some_and(|(id, kind)| *id == *idx && *kind == CopyKind::Text);
+                                                let btn_label = if copied_text { "✅文字" } else { "📋文字" };
                                                 let btn_response = ui.add_sized(
-                                                    [76.0, 24.0],
+                                                    [64.0, 24.0],
                                                     egui::Button::new(btn_label),
                                                 );
                                                 if btn_response.clicked() {
-                                                    let code = entry.code.to_owned();
                                                     ctx.output_mut(|o| {
-                                                        o.commands.push(
-                                                            OutputCommand::CopyText(code.clone()),
-                                                        );
+                                                        o.commands.push(OutputCommand::CopyText(entry.text.to_owned()));
                                                     });
-                                                    self.copied_feedback = Some((*idx, entry.code.to_owned()));
+                                                    self.copied_feedback = Some((*idx, CopyKind::Text));
+                                                    self.feedback_timer = 2.0;
+                                                }
+                                            });
+
+                                            // Copy code button
+                                            render_cell(ui, COL_WIDTHS[4], ROW_HEIGHT, true, |ui| {
+                                                let copied_code = self
+                                                    .copied_feedback
+                                                    .as_ref()
+                                                    .is_some_and(|(id, kind)| *id == *idx && *kind == CopyKind::Code);
+                                                let btn_label = if copied_code { "✅编码" } else { "📋编码" };
+                                                let btn_response = ui.add_sized(
+                                                    [64.0, 24.0],
+                                                    egui::Button::new(btn_label),
+                                                );
+                                                if btn_response.clicked() {
+                                                    ctx.output_mut(|o| {
+                                                        o.commands.push(OutputCommand::CopyText(entry.code.to_owned()));
+                                                    });
+                                                    self.copied_feedback = Some((*idx, CopyKind::Code));
                                                     self.feedback_timer = 2.0;
                                                 }
                                             });
