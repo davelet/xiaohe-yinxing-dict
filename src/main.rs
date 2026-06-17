@@ -542,16 +542,22 @@ impl DictApp {
 
         // Content fills the remaining central area
         egui::CentralPanel::default().show_inside(ui, |ui| {
-            if let Some(chapter_id) = &self.selected_help_chapter {
-                if let Some(chapter) = self.help_manager.get_chapter(chapter_id) {
-                    egui::ScrollArea::vertical()
-                        .id_salt("help_content")
-                        .show(ui, |ui| {
-                            HelpManager::render_markdown(ui, chapter.content);
-                        });
-                }
+            let chapter_id = self.selected_help_chapter.clone();
+            let mut nav = help::HelpNav { goto: None };
+            if let Some(id) = &chapter_id {
+                egui::ScrollArea::vertical()
+                    .id_salt("help_content")
+                    .show(ui, |ui| {
+                        if let Some(chapter) = self.help_manager.get_chapter(id) {
+                            help::reset_table_counter();
+                            (chapter.render)(ui, &mut nav);
+                        }
+                    });
             } else {
                 ui.label("请从左侧选择帮助章节");
+            }
+            if let Some(target) = nav.goto {
+                self.selected_help_chapter = Some(target.to_string());
             }
         });
     }
