@@ -1,23 +1,5 @@
 #[allow(non_upper_case_globals, clippy::large_const_arrays)]
-pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
-    crate::dict::DictEntry {
-        text: "字",
-        code: "键",
-        category: crate::dict::Category::YiJiJianMa,
-        is_secondary: false,
-    },
-    crate::dict::DictEntry {
-        text: "字",
-        code: "键",
-        category: crate::dict::Category::YiJiJianMa,
-        is_secondary: false,
-    },
-    crate::dict::DictEntry {
-        text: "字",
-        code: "键",
-        category: crate::dict::Category::YiJiJianMa,
-        is_secondary: false,
-    },
+pub const DICT_ENTRIES: [crate::dict::DictEntry; 14920] = [
     crate::dict::DictEntry {
         text: "啊",
         code: "a",
@@ -172,12 +154,6 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         text: "在",
         code: "z",
         category: crate::dict::Category::YiJiJianMa,
-        is_secondary: false,
-    },
-    crate::dict::DictEntry {
-        text: "字",
-        code: "编码",
-        category: crate::dict::Category::ErChongJianMa,
         is_secondary: false,
     },
     crate::dict::DictEntry {
@@ -706,12 +682,6 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         text: "骂",
         code: "ma",
         category: crate::dict::Category::ErChongJianMa,
-        is_secondary: false,
-    },
-    crate::dict::DictEntry {
-        text: "输出",
-        code: "编码",
-        category: crate::dict::Category::SanMaTianKong,
         is_secondary: false,
     },
     crate::dict::DictEntry {
@@ -31387,12 +31357,6 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         is_secondary: false,
     },
     crate::dict::DictEntry {
-        text: "输出",
-        code: "编码",
-        category: crate::dict::Category::SiMaQuanMaZi,
-        is_secondary: false,
-    },
-    crate::dict::DictEntry {
         text: "㕮",
         code: "fukx",
         category: crate::dict::Category::SiMaQuanMaZi,
@@ -43537,12 +43501,6 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         is_secondary: false,
     },
     crate::dict::DictEntry {
-        text: "输出",
-        code: "编码",
-        category: crate::dict::Category::SiMaQuanMaCiZhiDing,
-        is_secondary: false,
-    },
-    crate::dict::DictEntry {
         text: "一下",
         code: "yixx",
         category: crate::dict::Category::SiMaQuanMaCiZhiDing,
@@ -43726,12 +43684,6 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         text: "试试",
         code: "uiui",
         category: crate::dict::Category::SiMaQuanMaCiZhiDing,
-        is_secondary: false,
-    },
-    crate::dict::DictEntry {
-        text: "输出",
-        code: "编码",
-        category: crate::dict::Category::SiMaQuanMaCi,
         is_secondary: false,
     },
     crate::dict::DictEntry {
@@ -46753,12 +46705,6 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         is_secondary: false,
     },
     crate::dict::DictEntry {
-        text: "输出",
-        code: "编码",
-        category: crate::dict::Category::KuaiFu,
-        is_secondary: false,
-    },
-    crate::dict::DictEntry {
         text: "：",
         code: ";",
         category: crate::dict::Category::KuaiFu,
@@ -46915,12 +46861,6 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         is_secondary: false,
     },
     crate::dict::DictEntry {
-        text: "输出",
-        code: "编码",
-        category: crate::dict::Category::FuHao,
-        is_secondary: false,
-    },
-    crate::dict::DictEntry {
         text: "&",
         code: "oa",
         category: crate::dict::Category::FuHao,
@@ -46978,12 +46918,6 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         text: "+",
         code: "oz",
         category: crate::dict::Category::FuHao,
-        is_secondary: false,
-    },
-    crate::dict::DictEntry {
-        text: "输出",
-        code: "编码",
-        category: crate::dict::Category::BuShouBuJian,
         is_secondary: false,
     },
     crate::dict::DictEntry {
@@ -47542,12 +47476,6 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         text: "𧘇",
         code: "oby",
         category: crate::dict::Category::BuShouBuJian,
-        is_secondary: false,
-    },
-    crate::dict::DictEntry {
-        text: "输出",
-        code: "编码",
-        category: crate::dict::Category::Emoji,
         is_secondary: false,
     },
     crate::dict::DictEntry {
@@ -48511,12 +48439,6 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         is_secondary: false,
     },
     crate::dict::DictEntry {
-        text: "输出",
-        code: "编码",
-        category: crate::dict::Category::WeiXinBiaoQing,
-        is_secondary: false,
-    },
-    crate::dict::DictEntry {
         text: "[666]",
         code: "owll",
         category: crate::dict::Category::WeiXinBiaoQing,
@@ -49219,12 +49141,6 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         is_secondary: false,
     },
     crate::dict::DictEntry {
-        text: "网站",
-        code: "编码",
-        category: crate::dict::Category::WangZhanZhiDa,
-        is_secondary: false,
-    },
-    crate::dict::DictEntry {
         text: "http://react.xhup.club/search",
         code: "ofi",
         category: crate::dict::Category::WangZhanZhiDa,
@@ -49258,12 +49174,6 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         text: "http://flypy.ysepan.com",
         code: "xhwp",
         category: crate::dict::Category::WangZhanZhiDa,
-        is_secondary: false,
-    },
-    crate::dict::DictEntry {
-        text: "输出",
-        code: "编码",
-        category: crate::dict::Category::SuiXinSuoYu,
         is_secondary: false,
     },
     crate::dict::DictEntry {
@@ -49397,12 +49307,6 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         code: "yxk",
         category: crate::dict::Category::SuiXinSuoYu,
         is_secondary: false,
-    },
-    crate::dict::DictEntry {
-        text: "输出",
-        code: "编码",
-        category: crate::dict::Category::ErJianCiXuan,
-        is_secondary: true,
     },
     crate::dict::DictEntry {
         text: "一边",
@@ -49954,12 +49858,6 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         text: "食物",
         code: "uw",
         category: crate::dict::Category::ErJianCiXuan,
-        is_secondary: true,
-    },
-    crate::dict::DictEntry {
-        text: "输出",
-        code: "编码",
-        category: crate::dict::Category::SiMaCiXuan,
         is_secondary: true,
     },
     crate::dict::DictEntry {
@@ -89621,11 +89519,5 @@ pub const DICT_ENTRIES: [crate::dict::DictEntry; 14938] = [
         code: "laa",
         category: crate::dict::Category::SiMaCiXuan,
         is_secondary: true,
-    },
-    crate::dict::DictEntry {
-        text: "输出",
-        code: "编码",
-        category: crate::dict::Category::ShouXuanSiMa,
-        is_secondary: false,
     },
 ];

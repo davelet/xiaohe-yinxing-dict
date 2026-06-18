@@ -232,3 +232,149 @@ impl SearchEngine {
         results
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dict::Category;
+    use crate::dict::DictEntry;
+
+    fn make_entry(text: &'static str, code: &'static str, category: Category) -> DictEntry {
+        DictEntry {
+            text,
+            code,
+            category,
+            is_secondary: false,
+        }
+    }
+
+    fn build_engine(entries: &[DictEntry]) -> SearchEngine {
+        SearchEngine::build(entries)
+    }
+
+    #[test]
+    fn test_search_by_code_exact() {
+        let entries = vec![
+            make_entry("一", "yi", Category::YiJiJianMa),
+            make_entry("二", "er", Category::ErChongJianMa),
+            make_entry("三", "sa", Category::SanMaTianKong),
+        ];
+        let engine = build_engine(&entries);
+        let results = engine.search("yi", None);
+        assert_eq!(results.len(), 1);
+        assert_eq!(engine.entries[results[0].0].text, "一");
+    }
+
+    #[test]
+    fn test_search_by_code_prefix() {
+        let entries = vec![
+            make_entry("起", "q", Category::YiJiJianMa),
+            make_entry("情", "qb", Category::ErChongJianMa),
+            make_entry("请", "qc", Category::ErChongJianMa),
+        ];
+        let engine = build_engine(&entries);
+        let results = engine.search("q", None);
+        // Should find all entries starting with "q"
+        assert_eq!(results.len(), 3);
+    }
+
+    #[test]
+    fn test_search_by_text() {
+        let entries = vec![
+            make_entry("你好", "nih", Category::SiMaQuanMaCi),
+            make_entry("你们", "nim", Category::SiMaQuanMaCi),
+        ];
+        let engine = build_engine(&entries);
+        let results = engine.search("你好", None);
+        assert_eq!(results.len(), 1);
+        assert_eq!(engine.entries[results[0].0].text, "你好");
+    }
+
+    #[test]
+    fn test_search_by_text_substring() {
+        let entries = vec![
+            make_entry("中华人民共和国", "vhrg", Category::SiMaQuanMaCi),
+            make_entry("美国", "mg", Category::SiMaQuanMaCi),
+        ];
+        let engine = build_engine(&entries);
+        let results = engine.search("人民", None);
+        assert_eq!(results.len(), 1);
+        assert_eq!(engine.entries[results[0].0].text, "中华人民共和国");
+    }
+
+    #[test]
+    fn test_category_filter() {
+        let entries = vec![
+            make_entry("起", "q", Category::YiJiJianMa),
+            make_entry("情", "qb", Category::ErChongJianMa),
+            make_entry("请", "qc", Category::ErChongJianMa),
+        ];
+        let engine = build_engine(&entries);
+        let results = engine.search("q", Some(Category::ErChongJianMa));
+        assert_eq!(results.len(), 2);
+        assert!(
+            results
+                .iter()
+                .all(|(idx, _)| engine.entries[*idx].category == Category::ErChongJianMa)
+        );
+    }
+
+    #[test]
+    fn test_empty_query() {
+        let entries = vec![make_entry("一", "yi", Category::YiJiJianMa)];
+        let engine = build_engine(&entries);
+        let results = engine.search("", None);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_count_by_category() {
+        let entries = vec![
+            make_entry("起", "q", Category::YiJiJianMa),
+            make_entry("情", "qb", Category::ErChongJianMa),
+            make_entry("请", "qc", Category::ErChongJianMa),
+        ];
+        let engine = build_engine(&entries);
+        assert_eq!(engine.count_by_category(Some(Category::YiJiJianMa)), 1);
+        assert_eq!(engine.count_by_category(Some(Category::ErChongJianMa)), 2);
+        assert_eq!(engine.count_by_category(None), 3);
+    }
+
+    #[test]
+    fn test_get_by_category() {
+        let entries = vec![
+            make_entry("起", "q", Category::YiJiJianMa),
+            make_entry("情", "qb", Category::ErChongJianMa),
+            make_entry("请", "qc", Category::ErChongJianMa),
+        ];
+        let engine = build_engine(&entries);
+        let results = engine.get_by_category(Some(Category::YiJiJianMa));
+        assert_eq!(results.len(), 1);
+        assert_eq!(engine.entries[results[0].0].text, "起");
+    }
+
+    #[test]
+    fn test_code_substring_search() {
+        let entries = vec![
+            make_entry("装", "vdh", Category::SiMaQuanMaZi),
+            make_entry("问", "wfh", Category::SiMaQuanMaZi),
+        ];
+        let engine = build_engine(&entries);
+        // Search for "dh" should match "vdh"
+        let results = engine.search("dh", None);
+        assert!(
+            results
+                .iter()
+                .any(|(idx, _)| engine.entries[*idx].text == "装")
+        );
+    }
+
+    #[test]
+    fn test_case_insensitive_search() {
+        let entries = vec![make_entry("你好", "nih", Category::SiMaQuanMaCi)];
+        let engine = build_engine(&entries);
+        let results = engine.search("NIH", None);
+        assert!(!results.is_empty());
+        assert_eq!(engine.entries[results[0].0].text, "你好");
+    }
+}

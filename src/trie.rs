@@ -67,3 +67,48 @@ fn collect_all_entries(node: &TrieNode, results: &mut Vec<usize>) {
         collect_all_entries(child, results);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_insert_and_exact_search() {
+        let mut trie = Trie::new();
+        trie.insert("abc", 0);
+        trie.insert("def", 1);
+        trie.insert("abc", 2);
+
+        let results = trie.exact_search("abc");
+        assert_eq!(results, vec![0, 2]);
+
+        let results = trie.exact_search("def");
+        assert_eq!(results, vec![1]);
+
+        let results = trie.exact_search("notfound");
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_prefix_search() {
+        let mut trie = Trie::new();
+        trie.insert("ab", 0);
+        trie.insert("abc", 1);
+        trie.insert("abcd", 2);
+        trie.insert("b", 3);
+
+        let mut results = trie.prefix_search("ab");
+        results.sort();
+        assert_eq!(results, vec![0, 1, 2]);
+
+        let results = trie.prefix_search("abc");
+        assert_eq!(results, vec![1, 2]);
+    }
+
+    #[test]
+    fn test_empty_trie() {
+        let trie = Trie::new();
+        assert!(trie.exact_search("a").is_empty());
+        assert!(trie.prefix_search("a").is_empty());
+    }
+}
