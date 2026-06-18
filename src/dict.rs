@@ -18,7 +18,7 @@ pub enum Category {
     SuiXinSuoYu,
     ErJianCiXuan,
     SiMaCiXuan,
-    ShouXuanSiMa,
+    ShouXuanZiCi,
 }
 
 impl Category {
@@ -70,8 +70,8 @@ impl Category {
             Category::SiMaCiXuan => {
                 "四码（次选词）是四码全码词组的次选候选词。\n\n当多个词组编码相同时，按分号可以选择次选词，按引号可以选择三选词。"
             }
-            Category::ShouXuanSiMa => {
-                "首选四码（词/短语）是四码词组中的首选候选，即第一个候选词。\n\n这些是最常用的词组，输入四码后直接按空格即可上屏。"
+            Category::ShouXuanZiCi => {
+                "首选字词是四码编码时的第一候选，即最常用的字词。\n\n输入四码后直接按空格即可上屏，无需选择。"
             }
         }
     }
@@ -98,7 +98,7 @@ impl Category {
             Category::SuiXinSuoYu => "随心所欲",
             Category::ErJianCiXuan => "二简（次选字）",
             Category::SiMaCiXuan => "四码（次选词）",
-            Category::ShouXuanSiMa => "首选四码（词/短语）",
+            Category::ShouXuanZiCi => "首选字词",
         }
     }
 
@@ -110,6 +110,7 @@ impl Category {
             Category::SiMaQuanMaZi,
             Category::SiMaQuanMaCiZhiDing,
             Category::SiMaQuanMaCi,
+            Category::ShouXuanZiCi,
             Category::KuaiFu,
             Category::FuHao,
             Category::BuShouBuJian,
@@ -119,7 +120,6 @@ impl Category {
             Category::SuiXinSuoYu,
             Category::ErJianCiXuan,
             Category::SiMaCiXuan,
-            Category::ShouXuanSiMa,
         ]
     }
 }

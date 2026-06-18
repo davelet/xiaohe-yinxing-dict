@@ -67,7 +67,7 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
                 }
 
                 // ComboBox
-                ui.style_mut().spacing.combo_height = 480.0;
+                ui.style_mut().spacing.combo_height = 550.0;
                 egui::ComboBox::from_id_salt("category_combo")
                     .selected_text(
                         app.selected_category
@@ -75,7 +75,7 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
                             .unwrap_or("全部"),
                     )
                     .width(350.0)
-                    .height(480.0)
+                    .height(550.0)
                     .show_ui(ui, |ui| {
                         ui.selectable_value(&mut app.selected_category, None::<Category>, "全部");
                         for &cat in &app.categories {
