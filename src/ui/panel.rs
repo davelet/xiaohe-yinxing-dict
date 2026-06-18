@@ -104,7 +104,11 @@ pub(crate) fn render_bottom_panel(app: &DictApp, ui: &mut egui::Ui) {
 
             let (display_count, max_note) = if app.query.trim().is_empty() {
                 let count = app.engine.count_by_category(app.selected_category);
-                let note = if count > 100 { " (最多显示100条)" } else { "" };
+                let note = if count > 100 {
+                    " (最多显示100条)"
+                } else {
+                    ""
+                };
                 (count, note)
             } else {
                 let note = if app.total_results > 100 {
