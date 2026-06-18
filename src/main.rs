@@ -17,7 +17,8 @@ enum CopyKind {
 }
 use search::SearchEngine;
 
-include!(concat!(env!("OUT_DIR"), "/generated_dict.rs"));
+mod dict_data;
+use dict_data::DICT_ENTRIES;
 
 impl DictApp {
     fn new(engine: SearchEngine, ctx: &egui::Context) -> Self {
