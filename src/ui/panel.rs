@@ -97,28 +97,33 @@ pub(crate) fn render_bottom_panel(app: &DictApp, ui: &mut egui::Ui) {
     egui::Panel::bottom("status_panel").show_inside(ui, |ui| {
         ui.horizontal(|ui| {
             let total = DICT_ENTRIES.len();
-            let filtered = app.search_results.len();
             let cat_label = app
                 .selected_category
                 .map(|c| c.display_name())
                 .unwrap_or("全部");
 
-            let display_count = if app.query.trim().is_empty() {
-                app.engine.count_by_category(app.selected_category)
+            let (display_count, max_note) = if app.query.trim().is_empty() {
+                let count = app.engine.count_by_category(app.selected_category);
+                let note = if count > 100 { " (最多显示100条)" } else { "" };
+                (count, note)
             } else {
-                filtered
-            };
-
-            let max_note = if app.query.trim().is_empty() && display_count > 100 {
-                " (最多显示100条)"
-            } else {
-                ""
+                let note = if app.total_results > 100 {
+                    " (最多显示100条)"
+                } else {
+                    ""
+                };
+                (app.total_results, note)
             };
 
             ui.label(format!(
                 "找到 {} 条结果{} | 词典共 {} 条 | 分类: {}",
                 display_count, max_note, total, cat_label
             ));
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let version = env!("CARGO_PKG_VERSION");
+                ui.label(format!("v{}", version));
+            });
         });
     });
 }

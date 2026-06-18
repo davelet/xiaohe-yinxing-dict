@@ -19,6 +19,54 @@ impl eframe::App for DictApp {
             ctx.request_repaint();
         }
 
+        // Check for update info from background thread
+        if let Ok(guard) = self.update_info.lock()
+            && let Some(info) = guard.as_ref()
+            && !self.show_update_dialog
+        {
+            self.show_update_dialog = true;
+            self.update_info_for_dialog = Some(info.clone());
+        }
+
+        // Show update dialog
+        let mut close_dialog = false;
+        if self.show_update_dialog
+            && let Some(info) = &self.update_info_for_dialog
+        {
+            let info_clone = info.clone();
+            egui::Window::new("发现新版本")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(&ctx, |ui| {
+                    ui.label(format!("发现新版本: v{}", info_clone.latest_version));
+                    ui.separator();
+                    ui.label("更新内容:");
+                    egui::ScrollArea::vertical()
+                        .max_height(300.0)
+                        .show(ui, |ui| {
+                            ui.label(&info_clone.release_notes);
+                        });
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui.button("前往下载").clicked() {
+                            let _ = open::that(&info_clone.download_url);
+                            close_dialog = true;
+                        }
+                        if ui.button("稍后再说").clicked() {
+                            close_dialog = true;
+                        }
+                    });
+                });
+        }
+        if close_dialog {
+            self.show_update_dialog = false;
+            self.update_info_for_dialog = None;
+            if let Ok(mut guard) = self.update_info.lock() {
+                *guard = None;
+            }
+        }
+
         // Top panel (hidden in help mode)
         if !self.show_help_panel {
             panel::render_top_panel(self, ui, &ctx);
@@ -68,11 +116,14 @@ impl DictApp {
 
         // Perform search or show category content
         if !self.query.is_empty() {
-            self.search_results = self
+            let (results, total) = self
                 .engine
                 .search(self.query.trim(), self.selected_category);
+            self.search_results = results;
+            self.total_results = total;
         } else if query_cleared || category_changed || self.search_results.is_empty() {
             self.search_results = self.engine.get_by_category(self.selected_category);
+            self.total_results = self.search_results.len();
         }
 
         // Results header

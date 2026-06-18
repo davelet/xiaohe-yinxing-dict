@@ -34,14 +34,14 @@ impl SearchEngine {
         engine
     }
 
-    /// 执行搜索，返回 (条目索引, 匹配类型) 列表
+    /// 执行搜索，返回 (条目索引, 匹配类型) 列表和实际找到的总数
     pub fn search(
         &self,
         query: &str,
         category_filter: Option<Category>,
-    ) -> Vec<(usize, MatchKind)> {
+    ) -> (Vec<(usize, MatchKind)>, usize) {
         if query.is_empty() {
-            return Vec::new();
+            return (Vec::new(), 0);
         }
 
         let query_lower = query.to_lowercase();
@@ -67,8 +67,11 @@ impl SearchEngine {
             candidates
         };
 
+        let total_count = results.len();
+
         // 排序：精确 > 前缀 > 子串
-        self.sort_results(results, query_lower)
+        let sorted = self.sort_results(results, query_lower);
+        (sorted, total_count)
     }
 
     /// 按编码搜索（反查）
@@ -147,7 +150,7 @@ impl SearchEngine {
         results
     }
 
-    /// 排序：精确匹配 > 前缀匹配 > 子串匹配
+    /// 排序：精确匹配 > 前缀匹配 > 子串匹配，字数少的优先
     fn sort_results(
         &self,
         mut results: Vec<(usize, MatchKind)>,
@@ -160,15 +163,15 @@ impl SearchEngine {
             let score_a = self.match_score(entry_a, &query, &a.1);
             let score_b = self.match_score(entry_b, &query, &b.1);
 
-            // 得分高的排前面
+            // 得分高的排前面，同分时字数少的优先
             score_b
                 .cmp(&score_a)
-                .then(entry_a.code.len().cmp(&entry_b.code.len()))
                 .then(entry_a.text.len().cmp(&entry_b.text.len()))
+                .then(entry_a.code.len().cmp(&entry_b.code.len()))
                 .then(entry_a.is_secondary.cmp(&entry_b.is_secondary))
         });
 
-        results.truncate(200);
+        results.truncate(100);
         results
     }
 
@@ -260,8 +263,9 @@ mod tests {
             make_entry("三", "sa", Category::SanMaTianKong),
         ];
         let engine = build_engine(&entries);
-        let results = engine.search("yi", None);
+        let (results, total) = engine.search("yi", None);
         assert_eq!(results.len(), 1);
+        assert_eq!(total, 1);
         assert_eq!(engine.entries[results[0].0].text, "一");
     }
 
@@ -273,9 +277,10 @@ mod tests {
             make_entry("请", "qc", Category::ErChongJianMa),
         ];
         let engine = build_engine(&entries);
-        let results = engine.search("q", None);
+        let (results, total) = engine.search("q", None);
         // Should find all entries starting with "q"
         assert_eq!(results.len(), 3);
+        assert_eq!(total, 3);
     }
 
     #[test]
@@ -285,8 +290,9 @@ mod tests {
             make_entry("你们", "nim", Category::SiMaQuanMaCi),
         ];
         let engine = build_engine(&entries);
-        let results = engine.search("你好", None);
+        let (results, total) = engine.search("你好", None);
         assert_eq!(results.len(), 1);
+        assert_eq!(total, 1);
         assert_eq!(engine.entries[results[0].0].text, "你好");
     }
 
@@ -297,8 +303,9 @@ mod tests {
             make_entry("美国", "mg", Category::SiMaQuanMaCi),
         ];
         let engine = build_engine(&entries);
-        let results = engine.search("人民", None);
+        let (results, total) = engine.search("人民", None);
         assert_eq!(results.len(), 1);
+        assert_eq!(total, 1);
         assert_eq!(engine.entries[results[0].0].text, "中华人民共和国");
     }
 
@@ -310,8 +317,9 @@ mod tests {
             make_entry("请", "qc", Category::ErChongJianMa),
         ];
         let engine = build_engine(&entries);
-        let results = engine.search("q", Some(Category::ErChongJianMa));
+        let (results, total) = engine.search("q", Some(Category::ErChongJianMa));
         assert_eq!(results.len(), 2);
+        assert_eq!(total, 2);
         assert!(
             results
                 .iter()
@@ -323,8 +331,9 @@ mod tests {
     fn test_empty_query() {
         let entries = vec![make_entry("一", "yi", Category::YiJiJianMa)];
         let engine = build_engine(&entries);
-        let results = engine.search("", None);
+        let (results, total) = engine.search("", None);
         assert!(results.is_empty());
+        assert_eq!(total, 0);
     }
 
     #[test]
@@ -361,7 +370,7 @@ mod tests {
         ];
         let engine = build_engine(&entries);
         // Search for "dh" should match "vdh"
-        let results = engine.search("dh", None);
+        let (results, _) = engine.search("dh", None);
         assert!(
             results
                 .iter()
@@ -373,7 +382,7 @@ mod tests {
     fn test_case_insensitive_search() {
         let entries = vec![make_entry("你好", "nih", Category::SiMaQuanMaCi)];
         let engine = build_engine(&entries);
-        let results = engine.search("NIH", None);
+        let (results, _) = engine.search("NIH", None);
         assert!(!results.is_empty());
         assert_eq!(engine.entries[results[0].0].text, "你好");
     }

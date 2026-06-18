@@ -594,7 +594,7 @@ pub(super) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
 
     h4(ui, "三、双拼键位图");
-    img(ui, "双拼键位图 heup.webp");
+    p(ui, "键位图可参考小鹤官网 flypy.cc 上的双拼键位图，也可在各拼音输入法内置的小鹤双拼方案中直接查看。");
     bul(
         ui,
         "学习过程：一小时记忆键位，一周习惯双拼节奏，一月恢复全拼时速度",
@@ -979,7 +979,6 @@ pub(super) fn render_ux(ui: &mut Ui, nav: &mut HelpNav) {
         "即从每个字中提取首末两部分形态各异的组字单元，以区分同音字。",
     );
     num(ui, "2", "鹤形");
-    img(ui, "鹤形图 tu.png");
     sp(ui);
     ui.horizontal(|ui| {
         ui.label("- ");
@@ -1244,10 +1243,7 @@ pub(super) fn render_zg(ui: &mut Ui, nav: &mut HelpNav) {
     h2(ui, "1.2.2 鹤形：字根");
 
     h4(ui, "一、字根合图");
-    img(
-        ui,
-        "字根合图 xhzg.webp（也可点主界面「部件字根键位图」按钮查看）",
-    );
+    p(ui, "字根合图可点击主界面「部件字根键位图」按钮查看，或参考小鹤官网 flypy.cc 上的图示。");
     sp(ui);
 
     h4(ui, "二、笔画");
@@ -1977,7 +1973,6 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
 
     h4(ui, "二、符号及键盘功能图示");
     num(ui, "1", "键盘功能");
-    img(ui, "键盘功能图 jp.webp");
     ui.horizontal(|ui| {
         ui.label("  - ");
         code(ui, "O");
@@ -2945,7 +2940,6 @@ pub(super) fn render_vy(ui: &mut Ui, nav: &mut HelpNav) {
         "主流拼音输入法均内置了小鹤双拼方案（比如搜狗拼音），只需要在其设置中找到双拼方案设置并选择“小鹤双拼”方案即可，然后日常聊天打字直接用就好。双拼键位可以通过口诀记忆，也可把键位图放电脑桌面做背景或者直接打印出来边用边记，一般一周时间就能适应。",
     );
     p(ui, "最好使用电脑学习，因为电脑会了手机就会了。");
-    img(ui, "小鹤双拼键位图 heup.webp");
     red(ui, "小鹤双拼键位图");
     qt(ui, "零声母音节：① 双字母保持全拼方式，如：ai en ou er");
     qt(
@@ -2986,7 +2980,6 @@ pub(super) fn render_vy(ui: &mut Ui, nav: &mut HelpNav) {
     p(ui, "  安卓版小鹤音形使用指南");
     bul(ui, "常见问题：");
     p(ui, "  新手常见问题，可以说绝大部分都在这里，不妨认真一看");
-    img(ui, "字根合图 xhzg.webp");
     sp(ui);
 
     h4(ui, "四、练习");

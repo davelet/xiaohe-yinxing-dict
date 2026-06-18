@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use eframe::egui;
 
 pub mod dict;
@@ -6,6 +8,7 @@ pub mod icon;
 pub mod search;
 mod trie;
 mod ui;
+pub mod update;
 
 use dict::Category;
 use help::HelpManager;
@@ -25,6 +28,12 @@ impl DictApp {
         let categories = dict::DictEntry::all_categories();
         let help_image = Self::load_help_image(ctx);
         let help_manager = HelpManager::new();
+        let update_info = Arc::new(Mutex::new(None));
+        let update_info_clone = update_info.clone();
+        let ctx_clone = ctx.clone();
+        std::thread::spawn(move || {
+            Self::check_update_background(update_info_clone, ctx_clone);
+        });
         Self {
             engine,
             categories,
@@ -33,6 +42,7 @@ impl DictApp {
             selected_category: None,
             last_category: None,
             search_results: Vec::new(),
+            total_results: 0,
             copied_feedback: None,
             feedback_timer: 0.0,
             help_image,
@@ -40,6 +50,22 @@ impl DictApp {
             help_manager,
             show_help_panel: false,
             selected_help_chapter: None,
+            update_info,
+            show_update_dialog: false,
+            update_info_for_dialog: None,
+        }
+    }
+
+    fn check_update_background(
+        update_info: Arc<Mutex<Option<update::UpdateInfo>>>,
+        ctx: egui::Context,
+    ) {
+        let current_version = env!("CARGO_PKG_VERSION");
+        if let Some(info) = update::check_for_update(current_version) {
+            if let Ok(mut guard) = update_info.lock() {
+                *guard = Some(info);
+            }
+            ctx.request_repaint();
         }
     }
 
@@ -64,6 +90,7 @@ struct DictApp {
     selected_category: Option<Category>,
     last_category: Option<Category>,
     search_results: Vec<(usize, search::MatchKind)>,
+    total_results: usize,
     copied_feedback: Option<(usize, CopyKind)>,
     feedback_timer: f32,
     help_image: Option<egui::TextureHandle>,
@@ -71,6 +98,9 @@ struct DictApp {
     help_manager: HelpManager,
     show_help_panel: bool,
     selected_help_chapter: Option<String>,
+    update_info: Arc<Mutex<Option<update::UpdateInfo>>>,
+    show_update_dialog: bool,
+    update_info_for_dialog: Option<update::UpdateInfo>,
 }
 
 fn create_app_icon() -> egui::IconData {

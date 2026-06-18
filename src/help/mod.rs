@@ -224,14 +224,14 @@ fn hr(ui: &mut Ui) {
 }
 
 fn bul(ui: &mut Ui, t: &str) {
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         ui.label("  •");
         ui.label(t);
     });
 }
 
 fn num(ui: &mut Ui, n: &str, t: &str) {
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         ui.label(format!("  {}.", n));
         ui.label(t);
     });
@@ -255,10 +255,6 @@ fn code(ui: &mut Ui, t: &str) {
             .background_color(CODE_BG)
             .color(CODE_FG),
     );
-}
-
-fn img(ui: &mut Ui, t: &str) {
-    ui.colored_label(GRAY, format!("[图片：{}]", t));
 }
 
 fn lnk(ui: &mut Ui, nav: &mut HelpNav, text: &str, target: &'static str) {
