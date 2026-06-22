@@ -263,6 +263,20 @@ fn lnk(ui: &mut Ui, nav: &mut HelpNav, text: &str, target: &'static str) {
     }
 }
 
+fn ext_link(ui: &mut Ui, text: &str, url: &str) {
+    let label = ui.add(
+        egui::Label::new(
+            RichText::new(text)
+                .color(ui.visuals().hyperlink_color)
+                .underline(),
+        )
+        .sense(egui::Sense::click()),
+    );
+    if label.clicked() {
+        let _ = open::that(url);
+    }
+}
+
 /// 上一篇 / 下一篇 导航行
 fn navrow(
     ui: &mut Ui,

@@ -460,7 +460,9 @@ pub(super) fn render_readme(ui: &mut Ui, nav: &mut HelpNav) {
 
     h2(ui, "交流");
     ui.horizontal_wrapped(|ui| {
-        ui.label("可到小鹤QQ频道或QQ群 182883808 交流和反馈问题。");
+        ui.label("可到小鹤QQ频道或QQ群 ");
+        ext_link(ui, "182883808", "tencent://message/?uin=182883808");
+        ui.label(" 交流和反馈问题。");
     });
 
     hr(ui);
@@ -541,7 +543,11 @@ pub(super) fn render_xh(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
 
     hr(ui);
-    bul(ui, "小鹤官方 flypy.cc 发布「小鹤音形」输入法");
+    ui.horizontal_wrapped(|ui| {
+        ui.label("小鹤官方 ");
+        ext_link(ui, "flypy.cc", "https://flypy.cc");
+        ui.label(" 发布「小鹤音形」输入法");
+    });
     bul(
         ui,
         "采用《通用规范汉字表》国发〔2013〕23号文规定用字，本表收字8105个",
@@ -594,10 +600,11 @@ pub(super) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
 
     h4(ui, "三、双拼键位图");
-    p(
-        ui,
-        "键位图可参考小鹤官网 flypy.cc 上的双拼键位图，也可在各拼音输入法内置的小鹤双拼方案中直接查看。",
-    );
+    ui.horizontal_wrapped(|ui| {
+        ui.label("键位图可参考小鹤官网 ");
+        ext_link(ui, "flypy.cc", "https://flypy.cc");
+        ui.label(" 上的双拼键位图，也可在各拼音输入法内置的小鹤双拼方案中直接查看。");
+    });
     bul(
         ui,
         "学习过程：一小时记忆键位，一周习惯双拼节奏，一月恢复全拼时速度",
@@ -1228,10 +1235,11 @@ pub(super) fn render_gz(ui: &mut Ui, nav: &mut HelpNav) {
         lnk(ui, nav, "部件字根", "zg");
         ui.label("部分先行简单记忆");
     });
-    p(
-        ui,
-        "然后你就可以进入「拆分学习」https://flypy.cc/if 网页进行拆分练习，以加强对规则的理解",
-    );
+    ui.horizontal_wrapped(|ui| {
+        ui.label("然后你就可以进入「拆分学习」");
+        ext_link(ui, "https://flypy.cc/if", "https://flypy.cc/if");
+        ui.label(" 网页进行拆分练习，以加强对规则的理解");
+    });
 
     hr(ui);
     navrow(
@@ -1246,10 +1254,11 @@ pub(super) fn render_zg(ui: &mut Ui, nav: &mut HelpNav) {
     h2(ui, "1.2.2 鹤形：字根");
 
     h4(ui, "一、字根合图");
-    p(
-        ui,
-        "字根合图可点击主界面「部件字根键位图」按钮查看，或参考小鹤官网 flypy.cc 上的图示。",
-    );
+    ui.horizontal_wrapped(|ui| {
+        ui.label("字根合图可点击主界面「部件字根键位图」按钮查看，或参考小鹤官网 ");
+        ext_link(ui, "flypy.cc", "https://flypy.cc");
+        ui.label(" 上的图示。");
+    });
     sp(ui);
 
     h4(ui, "二、笔画");
@@ -1304,10 +1313,11 @@ pub(super) fn render_zg(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
 
     h4(ui, "五、拆分例字");
-    p(
-        ui,
-        "理解下面单字的拆分，就基本掌握鹤形字根了，也可到 拆分学习 https://flypy.cc/if 页面进行拆分练习",
-    );
+    ui.horizontal_wrapped(|ui| {
+        ui.label("理解下面单字的拆分，就基本掌握鹤形字根了，也可到 拆分学习 ");
+        ext_link(ui, "https://flypy.cc/if", "https://flypy.cc/if");
+        ui.label(" 页面进行拆分练习");
+    });
     sp(ui);
     tbl4(ui, 70.0, &["例字", "全码", "首形", "末形"], CHAIFEN);
 
@@ -1358,9 +1368,18 @@ pub(super) fn render_yy(ui: &mut Ui, nav: &mut HelpNav) {
 
     h4(ui, "三、下载地址");
     bul(ui, "小鹤音形下载：");
-    p(ui, "  官　网：https://flypy.cc");
-    p(ui, "  网　盘：http://flypy.ysepan.com/");
-    p(ui, "  QQ群：182883808");
+    ui.horizontal(|ui| {
+        ui.label("  官　网：");
+        ext_link(ui, "https://flypy.cc", "https://flypy.cc");
+    });
+    ui.horizontal(|ui| {
+        ui.label("  网　盘：");
+        ext_link(ui, "http://flypy.ysepan.com/", "http://flypy.ysepan.com/");
+    });
+    ui.horizontal(|ui| {
+        ui.label("  QQ群：");
+        ext_link(ui, "182883808", "tencent://message/?uin=182883808");
+    });
     bul(ui, "小鹤双拼下载：");
     p(
         ui,
@@ -1974,7 +1993,10 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
         ui,
         "推荐安装文件管理编辑应用“MT管理器”，文件夹及文件的直达及管理编辑将使用到",
     );
-    qt(ui, "MT管理器下载地址：https://mt2.cn/download/");
+    ui.horizontal(|ui| {
+        ui.label("MT管理器下载地址：");
+        ext_link(ui, "https://mt2.cn/download/", "https://mt2.cn/download/");
+    });
     sp(ui);
 
     h4(ui, "二、符号及键盘功能图示");
@@ -2459,9 +2481,15 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
 
     h4(ui, "十二、AI & 语音");
     num(ui, "1", "注册");
-    bul(ui, "AI注册DeepSeek用户：https://deepseek.com/");
+    ui.horizontal_wrapped(|ui| {
+        ui.label("AI注册DeepSeek用户：");
+        ext_link(ui, "https://deepseek.com/", "https://deepseek.com/");
+    });
     p(ui, "创建API key");
-    bul(ui, "语音注册豆包火山引擎：https://www.volcengine.com/");
+    ui.horizontal_wrapped(|ui| {
+        ui.label("语音注册豆包火山引擎：");
+        ext_link(ui, "https://www.volcengine.com/", "https://www.volcengine.com/");
+    });
     num(ui, "2", "AI使用");
     qt(
         ui,
@@ -2618,10 +2646,10 @@ pub(super) fn render_gj(ui: &mut Ui, nav: &mut HelpNav) {
     bul(ui, "百度输入法");
     p(ui, "  安卓版、iOS版均支持：自定义方案");
     bul(ui, "rime");
-    p(
-        ui,
-        "  rime是一个输入法软件的基础框架，官网：https://rime.im",
-    );
+    ui.horizontal_wrapped(|ui| {
+        ui.label("  rime是一个输入法软件的基础框架，官网：");
+        ext_link(ui, "https://rime.im", "https://rime.im");
+    });
     p(
         ui,
         "  基于此框架的各系统端软件代表有：win端的小狼毫、安卓端的同文、MAC端的鼠须管",
@@ -2669,7 +2697,10 @@ pub(super) fn render_gj(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
 
     h4(ui, "六、挂接文件下载");
-    bul(ui, "小鹤网盘：http://flypy.ysepan.com");
+    ui.horizontal_wrapped(|ui| {
+        ui.label("小鹤网盘：");
+        ext_link(ui, "http://flypy.ysepan.com", "http://flypy.ysepan.com");
+    });
     qt(ui, "码表：字词编码表，俗称“词库”");
     qt(ui, "键长：字均用键数，误称“码长”");
     qt(ui, "击键：每秒按键数");
@@ -2912,10 +2943,11 @@ pub(super) fn render_vy(ui: &mut Ui, nav: &mut HelpNav) {
 
     h4(ui, "一、学习指引");
     num(ui, "1", "学习之前");
-    p(
-        ui,
-        "在学习双拼之前，建议到小鹤网盘 http://flypy.ysepan.com 下载“小鹤专用添雨跟打器”，用这个工具测试其中所提一小段文字，取得你的全拼打字速度指标，主要还是看看熟练情况下的击键水平，以做日后参考。",
-    );
+    ui.horizontal_wrapped(|ui| {
+        ui.label("在学习双拼之前，建议到小鹤网盘 ");
+        ext_link(ui, "http://flypy.ysepan.com", "http://flypy.ysepan.com");
+        ui.label(" 下载“小鹤专用添雨跟打器”，用这个工具测试其中所提一小段文字，取得你的全拼打字速度指标，主要还是看看熟练情况下的击键水平，以做日后参考。");
+    });
     num(ui, "2", "了解自己");
     p(
         ui,
@@ -2962,10 +2994,11 @@ pub(super) fn render_vy(ui: &mut Ui, nav: &mut HelpNav) {
         ui,
         "小鹤双拼方案是为智能拼音设计的拼音压缩方案，小鹤音形输入法是小鹤官方发布的音形码输入法，单字编码为前两码双拼后两码双形，在你使用双拼一两周后可以考虑进阶。",
     );
-    p(
-        ui,
-        "请在小鹤网盘 http://flypy.ysepan.com 下载小鹤音形输入法。",
-    );
+    ui.horizontal_wrapped(|ui| {
+        ui.label("请在小鹤网盘 ");
+        ext_link(ui, "http://flypy.ysepan.com", "http://flypy.ysepan.com");
+        ui.label(" 下载小鹤音形输入法。");
+    });
     p(
         ui,
         "这不是智能输入法，而是字词输入法，有词打词，无词拆单，鹤形的主要作用是分离同音字，精准到字，所以学习主要是单字后两码双形的学习。",
@@ -3045,9 +3078,18 @@ pub(super) fn render_gy(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
 
     qt(ui, "作　者：何海峰（散步的鹤）");
-    qt(ui, "官　网：https://flypy.cc");
-    qt(ui, "Ｑ　群：182883808");
-    qt(ui, "E_mail：flypy@qq.com");
+    ui.horizontal(|ui| {
+        ui.label("官　网：");
+        ext_link(ui, "https://flypy.cc", "https://flypy.cc");
+    });
+    ui.horizontal(|ui| {
+        ui.label("Ｑ　群：");
+        ext_link(ui, "182883808", "tencent://message/?uin=182883808");
+    });
+    ui.horizontal(|ui| {
+        ui.label("E_mail：");
+        ext_link(ui, "flypy@qq.com", "mailto:flypy@qq.com");
+    });
     sp(ui);
 
     qt(ui, "祝福远方的友人安好！");
