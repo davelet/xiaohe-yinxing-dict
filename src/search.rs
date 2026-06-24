@@ -150,7 +150,7 @@ impl SearchEngine {
         results
     }
 
-    /// 排序：精确匹配 > 前缀匹配 > 子串匹配，字数少的优先
+    /// 排序：字数少优先，同字数时精确匹配 > 前缀匹配 > 子串匹配
     fn sort_results(
         &self,
         mut results: Vec<(usize, MatchKind)>,
@@ -163,10 +163,13 @@ impl SearchEngine {
             let score_a = self.match_score(entry_a, &query, &a.1);
             let score_b = self.match_score(entry_b, &query, &b.1);
 
-            // 得分高的排前面，同分时字数少的优先
-            score_b
-                .cmp(&score_a)
-                .then(entry_a.text.len().cmp(&entry_b.text.len()))
+            // 字数少的优先，同字数时得分高的优先
+            entry_a
+                .text
+                .chars()
+                .count()
+                .cmp(&entry_b.text.chars().count())
+                .then(score_b.cmp(&score_a))
                 .then(entry_a.code.len().cmp(&entry_b.code.len()))
                 .then(entry_a.is_secondary.cmp(&entry_b.is_secondary))
         });
@@ -215,23 +218,32 @@ impl SearchEngine {
         }
     }
 
-    /// 按分类获取所有条目（最多100条）
+    /// 按分类获取所有条目（最多100条），按字数升序
     pub fn get_by_category(&self, category_filter: Option<Category>) -> Vec<(usize, MatchKind)> {
-        let mut results = Vec::new();
-        for (idx, entry) in self.entries.iter().enumerate() {
-            match category_filter {
-                Some(cat) if entry.category == cat => {
-                    results.push((idx, MatchKind::Code(0..0)));
-                }
-                None => {
-                    results.push((idx, MatchKind::Code(0..0)));
-                }
-                _ => {}
-            }
-            if results.len() >= 100 {
-                break;
-            }
-        }
+        let mut results: Vec<(usize, MatchKind)> = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| match category_filter {
+                Some(cat) => entry.category == cat,
+                None => true,
+            })
+            .map(|(idx, _)| (idx, MatchKind::Code(0..0)))
+            .collect();
+
+        // 按文字字数升序，同字数时按编码长度升序
+        results.sort_by(|a, b| {
+            let entry_a = &self.entries[a.0];
+            let entry_b = &self.entries[b.0];
+            entry_a
+                .text
+                .chars()
+                .count()
+                .cmp(&entry_b.text.chars().count())
+                .then(entry_a.code.len().cmp(&entry_b.code.len()))
+        });
+
+        results.truncate(100);
         results
     }
 }
