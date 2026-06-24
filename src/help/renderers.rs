@@ -407,33 +407,35 @@ static ZUHE: &[(&str, &str, &str)] = &[
 
 pub(super) fn render_readme(ui: &mut Ui, nav: &mut HelpNav) {
     h1(ui, "小鹤音形帮助文档");
-    ui.label(RichText::new("小鹤音形").strong());
+    label_hl_mk(ui, "小鹤音形", |s| RichText::new(s).strong());
     qt(ui, "一个简单易学高效的输入方案");
     sp(ui);
 
     h2(ui, "指引");
     p(ui, "这里是一些基础知识，指引你做好学前准备。");
     ui.horizontal(|ui| {
-        ui.label("请先看");
+        label_hl(ui, "请先看");
         lnk(ui, nav, "学习指引", "vy");
-        ui.label("，了解详情。");
+        label_hl(ui, "，了解详情。");
     });
     sp(ui);
 
     h2(ui, "入门");
     ui.horizontal_wrapped(|ui| {
-        ui.label("当你准备好，就可进入");
+        label_hl(ui, "当你准备好，就可进入");
         lnk(ui, nav, "入门", "xh");
-        ui.label("学习了，");
+        label_hl(ui, "学习了，");
         lnk(ui, nav, "小鹤双拼", "up");
-        ui.label(
+        label_hl(
+            ui,
             "方案内置各大拼音输入法，在其设置中选中即可，在使用中记忆键位，通常一周就能适应。",
         );
     });
     ui.horizontal_wrapped(|ui| {
-        ui.label("如果你想进阶");
+        label_hl(ui, "如果你想进阶");
         lnk(ui, nav, "小鹤音形", "ux");
-        ui.label(
+        label_hl(
+            ui,
             "，可以在使用小鹤双拼一周后开始，小鹤音形的音部即双拼，循序渐进能让学习曲线更加平滑。",
         );
     });
@@ -441,28 +443,28 @@ pub(super) fn render_readme(ui: &mut Ui, nav: &mut HelpNav) {
 
     h2(ui, "应用");
     ui.horizontal_wrapped(|ui| {
-        ui.label("小鹤音形的学习就要接触到小鹤音形");
+        label_hl(ui, "小鹤音形的学习就要接触到小鹤音形");
         lnk(ui, nav, "输入法", "yy");
-        ui.label("，这是一个独立的输入法，需要在小鹤官网下载安装使用。同时你需要对");
+        label_hl(ui, "，这是一个独立的输入法，需要在小鹤官网下载安装使用。同时你需要对");
         lnk(ui, nav, "win版", "pc");
-        ui.label("、");
+        label_hl(ui, "、");
         lnk(ui, nav, "安卓版", "sj");
-        ui.label("输入法的功能有所了解，那就是这部分的内容。");
+        label_hl(ui, "输入法的功能有所了解，那就是这部分的内容。");
     });
     sp(ui);
 
     h2(ui, "捐赠");
     ui.horizontal_wrapped(|ui| {
-        ui.label("如果你觉得小鹤双拼&小鹤音形对你打字速度的提高有所帮助，或者想对小鹤的持续发展提供一点支持，欢迎给我们");
+        label_hl(ui, "如果你觉得小鹤双拼&小鹤音形对你打字速度的提高有所帮助，或者想对小鹤的持续发展提供一点支持，欢迎给我们");
         lnk(ui, nav, "捐赠", "gy");
     });
     sp(ui);
 
     h2(ui, "交流");
     ui.horizontal_wrapped(|ui| {
-        ui.label("可到小鹤QQ频道或QQ群 ");
+        label_hl(ui, "可到小鹤QQ频道或QQ群 ");
         ext_link(ui, "182883808", "tencent://message/?uin=182883808");
-        ui.label(" 交流和反馈问题。");
+        label_hl(ui, " 交流和反馈问题。");
     });
 
     hr(ui);
@@ -475,22 +477,22 @@ pub(super) fn render_xh(ui: &mut Ui, nav: &mut HelpNav) {
     h4(ui, "一、小鹤音形");
     bul(ui, "单字以“双拼＋双形”组合的标准四码音形类输入方案");
     ui.horizontal(|ui| {
-        ui.label("    ");
+        label_hl(ui, "    ");
         blue(ui, "双拼");
-        ui.label("：声母、韵母各用一个字母表示，一个汉字的音用两个字母表达");
+        label_hl(ui, "：声母、韵母各用一个字母表示，一个汉字的音用两个字母表达");
     });
     ui.horizontal(|ui| {
-        ui.label("    ");
+        label_hl(ui, "    ");
         blue(ui, "双形");
-        ui.label("：根据拆分规则把一个汉字按字根拆分出两个部分，以区分同音字");
+        label_hl(ui, "：根据拆分规则把一个汉字按字根拆分出两个部分，以区分同音字");
     });
     sp(ui);
     ui.horizontal(|ui| {
-        ui.label("    • 双拼初学者请先阅读");
+        label_hl(ui, "    • 双拼初学者请先阅读");
         lnk(ui, nav, "《学习指引》", "vy");
     });
     ui.horizontal(|ui| {
-        ui.label("    • 音形初学者看完上面指引后，请从本页看起");
+        label_hl(ui, "    • 音形初学者看完上面指引后，请从本页看起");
     });
     sp(ui);
 
@@ -508,14 +510,14 @@ pub(super) fn render_xh(ui: &mut Ui, nav: &mut HelpNav) {
         ],
     );
     ui.horizontal_wrapped(|ui| {
-        ui.label(RichText::new("简码").strong());
-        ui.label("：未满四码即显的字为简码字");
+        label_hl_mk(ui, "简码", |s| RichText::new(s).strong());
+        label_hl(ui, "：未满四码即显的字为简码字");
     });
-    ui.label("　　　例：x小、hed河，称一简字、三简字");
+    label_hl(ui, "　　　例：x小、hed河，称一简字、三简字");
     ui.horizontal(|ui| {
-        ui.label("　　　实际使用有简打简，一二简字列表见“");
+        label_hl(ui, "　　　实际使用有简打简，一二简字列表见“");
         lnk(ui, nav, "简码篇", "jm");
-        ui.label("”");
+        label_hl(ui, "”");
     });
     sp(ui);
 
@@ -531,22 +533,22 @@ pub(super) fn render_xh(ui: &mut Ui, nav: &mut HelpNav) {
         ],
     );
     ui.horizontal_wrapped(|ui| {
-        ui.label(RichText::new("简码").strong());
-        ui.label("：取各字声母未满四码即显的词为简码词");
+        label_hl_mk(ui, "简码", |s| RichText::new(s).strong());
+        label_hl(ui, "：取各字声母未满四码即显的词为简码词");
     });
-    ui.label("　　　例：vd知道、yly越来越，称二简词、三简词");
+    label_hl(ui, "　　　例：vd知道、yly越来越，称二简词、三简词");
     ui.horizontal(|ui| {
-        ui.label("　　　二简词在记忆情况下使用，列表见“");
+        label_hl(ui, "　　　二简词在记忆情况下使用，列表见“");
         lnk(ui, nav, "二简词", "jm");
-        ui.label("”");
+        label_hl(ui, "”");
     });
     sp(ui);
 
     hr(ui);
     ui.horizontal_wrapped(|ui| {
-        ui.label("小鹤官方 ");
+        label_hl(ui, "小鹤官方 ");
         ext_link(ui, "flypy.cc", "https://flypy.cc");
-        ui.label(" 发布「小鹤音形」输入法");
+        label_hl(ui, " 发布「小鹤音形」输入法");
     });
     bul(
         ui,
@@ -563,19 +565,19 @@ pub(super) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
     h4(ui, "一、双拼方案");
     bul(ui, "使用两个字母分别表示声母韵母，对汉字进行编码的方案");
     ui.horizontal_wrapped(|ui| {
-        ui.label("第一个字母表示");
-        ui.label(RichText::new("声母").strong());
-        ui.label("，第二字母表示");
-        ui.label(RichText::new("韵母").strong());
+        label_hl(ui, "第一个字母表示");
+        label_hl_mk(ui, "声母", |s| RichText::new(s).strong());
+        label_hl(ui, "，第二字母表示");
+        label_hl_mk(ui, "韵母", |s| RichText::new(s).strong());
     });
     p(
         ui,
         "声母基本和键盘字母一致，双声母及韵母键位见下面“双拼键位图”",
     );
     ui.horizontal_wrapped(|ui| {
-        ui.label("- 无声母的韵母音节用");
-        ui.label(RichText::new("零声母").strong());
-        ui.label("代替声母");
+        label_hl(ui, "- 无声母的韵母音节用");
+        label_hl_mk(ui, "零声母", |s| RichText::new(s).strong());
+        label_hl(ui, "代替声母");
     });
     sp(ui);
 
@@ -589,9 +591,9 @@ pub(super) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
         "1",
         "本方案以韵母首字母为零声母，即把韵母的首字母当作声母",
     );
-    ui.label("单字母韵母，零声母 + 韵母所在键，如： 啊＝aa 哦=oo 额=ee");
-    ui.label("双字母韵母，零声母 + 韵母末字母，如： 爱＝ai 恩=en 欧=ou");
-    ui.label("三字母韵母，零声母 + 韵母所在键，如： 昂＝ah");
+    label_hl(ui, "单字母韵母，零声母 + 韵母所在键，如： 啊＝aa 哦=oo 额=ee");
+    label_hl(ui, "双字母韵母，零声母 + 韵母末字母，如： 爱＝ai 恩=en 欧=ou");
+    label_hl(ui, "三字母韵母，零声母 + 韵母所在键，如： 昂＝ah");
     num(ui, "2", "简单说：");
     blue(
         ui,
@@ -601,9 +603,9 @@ pub(super) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
 
     h4(ui, "三、双拼键位图");
     ui.horizontal_wrapped(|ui| {
-        ui.label("键位图可参考小鹤官网 ");
+        label_hl(ui, "键位图可参考小鹤官网 ");
         ext_link(ui, "flypy.cc", "https://flypy.cc");
-        ui.label(" 上的双拼键位图，也可在各拼音输入法内置的小鹤双拼方案中直接查看。");
+        label_hl(ui, " 上的双拼键位图，也可在各拼音输入法内置的小鹤双拼方案中直接查看。");
     });
     bul(
         ui,
@@ -770,7 +772,7 @@ pub(super) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
         ui,
         "从中抽取四部小说同手跨排使用率统计如下（不含相同韵母键位）：",
     );
-    ui.label(RichText::new("小鹤双拼同手跨排：").strong());
+    label_hl_mk(ui, "小鹤双拼同手跨排：", |s| RichText::new(s).strong());
     tbl(
         ui,
         50.0,
@@ -797,7 +799,7 @@ pub(super) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
         ],
     );
     qt(ui, "跨排高频主要是 tz 和 bw 组合，bw不难打，tz有点不爽");
-    ui.label(RichText::new("自然双拼同手跨排：").strong());
+    label_hl_mk(ui, "自然双拼同手跨排：", |s| RichText::new(s).strong());
     tbl(
         ui,
         46.0,
@@ -845,7 +847,7 @@ pub(super) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
         ui,
         "自然双拼wz（wei）一个组合的使用率比小鹤双拼rz tz zw三个组合的使用率都还高，小鹤主要是tz组合，怎么都比wz组合好打吧",
     );
-    ui.label(RichText::new("小鹤双拼").strong());
+    label_hl_mk(ui, "小鹤双拼", |s| RichText::new(s).strong());
     tbl(
         ui,
         150.0,
@@ -889,7 +891,7 @@ pub(super) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
             ],
         ],
     );
-    ui.label(RichText::new("自然双拼").strong());
+    label_hl_mk(ui, "自然双拼", |s| RichText::new(s).strong());
     tbl(
         ui,
         150.0,
@@ -991,15 +993,15 @@ pub(super) fn render_ux(ui: &mut Ui, nav: &mut HelpNav) {
     num(ui, "2", "鹤形");
     sp(ui);
     ui.horizontal(|ui| {
-        ui.label("- ");
+        label_hl(ui, "- ");
         red(ui, "部件字根");
-        ui.label(" ____ 基本为偏旁部首，日常称谓定其键位，必须掌握！见");
+        label_hl(ui, " ____ 基本为偏旁部首，日常称谓定其键位，必须掌握！见");
         lnk(ui, nav, "字根", "zg");
     });
     ui.horizontal(|ui| {
-        ui.label("- ");
+        label_hl(ui, "- ");
         red(ui, "小字字根");
-        ui.label(" ____ 基本为小且独立的字，规则推导字根，按其声母定键，理解为主。见");
+        label_hl(ui, " ____ 基本为小且独立的字，规则推导字根，按其声母定键，理解为主。见");
         lnk(ui, nav, "规则", "gz");
     });
     sp(ui);
@@ -1055,7 +1057,7 @@ pub(super) fn render_ux(ui: &mut Ui, nav: &mut HelpNav) {
         "当一个字里你既拆不出小字也拆不出部件时，就用到了笔画，比如“里”没有独立的部分，只能按首末笔画拆分，其它如：丰申寸戈",
     );
     ui.horizontal(|ui| {
-        ui.label("详细规则请看下页...");
+        label_hl(ui, "详细规则请看下页...");
         lnk(ui, nav, "规则", "gz");
     });
 
@@ -1073,9 +1075,10 @@ pub(super) fn render_gz(ui: &mut Ui, nav: &mut HelpNav) {
 
     h3(ui, "一、拆分规则：");
     h4(ui, "1. 字取首末");
-    ui.label(
-        RichText::new("一个字取其首末两个字根（小字字根或部件字根），孰大优先，无则取笔画")
-            .strong(),
+    label_hl_mk(
+        ui,
+        "一个字取其首末两个字根（小字字根或部件字根），孰大优先，无则取笔画",
+        |s| RichText::new(s).strong(),
     );
     bul(
         ui,
@@ -1104,7 +1107,7 @@ pub(super) fn render_gz(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
 
     h4(ui, "2. 相交不拆");
-    ui.label(RichText::new("字根如与其它笔画相交，则不取").strong());
+    label_hl_mk(ui, "字根如与其它笔画相交，则不取", |s| RichText::new(s).strong());
     bul(
         ui,
         "释义：相交不拆，字根如果与其它笔画相交，则此字根即被破坏而不可取，这样就免去了字中找字的麻烦，而可以简单直接取到笔画",
@@ -1120,7 +1123,7 @@ pub(super) fn render_gz(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
 
     h4(ui, "3. 插隔不取");
-    ui.label(RichText::new("字根如被单笔画插入或被结构隔离则不再被认为是字根").strong());
+    label_hl_mk(ui, "字根如被单笔画插入或被结构隔离则不再被认为是字根", |s| RichText::new(s).strong());
     bul(
         ui,
         "插入释义： 如“平”的拆分，单笔画插入破坏了这个“干”字而不能取，因此“平”被拆分成“横十”，金人横、番撇田、丧十捺，等字同理。“插入”好比一个三面包围“匚”或四面包围“囗”的结构中间插入一个单笔画，如“丽”字里的“冂”中插入了一个笔画点，则此部件被破坏而不再当作部件，“卵”中的“卩”、“眉”中的“尸”同理",
@@ -1132,7 +1135,7 @@ pub(super) fn render_gz(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
 
     h4(ui, "4. 建辶优先");
-    ui.label(RichText::new("以“廴 辶”为部首的字，首码先取").strong());
+    label_hl_mk(ui, "以“廴 辶”为部首的字，首码先取", |s| RichText::new(s).strong());
     bul(
         ui,
         "释义：以这两个部件为部首的字先取此部件，因为这两个部件特征明显，优先取更直观。部件并非字的部首时，则按照常规顺序拆分，如：筵，其部首为“⺮”，“廴”部件并非部首，故常规首末取“⺮廴”，又如“健→亻廴”。",
@@ -1197,7 +1200,7 @@ pub(super) fn render_gz(ui: &mut Ui, nav: &mut HelpNav) {
         ui,
         "示例：“巨臣勿而出击”等字包含框部件外再无其它部件，则为小字；“匝匹句匀同函”等字含框部件外还含其它部件或字，则分取",
     );
-    ui.label(RichText::new("另： 开口框在字中开口时才为部件").strong());
+    label_hl_mk(ui, "另： 开口框在字中开口时才为部件", |s| RichText::new(s).strong());
     p(
         ui,
         "示例：“同巨击出”等字中的“冂匚凵”没有被封口即为部件；“皿且甲”中的“冂”被封了口，则不被认为是部件",
@@ -1231,14 +1234,14 @@ pub(super) fn render_gz(ui: &mut Ui, nav: &mut HelpNav) {
     h3(ui, "三、拆分练习：");
     h4(ui, "练习网页");
     ui.horizontal(|ui| {
-        ui.label("- 阅读理解上面规则后，对后面");
+        label_hl(ui, "- 阅读理解上面规则后，对后面");
         lnk(ui, nav, "部件字根", "zg");
-        ui.label("部分先行简单记忆");
+        label_hl(ui, "部分先行简单记忆");
     });
     ui.horizontal_wrapped(|ui| {
-        ui.label("然后你就可以进入「拆分学习」");
+        label_hl(ui, "然后你就可以进入「拆分学习」");
         ext_link(ui, "https://flypy.cc/if", "https://flypy.cc/if");
-        ui.label(" 网页进行拆分练习，以加强对规则的理解");
+        label_hl(ui, " 网页进行拆分练习，以加强对规则的理解");
     });
 
     hr(ui);
@@ -1255,9 +1258,9 @@ pub(super) fn render_zg(ui: &mut Ui, nav: &mut HelpNav) {
 
     h4(ui, "一、字根合图");
     ui.horizontal_wrapped(|ui| {
-        ui.label("字根合图可点击主界面「部件字根键位图」按钮查看，或参考小鹤官网 ");
+        label_hl(ui, "字根合图可点击主界面「部件字根键位图」按钮查看，或参考小鹤官网 ");
         ext_link(ui, "flypy.cc", "https://flypy.cc");
-        ui.label(" 上的图示。");
+        label_hl(ui, " 上的图示。");
     });
     sp(ui);
 
@@ -1284,11 +1287,11 @@ pub(super) fn render_zg(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
     for (k, parts, mem) in BUJIAN {
         ui.horizontal(|ui| {
-            ui.label(RichText::new(*k).monospace().strong().color(ORANGE));
-            ui.label(":");
-            ui.label(*parts);
+            label_hl_mk(ui, *k, |s| RichText::new(s).monospace().strong().color(ORANGE));
+            label_hl(ui, ":");
+            label_hl(ui, *parts);
             if !mem.is_empty() {
-                ui.label("—");
+                label_hl(ui, "—");
                 ui.weak(*mem);
             }
         });
@@ -1305,18 +1308,18 @@ pub(super) fn render_zg(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
     for (k, chars) in XIAOZI {
         ui.horizontal(|ui| {
-            ui.label(RichText::new(*k).monospace().strong().color(ORANGE));
-            ui.label(":");
-            ui.label(*chars);
+            label_hl_mk(ui, *k, |s| RichText::new(s).monospace().strong().color(ORANGE));
+            label_hl(ui, ":");
+            label_hl(ui, *chars);
         });
     }
     sp(ui);
 
     h4(ui, "五、拆分例字");
     ui.horizontal_wrapped(|ui| {
-        ui.label("理解下面单字的拆分，就基本掌握鹤形字根了，也可到 拆分学习 ");
+        label_hl(ui, "理解下面单字的拆分，就基本掌握鹤形字根了，也可到 拆分学习 ");
         ext_link(ui, "https://flypy.cc/if", "https://flypy.cc/if");
-        ui.label(" 页面进行拆分练习");
+        label_hl(ui, " 页面进行拆分练习");
     });
     sp(ui);
     tbl4(ui, 70.0, &["例字", "全码", "首形", "末形"], CHAIFEN);
@@ -1369,15 +1372,15 @@ pub(super) fn render_yy(ui: &mut Ui, nav: &mut HelpNav) {
     h4(ui, "三、下载地址");
     bul(ui, "小鹤音形下载：");
     ui.horizontal(|ui| {
-        ui.label("  官　网：");
+        label_hl(ui, "  官　网：");
         ext_link(ui, "https://flypy.cc", "https://flypy.cc");
     });
     ui.horizontal(|ui| {
-        ui.label("  网　盘：");
+        label_hl(ui, "  网　盘：");
         ext_link(ui, "http://flypy.ysepan.com/", "http://flypy.ysepan.com/");
     });
     ui.horizontal(|ui| {
-        ui.label("  QQ群：");
+        label_hl(ui, "  QQ群：");
         ext_link(ui, "182883808", "tencent://message/?uin=182883808");
     });
     bul(ui, "小鹤双拼下载：");
@@ -1431,19 +1434,19 @@ pub(super) fn render_jm(ui: &mut Ui, nav: &mut HelpNav) {
         "品类套票盆克秒 名片副部段批扎 挂拽抗拴拨拆扩 摸捏挪擦扫把拖 刘苏岑欧周王反 嗯欸喔哟嘎哈呢",
         "你得会",
     ] {
-        ui.label(RichText::new(line).monospace().size(11.0));
+        label_hl_mk(ui, line, |s| RichText::new(s).monospace().size(11.0));
     }
     bul(ui, "次选：66个");
     for line in [
         "宝笨甭逼背猜达道逗份疯 复搞钙哥官故华壶扯程臭 极贱佳抠溜捋骂美浓弃惹",
         "忍扔寺涩诉淘替舔通退室 省守症终遮文忘玩未心型 凶野杨严园友遭揍坐飞韩",
     ] {
-        ui.label(RichText::new(line).monospace().size(11.0));
+        label_hl_mk(ui, line, |s| RichText::new(s).monospace().size(11.0));
     }
     ui.horizontal(|ui| {
         qt(ui, "<二简次选> 字为备选分类，通过直通 ");
         code(ui, "oej");
-        ui.label(" 启用");
+        label_hl(ui, " 启用");
     });
     sp(ui);
 
@@ -1465,7 +1468,7 @@ pub(super) fn render_jm(ui: &mut Ui, nav: &mut HelpNav) {
         "噩梦 恶劣 恶心 恶毒 恶搞 恶评 险恶 不饿 挨饿 饿死　　黯然 猥琐 恐怖 恐怕 唯恐 骗人 讽刺 按到 群殴 暗算",
         "并且 欧阳 干嘛 存盘 网盘 耳机 其次 窗口 相反 方面　　最快 收到 什么sm",
     ] {
-        ui.label(RichText::new(line).monospace().size(11.0));
+        label_hl_mk(ui, line, |s| RichText::new(s).monospace().size(11.0));
     }
     red(ui, "前三排可以重点熟悉下，其他使用中积累就好");
     bul(ui, "次选：97个");
@@ -1476,7 +1479,7 @@ pub(super) fn render_jm(ui: &mut Ui, nav: &mut HelpNav) {
         "这次 微信 推广 主意 意志 小时 只是 只会 未知 座位 参加 反悔 打算 随着 等着 跟着 分钟 总共 一边 两边",
         "与其 食物 即使 正在 确认 按键 举例 周围 最终 基本 直接 即可 分享 当然 两位 其他 几天",
     ] {
-        ui.label(RichText::new(line).monospace().size(11.0));
+        label_hl_mk(ui, line, |s| RichText::new(s).monospace().size(11.0));
     }
     sp(ui);
 
@@ -1631,17 +1634,17 @@ pub(super) fn render_fh(ui: &mut Ui, nav: &mut HelpNav) {
     h4(ui, "五、成组符号");
     ui.horizontal(|ui| {
         code(ui, "of");
-        ui.label(" 引导符号组");
+        label_hl(ui, " 引导符号组");
     });
     sp(ui);
     for (name, code_str, syms) in ZUHE {
         ui.horizontal(|ui| {
-            ui.label(RichText::new(*name).strong());
-            ui.label(":");
+            label_hl_mk(ui, *name, |s| RichText::new(s).strong());
+            label_hl(ui, ":");
             code(ui, code_str);
-            ui.label("→");
+            label_hl(ui, "→");
         });
-        ui.label(*syms);
+        label_hl(ui, *syms);
         sp(ui);
     }
 
@@ -1663,81 +1666,81 @@ pub(super) fn render_pc(ui: &mut Ui, nav: &mut HelpNav) {
     num(ui, "1", "快符： ");
     ui.horizontal(|ui| {
         code(ui, "分号键");
-        ui.label(" + ");
+        label_hl(ui, " + ");
         code(ui, "任一字母");
-        ui.label(" 两键上屏的符号或执行的功能；双击分号上屏本身");
+        label_hl(ui, " 两键上屏的符号或执行的功能；双击分号上屏本身");
     });
     ui.horizontal(|ui| {
         code(ui, ";a");
-        ui.label(" 输出感叹号！（其它符号输出类推）");
+        label_hl(ui, " 输出感叹号！（其它符号输出类推）");
     });
     ui.horizontal(|ui| {
         code(ui, ";i");
-        ui.label(" 撤销上屏词条");
+        label_hl(ui, " 撤销上屏词条");
     });
     ui.horizontal(|ui| {
         code(ui, ";f");
-        ui.label(" 重复上屏词条");
+        label_hl(ui, " 重复上屏词条");
     });
     ui.horizontal(|ui| {
         code(ui, ";n");
-        ui.label(" 模拟 ");
+        label_hl(ui, " 模拟 ");
         code(ui, "End");
-        ui.label(" 键，可用于光标移出成对符号");
+        label_hl(ui, " 键，可用于光标移出成对符号");
     });
     qt(ui, "① * 号表示上屏内容后再使用此快符");
     qt(ui, "② 如不需要快符功能，可用直通 oyd 关闭");
     num(ui, "2", "O 符：以字母 ");
     ui.horizontal(|ui| {
         code(ui, "o");
-        ui.label(" 开始编码的符号数字等其它符号编码");
+        label_hl(ui, " 开始编码的符号数字等其它符号编码");
     });
     ui.horizontal(|ui| {
         code(ui, "ob");
-        ui.label(" 引导部件字根所在键列表，如：");
+        label_hl(ui, " 引导部件字根所在键列表，如：");
         code(ui, "obc");
-        ui.label(" 1.艹　2.廾");
+        label_hl(ui, " 1.艹　2.廾");
     });
     ui.horizontal(|ui| {
         code(ui, "ox");
-        ui.label(" 引导小字字根所在键列表，如：");
+        label_hl(ui, " 引导小字字根所在键列表，如：");
         code(ui, "oxc");
-        ui.label(" 1.寸　2.才　3.册　4.匆");
+        label_hl(ui, " 1.寸　2.才　3.册　4.匆");
     });
     ui.horizontal(|ui| {
         code(ui, "of");
-        ui.label(" 引导成组符号（编码见二）");
+        label_hl(ui, " 引导成组符号（编码见二）");
     });
     ui.horizontal(|ui| {
         code(ui, "ot");
-        ui.label(" 引导特殊符号（编码见三）");
+        label_hl(ui, " 引导特殊符号（编码见三）");
     });
     ui.horizontal(|ui| {
         code(ui, "ow");
-        ui.label(" 引导微信表情，如：");
+        label_hl(ui, " 引导微信表情，如：");
         code(ui, "owwx");
-        ui.label(" [微笑]");
+        label_hl(ui, " [微笑]");
     });
     ui.horizontal(|ui| {
         code(ui, "oi");
-        ui.label(" 引导emoji表情，如：");
+        label_hl(ui, " 引导emoji表情，如：");
         code(ui, "oixk");
-        ui.label(" 😂");
+        label_hl(ui, " 😂");
     });
     ui.horizontal(|ui| {
         code(ui, "op");
-        ui.label(" 引导拼音字母，如：");
+        label_hl(ui, " 引导拼音字母，如：");
         code(ui, "opa");
-        ui.label(" 1.ā　2.á");
+        label_hl(ui, " 1.ā　2.á");
     });
     ui.horizontal(|ui| {
         code(ui, "oe");
-        ui.label(" 引导音标字母，如：");
+        label_hl(ui, " 引导音标字母，如：");
         code(ui, "oea");
-        ui.label(" 1.æ　2.ʌ　3.ɑ:");
+        label_hl(ui, " 1.æ　2.ʌ　3.ɑ:");
     });
     ui.horizontal(|ui| {
-        ui.label("详见：");
+        label_hl(ui, "详见：");
         lnk(ui, nav, "符号", "fh");
     });
     sp(ui);
@@ -1762,9 +1765,9 @@ pub(super) fn render_pc(ui: &mut Ui, nav: &mut HelpNav) {
     h4(ui, "四、词库分类");
     num(ui, "1", "词库分类");
     ui.horizontal(|ui| {
-        ui.label("输入");
+        label_hl(ui, "输入");
         code(ui, "omb");
-        ui.label("打开码表分类项，分类如下：");
+        label_hl(ui, "打开码表分类项，分类如下：");
     });
     tbl(
         ui,
@@ -1831,65 +1834,65 @@ pub(super) fn render_pc(ui: &mut Ui, nav: &mut HelpNav) {
         "可快速输入英文、日期、数字、金额或临时启用未开启分类、英文输入等",
     );
     ui.horizontal_wrapped(|ui| {
-        ui.label(RichText::new("单引号").strong());
-        ui.label("：引导便捷输入，双击上屏本身");
+        label_hl_mk(ui, "单引号", |s| RichText::new(s).strong());
+        label_hl(ui, "：引导便捷输入，双击上屏本身");
     });
     bul(ui, "任意日期");
     ui.horizontal(|ui| {
-        ui.label("  输入");
+        label_hl(ui, "  输入");
         code(ui, "'2007.1.8");
-        ui.label("　候选：a. 二〇〇七年一月八日　b. 2007年1月8日");
+        label_hl(ui, "　候选：a. 二〇〇七年一月八日　b. 2007年1月8日");
     });
     ui.horizontal(|ui| {
-        ui.label("  输入");
+        label_hl(ui, "  输入");
         code(ui, "'2008.2.");
-        ui.label("　候选：a. 二〇〇八年二月　b. 2008年2月");
+        label_hl(ui, "　候选：a. 二〇〇八年二月　b. 2008年2月");
     });
     ui.horizontal(|ui| {
-        ui.label("  当前日期、时间可使用直通码方式：");
+        label_hl(ui, "  当前日期、时间可使用直通码方式：");
         code(ui, "orq");
         code(ui, "ouj");
     });
     bul(ui, "任意金额");
     ui.horizontal(|ui| {
-        ui.label("  输入");
+        label_hl(ui, "  输入");
         code(ui, "'2019.12");
-        ui.label("　候选：a. 二千零一十九点一二　b. 贰仟零壹拾玖元壹角贰分");
+        label_hl(ui, "　候选：a. 二千零一十九点一二　b. 贰仟零壹拾玖元壹角贰分");
     });
     ui.horizontal(|ui| {
-        ui.label("  输入");
+        label_hl(ui, "  输入");
         code(ui, "'2019");
-        ui.label("　候选：a. 二千零一十九　b. 贰仟零壹拾玖元整");
+        label_hl(ui, "　候选：a. 二千零一十九　b. 贰仟零壹拾玖元整");
     });
     bul(ui, "临时生僻");
     ui.horizontal(|ui| {
-        ui.label("  临时显示＜全码字＞（含生僻字）分类，如：");
+        label_hl(ui, "  临时显示＜全码字＞（含生僻字）分类，如：");
         code(ui, "'bulw");
-        ui.label("　瓿");
+        label_hl(ui, "　瓿");
     });
     ui.horizontal_wrapped(|ui| {
-        ui.label("  也可用组合键");
+        label_hl(ui, "  也可用组合键");
         code(ui, "Ctrl");
         code(ui, "Alt");
         code(ui, "q");
-        ui.label("或输入 ");
+        label_hl(ui, "或输入 ");
         code(ui, "oqm");
-        ui.label(" 显示分类直接输入");
+        label_hl(ui, " 显示分类直接输入");
     });
     bul(ui, "临时二简次选");
     ui.horizontal(|ui| {
-        ui.label("  临时启用＜二简次选＞分类，如：");
+        label_hl(ui, "  临时启用＜二简次选＞分类，如：");
         code(ui, "'bw");
-        ui.label("　背");
+        label_hl(ui, "　背");
     });
     ui.horizontal_wrapped(|ui| {
-        ui.label("  也可用组合键");
+        label_hl(ui, "  也可用组合键");
         code(ui, "Ctrl");
         code(ui, "Alt");
         code(ui, "j");
-        ui.label("或直通车 ");
+        label_hl(ui, "或直通车 ");
         code(ui, "oej");
-        ui.label(" 启用分类直接输入");
+        label_hl(ui, " 启用分类直接输入");
     });
     bul(ui, "临时英文");
     p(ui, "  临时启用英文模式，完成后用引导键结束，并上屏英文");
@@ -1921,13 +1924,13 @@ pub(super) fn render_pc(ui: &mut Ui, nav: &mut HelpNav) {
     bul(ui, "二简字有一套第二候选分类词库供选择：");
     num(ui, "1", "默认 = 主码表");
     ui.horizontal(|ui| {
-        ui.label("  ");
-        ui.label(RichText::new("bw　1.被").strong());
+        label_hl(ui, "  ");
+        label_hl_mk(ui, "bw　1.被", |s| RichText::new(s).strong());
     });
     num(ui, "2", "备选 = 主码表＋");
     ui.horizontal(|ui| {
-        ui.label("  ");
-        ui.label(RichText::new("bw　1.被　2.背").strong());
+        label_hl(ui, "  ");
+        label_hl_mk(ui, "bw　1.被　2.背", |s| RichText::new(s).strong());
     });
     qt(ui, "oej 启用 <二简次选> 分类");
     sp(ui);
@@ -1994,7 +1997,7 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
         "推荐安装文件管理编辑应用“MT管理器”，文件夹及文件的直达及管理编辑将使用到",
     );
     ui.horizontal(|ui| {
-        ui.label("MT管理器下载地址：");
+        label_hl(ui, "MT管理器下载地址：");
         ext_link(ui, "https://mt2.cn/download/", "https://mt2.cn/download/");
     });
     sp(ui);
@@ -2002,217 +2005,217 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
     h4(ui, "二、符号及键盘功能图示");
     num(ui, "1", "键盘功能");
     ui.horizontal(|ui| {
-        ui.label("  - ");
+        label_hl(ui, "  - ");
         code(ui, "O");
-        ui.label(" 键引导日常符号，可参看 ");
+        label_hl(ui, " 键引导日常符号，可参看 ");
         lnk(ui, nav, "2.2 符号", "fh");
-        ui.label(" 篇");
+        label_hl(ui, " 篇");
     });
     bul(ui, "虚拟键盘：");
     ui.horizontal(|ui| {
-        ui.label("    1. ");
+        label_hl(ui, "    1. ");
         code(ui, "⤴");
         code(ui, "逗号");
         code(ui, "字母");
-        ui.label("构成 快直通");
+        label_hl(ui, "构成 快直通");
     });
     ui.horizontal(|ui| {
-        ui.label("    2. ");
+        label_hl(ui, "    2. ");
         code(ui, "⤴");
         code(ui, "⤴");
         code(ui, "字母");
-        ui.label("构成 快符");
+        label_hl(ui, "构成 快符");
     });
     ui.horizontal(|ui| {
-        ui.label("    3. ");
+        label_hl(ui, "    3. ");
         code(ui, "⤴");
         code(ui, "字母数字");
-        ui.label("引导 符号组、计算、生僻字、英文");
+        label_hl(ui, "引导 符号组、计算、生僻字、英文");
     });
     bul(ui, "外接键盘：");
     ui.horizontal(|ui| {
-        ui.label("    1. ");
+        label_hl(ui, "    1. ");
         code(ui, ";");
         code(ui, "字母");
-        ui.label("构成 快符 ， ");
+        label_hl(ui, "构成 快符 ， ");
         code(ui, ";b");
-        ui.label(" 为 逆切分，其他快符见 ");
+        label_hl(ui, " 为 逆切分，其他快符见 ");
         lnk(ui, nav, "2.3 win版", "pc");
     });
     ui.horizontal(|ui| {
-        ui.label("    2. ");
+        label_hl(ui, "    2. ");
         code(ui, "单引号");
         code(ui, "字母数字");
-        ui.label("引导 符号组、计算、生僻字、英文");
+        label_hl(ui, "引导 符号组、计算、生僻字、英文");
     });
     num(ui, "2", "上中排下滑符号");
     bul(ui, "可通过用户词库编码方式进行自定义");
     sp(ui);
 
     h4(ui, "三、键盘相关");
-    ui.label(RichText::new("主键盘功能：").strong());
+    label_hl_mk(ui, "主键盘功能：", |s| RichText::new(s).strong());
     num(ui, "1", "点击功能：");
     ui.horizontal(|ui| {
-        ui.label("  a. ");
+        label_hl(ui, "  a. ");
         code(ui, "shift");
-        ui.label(" 切换大写，有候选时清码");
+        label_hl(ui, " 切换大写，有候选时清码");
     });
     ui.horizontal(|ui| {
-        ui.label("  b. ");
+        label_hl(ui, "  b. ");
         code(ui, "ϟ12");
-        ui.label(" 切换到“数字和符号键盘”");
+        label_hl(ui, " 切换到“数字和符号键盘”");
     });
     ui.horizontal(|ui| {
-        ui.label("  c. ");
+        label_hl(ui, "  c. ");
         code(ui, "句号");
-        ui.label(" 有候选时做次选键");
+        label_hl(ui, " 有候选时做次选键");
     });
     ui.horizontal(|ui| {
-        ui.label("  d. ");
+        label_hl(ui, "  d. ");
         code(ui, "逗号");
-        ui.label(" 有候选时做三选键");
+        label_hl(ui, " 有候选时做三选键");
     });
     ui.horizontal(|ui| {
-        ui.label("  e. ");
+        label_hl(ui, "  e. ");
         code(ui, "···");
-        ui.label(" 切换输入法，有候选时为句号");
+        label_hl(ui, " 切换输入法，有候选时为句号");
     });
     ui.horizontal(|ui| {
-        ui.label("  f. ");
-        ui.label(RichText::new("空格下方").strong());
-        ui.label("是 ");
+        label_hl(ui, "  f. ");
+        label_hl_mk(ui, "空格下方", |s| RichText::new(s).strong());
+        label_hl(ui, "是 ");
         code(ui, "左右方向");
-        ui.label(" 键，有候选时做空格");
+        label_hl(ui, " 键，有候选时做空格");
     });
     ui.horizontal(|ui| {
-        ui.label("  g. ");
+        label_hl(ui, "  g. ");
         code(ui, "☰");
-        ui.label(" 进入“功能键盘”");
+        label_hl(ui, " 进入“功能键盘”");
     });
     num(ui, "2", "上滑和长按功能：");
     ui.horizontal(|ui| {
-        ui.label("  a. ");
+        label_hl(ui, "  a. ");
         code(ui, "shift");
-        ui.label(" 上滑为开关状态栏，长按切换“日夜皮肤”");
+        label_hl(ui, " 上滑为开关状态栏，长按切换“日夜皮肤”");
     });
     ui.horizontal(|ui| {
-        ui.label("  b. ");
+        label_hl(ui, "  b. ");
         code(ui, "ϟ12");
-        ui.label(" 上滑打开“编辑键盘”，长按进入“功能键盘”");
+        label_hl(ui, " 上滑打开“编辑键盘”，长按进入“功能键盘”");
     });
     ui.horizontal(|ui| {
-        ui.label("  c. ");
+        label_hl(ui, "  c. ");
         code(ui, "空格");
-        ui.label(" 上滑展开候选（大于2时），长按切换中英文键盘");
+        label_hl(ui, " 上滑展开候选（大于2时），长按切换中英文键盘");
     });
     ui.horizontal(|ui| {
-        ui.label("  d. ");
+        label_hl(ui, "  d. ");
         code(ui, "⌫");
-        ui.label(" 上滑撤销上屏或纠错，长按连续删");
+        label_hl(ui, " 上滑撤销上屏或纠错，长按连续删");
     });
     ui.horizontal(|ui| {
-        ui.label("  e. ");
+        label_hl(ui, "  e. ");
         code(ui, "回车");
-        ui.label(" 上滑重复上屏或诗词补全，长按换行");
+        label_hl(ui, " 上滑重复上屏或诗词补全，长按换行");
     });
     ui.horizontal(|ui| {
-        ui.label("  f. ");
-        ui.label(RichText::new("键上档").strong());
-        ui.label("标点及功能，通过上滑或长按作用");
+        label_hl(ui, "  f. ");
+        label_hl_mk(ui, "键上档", |s| RichText::new(s).strong());
+        label_hl(ui, "标点及功能，通过上滑或长按作用");
     });
     ui.horizontal(|ui| {
-        ui.label("  g. ");
-        ui.label(RichText::new("全选、剪切、复制、粘贴").strong());
-        ui.label(" 分别放在 ");
+        label_hl(ui, "  g. ");
+        label_hl_mk(ui, "全选、剪切、复制、粘贴", |s| RichText::new(s).strong());
+        label_hl(ui, " 分别放在 ");
         code(ui, "AXCV");
-        ui.label(" 键上档");
+        label_hl(ui, " 键上档");
     });
     ui.horizontal(|ui| {
-        ui.label("  h. ");
+        label_hl(ui, "  h. ");
         code(ui, "Z");
-        ui.label(" 键  上滑长按均为 ");
+        label_hl(ui, " 键  上滑长按均为 ");
         code(ui, "万能键");
     });
     ui.horizontal(|ui| {
-        ui.label("  i. ");
+        label_hl(ui, "  i. ");
         code(ui, "☰");
-        ui.label(" 长按弹出“键盘”选单");
+        label_hl(ui, " 长按弹出“键盘”选单");
     });
     ui.horizontal(|ui| {
-        ui.label("  j. ");
+        label_hl(ui, "  j. ");
         code(ui, "﹀");
-        ui.label(" 长按弹出“皮肤”选单");
+        label_hl(ui, " 长按弹出“皮肤”选单");
     });
     num(ui, "3", "下滑功能：");
     ui.horizontal(|ui| {
-        ui.label("  a. ");
+        label_hl(ui, "  a. ");
         code(ui, "Z");
-        ui.label("键出 ");
+        label_hl(ui, "键出 ");
         code(ui, "TAB");
     });
     ui.horizontal(|ui| {
-        ui.label("  b. ");
+        label_hl(ui, "  b. ");
         code(ui, "shift");
-        ui.label(" 选行");
+        label_hl(ui, " 选行");
     });
     ui.horizontal(|ui| {
-        ui.label("  c. ");
+        label_hl(ui, "  c. ");
         code(ui, "⌫");
-        ui.label(" 关窗+删行");
+        label_hl(ui, " 关窗+删行");
     });
     ui.horizontal(|ui| {
-        ui.label("  d. ");
+        label_hl(ui, "  d. ");
         code(ui, "回车");
-        ui.label(" 恢复删行");
+        label_hl(ui, " 恢复删行");
     });
     ui.horizontal(|ui| {
-        ui.label("  e. ");
+        label_hl(ui, "  e. ");
         code(ui, "空格");
-        ui.label(" 逆切分");
+        label_hl(ui, " 逆切分");
     });
     ui.horizontal(|ui| {
-        ui.label("  f. ");
+        label_hl(ui, "  f. ");
         code(ui, "XCVBN");
-        ui.label(" 分别跳转“剪中英表特”辅键盘");
+        label_hl(ui, " 分别跳转“剪中英表特”辅键盘");
     });
     ui.horizontal(|ui| {
-        ui.label("  g. ");
+        label_hl(ui, "  g. ");
         code(ui, "逗号");
-        ui.label(" 英文键盘为英文补全开关");
+        label_hl(ui, " 英文键盘为英文补全开关");
     });
     ui.horizontal(|ui| {
-        ui.label("  h. 下滑可选择“下滑助记”键盘查看");
+        label_hl(ui, "  h. 下滑可选择“下滑助记”键盘查看");
     });
     num(ui, "4", "滑动功能：");
     ui.horizontal(|ui| {
-        ui.label("  a. ");
+        label_hl(ui, "  a. ");
         code(ui, "⌫");
-        ui.label(" 开始左滑，删除前面的内容，左滑的位置继续右滑则恢复删除的内容");
+        label_hl(ui, " 开始左滑，删除前面的内容，左滑的位置继续右滑则恢复删除的内容");
     });
     ui.horizontal(|ui| {
-        ui.label("  b. ");
+        label_hl(ui, "  b. ");
         code(ui, "空格");
-        ui.label(" 左右两端开始左右滑动，光标左右移动");
+        label_hl(ui, " 左右两端开始左右滑动，光标左右移动");
     });
     num(ui, "5", "状态标志显示含义：");
     ui.horizontal(|ui| {
-        ui.label("  a. ");
+        label_hl(ui, "  a. ");
         code(ui, "☰");
-        ui.label(" 在切换到繁体时显示为 ");
+        label_hl(ui, " 在切换到繁体时显示为 ");
         code(ui, "☷");
     });
     ui.horizontal(|ui| {
-        ui.label("  b. 状态栏右侧隐藏键，在有更多候选时变换图标表示可展开");
+        label_hl(ui, "  b. 状态栏右侧隐藏键，在有更多候选时变换图标表示可展开");
     });
     ui.horizontal(|ui| {
-        ui.label("  c. ");
+        label_hl(ui, "  c. ");
         code(ui, "空格");
-        ui.label(" 上的文字：+小鹤　小鹤　-小鹤，分别表示词库的三种模式：初学　常规　熟手");
+        label_hl(ui, " 上的文字：+小鹤　小鹤　-小鹤，分别表示词库的三种模式：初学　常规　熟手");
     });
     ui.horizontal(|ui| {
-        ui.label("  d. ");
+        label_hl(ui, "  d. ");
         code(ui, "空格");
-        ui.label(" 文本 “—” 表达半角状态，“—” 表达全角状态，“⌒”表达英文补全状态");
+        label_hl(ui, " 文本 “—” 表达半角状态，“—” 表达全角状态，“⌒”表达英文补全状态");
     });
     p(
         ui,
@@ -2225,7 +2228,7 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
     );
     sp(ui);
 
-    ui.label(RichText::new("辅键盘功能：").strong());
+    label_hl_mk(ui, "辅键盘功能：", |s| RichText::new(s).strong());
     num(ui, "1", "数字键盘等号后可输入金额、日期或进行简单计算");
     num(
         ui,
@@ -2287,7 +2290,7 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
         ui,
         "    暗词库有点类似拼音里的上下文调频，比如上文上屏了“工作”，后面接着打 vg 首候选就可能出现的是“证”，而没有上文的“工作”时，打 vg 可能首候选是“正”。",
     );
-    ui.label(RichText::new("  暗词库的优势：").strong());
+    label_hl_mk(ui, "  暗词库的优势：", |s| RichText::new(s).strong());
     qt(ui, "① 可控，这应该是最关键的，暗词库完全由自己控制");
     qt(ui, "② 可替换前缀词条，达到纠错或其他功能的目的");
     qt(ui, "③ 结合转码直通，可实现一些特殊功能");
@@ -2329,9 +2332,9 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
     h4(ui, "六、直通码");
     num(ui, "1", "“2.3.直通-安卓.txt”");
     ui.horizontal(|ui| {
-        ui.label("可通过直通编码 ");
+        label_hl(ui, "可通过直通编码 ");
         code(ui, "ovt");
-        ui.label(" 打开直通文件");
+        label_hl(ui, " 打开直通文件");
     });
     bul(ui, "常用直通码：");
     tbl(
@@ -2368,46 +2371,46 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
     p(ui, "   字体粗细： ozt 3 切换（系统字体有效）");
     p(ui, "   字体大小：");
     ui.horizontal(|ui| {
-        ui.label("     ");
+        label_hl(ui, "     ");
         code(ui, "ohz");
-        ui.label(" 固定候选字号");
+        label_hl(ui, " 固定候选字号");
     });
     ui.horizontal(|ui| {
-        ui.label("     ");
+        label_hl(ui, "     ");
         code(ui, "ofz");
-        ui.label(" 浮动候选字号");
+        label_hl(ui, " 浮动候选字号");
     });
     ui.horizontal(|ui| {
-        ui.label("     ");
+        label_hl(ui, "     ");
         code(ui, "ofzi");
-        ui.label(" 外接浮动候选字号");
+        label_hl(ui, " 外接浮动候选字号");
     });
     ui.horizontal(|ui| {
-        ui.label("     ");
+        label_hl(ui, "     ");
         code(ui, "ojz");
-        ui.label(" 键盘字号");
+        label_hl(ui, " 键盘字号");
     });
     bul(ui, "键盘高度");
     ui.horizontal(|ui| {
-        ui.label("     ");
+        label_hl(ui, "     ");
         code(ui, "ojg");
-        ui.label(" 键盘高度");
+        label_hl(ui, " 键盘高度");
     });
     ui.horizontal(|ui| {
-        ui.label("     ");
+        label_hl(ui, "     ");
         code(ui, "odg");
-        ui.label(" 架空高度");
+        label_hl(ui, " 架空高度");
     });
     bul(ui, "横屏键盘");
     ui.horizontal(|ui| {
-        ui.label("     ");
+        label_hl(ui, "     ");
         code(ui, "ohp");
-        ui.label(" 横屏样式");
+        label_hl(ui, " 横屏样式");
     });
     ui.horizontal(|ui| {
-        ui.label("     ");
+        label_hl(ui, "     ");
         code(ui, "otmd");
-        ui.label(" 横屏透明度");
+        label_hl(ui, " 横屏透明度");
     });
     sp(ui);
 
@@ -2430,14 +2433,14 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
     bul(ui, "打开方法： 下滑 X 键");
     bul(ui, "特别用法：");
     ui.horizontal(|ui| {
-        ui.label("  ");
+        label_hl(ui, "  ");
         code(ui, "⤴，v");
-        ui.label(" 粘贴剪贴板第二条");
+        label_hl(ui, " 粘贴剪贴板第二条");
     });
     ui.horizontal(|ui| {
-        ui.label("  ");
+        label_hl(ui, "  ");
         code(ui, "⤴，b");
-        ui.label(" 粘贴剪贴板第三条");
+        label_hl(ui, " 粘贴剪贴板第三条");
     });
     qt(ui, "默认：保留一天  30条");
     qt(ui, "ojt 1打开剪贴板 2保留一天 3保留七天");
@@ -2453,13 +2456,13 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
     );
     ui.horizontal(|ui| {
         code(ui, "ovn");
-        ui.label(" 可关闭此功能");
+        label_hl(ui, " 可关闭此功能");
     });
     bul(ui, "数字后标点");
     p(ui, "如：数字后中文句号变英文句点");
     ui.horizontal(|ui| {
         code(ui, "osz");
-        ui.label(" 可关闭此功能");
+        label_hl(ui, " 可关闭此功能");
     });
     sp(ui);
 
@@ -2469,11 +2472,11 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
         "支持GB 18030-2022，可用于《通用规范汉字表》外的文字输入",
     );
     ui.horizontal(|ui| {
-        ui.label("使用 ");
+        label_hl(ui, "使用 ");
         code(ui, "ok");
-        ui.label("+ ");
+        label_hl(ui, "+ ");
         code(ui, "二分双拼码");
-        ui.label(" 方式进行输入，二分不能拼完的字，继续三分");
+        label_hl(ui, " 方式进行输入，二分不能拼完的字，继续三分");
     });
     p(ui, "如： okhoho 炎， okhohoho 焱");
     qt(ui, "辶廴 归到 vi，礻衤归到 pp");
@@ -2482,12 +2485,12 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
     h4(ui, "十二、AI & 语音");
     num(ui, "1", "注册");
     ui.horizontal_wrapped(|ui| {
-        ui.label("AI注册DeepSeek用户：");
+        label_hl(ui, "AI注册DeepSeek用户：");
         ext_link(ui, "https://deepseek.com/", "https://deepseek.com/");
     });
     p(ui, "创建API key");
     ui.horizontal_wrapped(|ui| {
-        ui.label("语音注册豆包火山引擎：");
+        label_hl(ui, "语音注册豆包火山引擎：");
         ext_link(ui, "https://www.volcengine.com/", "https://www.volcengine.com/");
     });
     num(ui, "2", "AI使用");
@@ -2579,20 +2582,20 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
     p(ui, "  在“2.6.符号.txt”文件内");
     ui.horizontal(|ui| {
         code(ui, "oq");
-        ui.label("引导 QQ 表情");
+        label_hl(ui, "引导 QQ 表情");
     });
     ui.horizontal(|ui| {
         code(ui, "ow");
-        ui.label("引导 微信 表情");
+        label_hl(ui, "引导 微信 表情");
     });
     ui.horizontal(|ui| {
         code(ui, "oi");
-        ui.label("引导 emoji 表情");
+        label_hl(ui, "引导 emoji 表情");
     });
     num(ui, "3", "emoji表情列表");
     ui.horizontal(|ui| {
         code(ui, "⤴，m");
-        ui.label(" 方式直接打开表情列表选择输入");
+        label_hl(ui, " 方式直接打开表情列表选择输入");
     });
 
     hr(ui);
@@ -2647,7 +2650,7 @@ pub(super) fn render_gj(ui: &mut Ui, nav: &mut HelpNav) {
     p(ui, "  安卓版、iOS版均支持：自定义方案");
     bul(ui, "rime");
     ui.horizontal_wrapped(|ui| {
-        ui.label("  rime是一个输入法软件的基础框架，官网：");
+        label_hl(ui, "  rime是一个输入法软件的基础框架，官网：");
         ext_link(ui, "https://rime.im", "https://rime.im");
     });
     p(
@@ -2698,7 +2701,7 @@ pub(super) fn render_gj(ui: &mut Ui, nav: &mut HelpNav) {
 
     h4(ui, "六、挂接文件下载");
     ui.horizontal_wrapped(|ui| {
-        ui.label("小鹤网盘：");
+        label_hl(ui, "小鹤网盘：");
         ext_link(ui, "http://flypy.ysepan.com", "http://flypy.ysepan.com");
     });
     qt(ui, "码表：字词编码表，俗称“词库”");
@@ -2744,7 +2747,7 @@ pub(super) fn render_wv(ui: &mut Ui, nav: &mut HelpNav) {
         ui,
         "小鹤音形，要求你对双拼方案和双形方案都要掌握，这才是个完整的音形方案，使用小鹤音形的通常都来自于智能拼音的使用者，所以通常对这种字词平台的输入方式不习惯，习惯了大词库以及程序智能的输入方式，要习惯这种小词库非智能的输入方式肯定是要有个过程的。不过没关系，大不了还是用回习惯的智能输入方式。如果你有幸跳过这道槛，你就能体会另一种输入方式的新奇之处，也许从此爱上她。",
     );
-    ui.label(RichText::new("散步的鹤 2010年9月6日").italics());
+    label_hl_mk(ui, "散步的鹤 2010年9月6日", |s| RichText::new(s).italics());
     sp(ui);
 
     h4(ui, "附一篇：“音形码”游走于智能与字词之间");
@@ -2752,11 +2755,11 @@ pub(super) fn render_wv(ui: &mut Ui, nav: &mut HelpNav) {
         ui,
         "“音形码”方案是指前两码为“双拼”后两码为“双形”，全码四码的单字编码方案。唯有这种方案可以较好的游走于智能输入方式与字词输入方式之间。",
     );
-    ui.label(RichText::new("散步的鹤 2011年2月27日").italics());
+    label_hl_mk(ui, "散步的鹤 2011年2月27日", |s| RichText::new(s).italics());
     sp(ui);
 
     h4(ui, "又一篇：尴尬的辅助码");
-    ui.label(RichText::new("散步的鹤 2017年3月8日").italics());
+    label_hl_mk(ui, "散步的鹤 2017年3月8日", |s| RichText::new(s).italics());
     sp(ui);
 
     h3(ui, "二、谈谈双拼零声母方案");
@@ -2768,7 +2771,7 @@ pub(super) fn render_wv(ui: &mut Ui, nav: &mut HelpNav) {
     bul(ui, "零声母方案通常有两类：");
     num(ui, "1", "单一零声母方案（又称固定零声母方案）");
     num(ui, "2", "三分零声母方案（又称非固定零声母方案）");
-    ui.label(RichText::new("散步的鹤 2010年5月17日").italics());
+    label_hl_mk(ui, "散步的鹤 2010年5月17日", |s| RichText::new(s).italics());
     sp(ui);
 
     h3(ui, "三、“小字”字根设计目的");
@@ -2785,7 +2788,7 @@ pub(super) fn render_wv(ui: &mut Ui, nav: &mut HelpNav) {
         ui,
         "还有一种无规律字根，增加字根和安排字根的目的主要考虑离散重码",
     );
-    ui.label(RichText::new("散步的鹤 2010年6月6日").italics());
+    label_hl_mk(ui, "散步的鹤 2010年6月6日", |s| RichText::new(s).italics());
     sp(ui);
 
     h3(ui, "四、小鹤字词库");
@@ -2809,12 +2812,12 @@ pub(super) fn render_wv(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
 
     h3(ui, "六、“记”与“不记”");
-    ui.label(RichText::new("不用记！千万别记！看着候选窗打字就好！").strong());
+    label_hl_mk(ui, "不用记！千万别记！看着候选窗打字就好！", |s| RichText::new(s).strong());
     p(
         ui,
         "只要是固定字词序的输入法，你在逐渐的使用中，都会潜移默化的记忆",
     );
-    ui.label(RichText::new("散步的鹤 2022年5月10日").italics());
+    label_hl_mk(ui, "散步的鹤 2022年5月10日", |s| RichText::new(s).italics());
 
     hr(ui);
     navrow(ui, nav, Some(("2.5 挂接", "gj")), Some(("4 问题", "wt")));
@@ -2944,9 +2947,9 @@ pub(super) fn render_vy(ui: &mut Ui, nav: &mut HelpNav) {
     h4(ui, "一、学习指引");
     num(ui, "1", "学习之前");
     ui.horizontal_wrapped(|ui| {
-        ui.label("在学习双拼之前，建议到小鹤网盘 ");
+        label_hl(ui, "在学习双拼之前，建议到小鹤网盘 ");
         ext_link(ui, "http://flypy.ysepan.com", "http://flypy.ysepan.com");
-        ui.label(" 下载“小鹤专用添雨跟打器”，用这个工具测试其中所提一小段文字，取得你的全拼打字速度指标，主要还是看看熟练情况下的击键水平，以做日后参考。");
+        label_hl(ui, " 下载“小鹤专用添雨跟打器”，用这个工具测试其中所提一小段文字，取得你的全拼打字速度指标，主要还是看看熟练情况下的击键水平，以做日后参考。");
     });
     num(ui, "2", "了解自己");
     p(
@@ -2995,9 +2998,9 @@ pub(super) fn render_vy(ui: &mut Ui, nav: &mut HelpNav) {
         "小鹤双拼方案是为智能拼音设计的拼音压缩方案，小鹤音形输入法是小鹤官方发布的音形码输入法，单字编码为前两码双拼后两码双形，在你使用双拼一两周后可以考虑进阶。",
     );
     ui.horizontal_wrapped(|ui| {
-        ui.label("请在小鹤网盘 ");
+        label_hl(ui, "请在小鹤网盘 ");
         ext_link(ui, "http://flypy.ysepan.com", "http://flypy.ysepan.com");
-        ui.label(" 下载小鹤音形输入法。");
+        label_hl(ui, " 下载小鹤音形输入法。");
     });
     p(
         ui,
@@ -3079,15 +3082,15 @@ pub(super) fn render_gy(ui: &mut Ui, nav: &mut HelpNav) {
 
     qt(ui, "作　者：何海峰（散步的鹤）");
     ui.horizontal(|ui| {
-        ui.label("官　网：");
+        label_hl(ui, "官　网：");
         ext_link(ui, "https://flypy.cc", "https://flypy.cc");
     });
     ui.horizontal(|ui| {
-        ui.label("Ｑ　群：");
+        label_hl(ui, "Ｑ　群：");
         ext_link(ui, "182883808", "tencent://message/?uin=182883808");
     });
     ui.horizontal(|ui| {
-        ui.label("E_mail：");
+        label_hl(ui, "E_mail：");
         ext_link(ui, "flypy@qq.com", "mailto:flypy@qq.com");
     });
     sp(ui);

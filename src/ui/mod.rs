@@ -67,6 +67,14 @@ impl eframe::App for DictApp {
             }
         }
 
+        // F1 切换帮助文档
+        if ui.input(|i| i.key_pressed(egui::Key::F1)) {
+            self.show_help_panel = !self.show_help_panel;
+            if self.show_help_panel && self.selected_help_chapter.is_none() {
+                self.selected_help_chapter = Some("readme".to_string());
+            }
+        }
+
         // Top panel (hidden in help mode)
         if !self.show_help_panel {
             panel::render_top_panel(self, ui, &ctx);
@@ -94,15 +102,27 @@ impl DictApp {
     fn render_main_content(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         use crate::dict::Category;
 
-        // Search bar
-        let _search_changed = ui
-            .add_sized(
-                [ui.available_width(), 32.0],
+        // Search bar with clear button
+        ui.horizontal(|ui| {
+            ui.add_sized(
+                [ui.available_width() - 28.0, 32.0],
                 egui::TextEdit::singleline(&mut self.query)
                     .hint_text("🔍 输入文字 或 编码...")
                     .desired_width(f32::INFINITY),
-            )
-            .changed();
+            );
+
+            // ESC 清空
+            if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                self.query.clear();
+            }
+
+            // 清除按钮
+            if !self.query.is_empty() {
+                if ui.button("×").on_hover_text("清除搜索 (Esc)").clicked() {
+                    self.query.clear();
+                }
+            }
+        });
 
         ui.separator();
 
