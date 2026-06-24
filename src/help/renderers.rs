@@ -445,7 +445,10 @@ pub(super) fn render_readme(ui: &mut Ui, nav: &mut HelpNav) {
     ui.horizontal_wrapped(|ui| {
         label_hl(ui, "小鹤音形的学习就要接触到小鹤音形");
         lnk(ui, nav, "输入法", "yy");
-        label_hl(ui, "，这是一个独立的输入法，需要在小鹤官网下载安装使用。同时你需要对");
+        label_hl(
+            ui,
+            "，这是一个独立的输入法，需要在小鹤官网下载安装使用。同时你需要对",
+        );
         lnk(ui, nav, "win版", "pc");
         label_hl(ui, "、");
         lnk(ui, nav, "安卓版", "sj");
@@ -479,12 +482,18 @@ pub(super) fn render_xh(ui: &mut Ui, nav: &mut HelpNav) {
     ui.horizontal(|ui| {
         label_hl(ui, "    ");
         blue(ui, "双拼");
-        label_hl(ui, "：声母、韵母各用一个字母表示，一个汉字的音用两个字母表达");
+        label_hl(
+            ui,
+            "：声母、韵母各用一个字母表示，一个汉字的音用两个字母表达",
+        );
     });
     ui.horizontal(|ui| {
         label_hl(ui, "    ");
         blue(ui, "双形");
-        label_hl(ui, "：根据拆分规则把一个汉字按字根拆分出两个部分，以区分同音字");
+        label_hl(
+            ui,
+            "：根据拆分规则把一个汉字按字根拆分出两个部分，以区分同音字",
+        );
     });
     sp(ui);
     ui.horizontal(|ui| {
@@ -591,8 +600,14 @@ pub(super) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
         "1",
         "本方案以韵母首字母为零声母，即把韵母的首字母当作声母",
     );
-    label_hl(ui, "单字母韵母，零声母 + 韵母所在键，如： 啊＝aa 哦=oo 额=ee");
-    label_hl(ui, "双字母韵母，零声母 + 韵母末字母，如： 爱＝ai 恩=en 欧=ou");
+    label_hl(
+        ui,
+        "单字母韵母，零声母 + 韵母所在键，如： 啊＝aa 哦=oo 额=ee",
+    );
+    label_hl(
+        ui,
+        "双字母韵母，零声母 + 韵母末字母，如： 爱＝ai 恩=en 欧=ou",
+    );
     label_hl(ui, "三字母韵母，零声母 + 韵母所在键，如： 昂＝ah");
     num(ui, "2", "简单说：");
     blue(
@@ -605,7 +620,10 @@ pub(super) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
     ui.horizontal_wrapped(|ui| {
         label_hl(ui, "键位图可参考小鹤官网 ");
         ext_link(ui, "flypy.cc", "https://flypy.cc");
-        label_hl(ui, " 上的双拼键位图，也可在各拼音输入法内置的小鹤双拼方案中直接查看。");
+        label_hl(
+            ui,
+            " 上的双拼键位图，也可在各拼音输入法内置的小鹤双拼方案中直接查看。",
+        );
     });
     bul(
         ui,
@@ -772,7 +790,9 @@ pub(super) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
         ui,
         "从中抽取四部小说同手跨排使用率统计如下（不含相同韵母键位）：",
     );
-    label_hl_mk(ui, "小鹤双拼同手跨排：", |s| RichText::new(s).strong());
+    label_hl_mk(ui, "小鹤双拼同手跨排：", |s| {
+        RichText::new(s).strong()
+    });
     tbl(
         ui,
         50.0,
@@ -799,7 +819,9 @@ pub(super) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
         ],
     );
     qt(ui, "跨排高频主要是 tz 和 bw 组合，bw不难打，tz有点不爽");
-    label_hl_mk(ui, "自然双拼同手跨排：", |s| RichText::new(s).strong());
+    label_hl_mk(ui, "自然双拼同手跨排：", |s| {
+        RichText::new(s).strong()
+    });
     tbl(
         ui,
         46.0,
@@ -1001,7 +1023,10 @@ pub(super) fn render_ux(ui: &mut Ui, nav: &mut HelpNav) {
     ui.horizontal(|ui| {
         label_hl(ui, "- ");
         red(ui, "小字字根");
-        label_hl(ui, " ____ 基本为小且独立的字，规则推导字根，按其声母定键，理解为主。见");
+        label_hl(
+            ui,
+            " ____ 基本为小且独立的字，规则推导字根，按其声母定键，理解为主。见",
+        );
         lnk(ui, nav, "规则", "gz");
     });
     sp(ui);
@@ -1107,7 +1132,9 @@ pub(super) fn render_gz(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
 
     h4(ui, "2. 相交不拆");
-    label_hl_mk(ui, "字根如与其它笔画相交，则不取", |s| RichText::new(s).strong());
+    label_hl_mk(ui, "字根如与其它笔画相交，则不取", |s| {
+        RichText::new(s).strong()
+    });
     bul(
         ui,
         "释义：相交不拆，字根如果与其它笔画相交，则此字根即被破坏而不可取，这样就免去了字中找字的麻烦，而可以简单直接取到笔画",
@@ -1123,7 +1150,11 @@ pub(super) fn render_gz(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
 
     h4(ui, "3. 插隔不取");
-    label_hl_mk(ui, "字根如被单笔画插入或被结构隔离则不再被认为是字根", |s| RichText::new(s).strong());
+    label_hl_mk(
+        ui,
+        "字根如被单笔画插入或被结构隔离则不再被认为是字根",
+        |s| RichText::new(s).strong(),
+    );
     bul(
         ui,
         "插入释义： 如“平”的拆分，单笔画插入破坏了这个“干”字而不能取，因此“平”被拆分成“横十”，金人横、番撇田、丧十捺，等字同理。“插入”好比一个三面包围“匚”或四面包围“囗”的结构中间插入一个单笔画，如“丽”字里的“冂”中插入了一个笔画点，则此部件被破坏而不再当作部件，“卵”中的“卩”、“眉”中的“尸”同理",
@@ -1135,7 +1166,9 @@ pub(super) fn render_gz(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
 
     h4(ui, "4. 建辶优先");
-    label_hl_mk(ui, "以“廴 辶”为部首的字，首码先取", |s| RichText::new(s).strong());
+    label_hl_mk(ui, "以“廴 辶”为部首的字，首码先取", |s| {
+        RichText::new(s).strong()
+    });
     bul(
         ui,
         "释义：以这两个部件为部首的字先取此部件，因为这两个部件特征明显，优先取更直观。部件并非字的部首时，则按照常规顺序拆分，如：筵，其部首为“⺮”，“廴”部件并非部首，故常规首末取“⺮廴”，又如“健→亻廴”。",
@@ -1200,7 +1233,9 @@ pub(super) fn render_gz(ui: &mut Ui, nav: &mut HelpNav) {
         ui,
         "示例：“巨臣勿而出击”等字包含框部件外再无其它部件，则为小字；“匝匹句匀同函”等字含框部件外还含其它部件或字，则分取",
     );
-    label_hl_mk(ui, "另： 开口框在字中开口时才为部件", |s| RichText::new(s).strong());
+    label_hl_mk(ui, "另： 开口框在字中开口时才为部件", |s| {
+        RichText::new(s).strong()
+    });
     p(
         ui,
         "示例：“同巨击出”等字中的“冂匚凵”没有被封口即为部件；“皿且甲”中的“冂”被封了口，则不被认为是部件",
@@ -1258,7 +1293,10 @@ pub(super) fn render_zg(ui: &mut Ui, nav: &mut HelpNav) {
 
     h4(ui, "一、字根合图");
     ui.horizontal_wrapped(|ui| {
-        label_hl(ui, "字根合图可点击主界面「部件字根键位图」按钮查看，或参考小鹤官网 ");
+        label_hl(
+            ui,
+            "字根合图可点击主界面「部件字根键位图」按钮查看，或参考小鹤官网 ",
+        );
         ext_link(ui, "flypy.cc", "https://flypy.cc");
         label_hl(ui, " 上的图示。");
     });
@@ -1287,9 +1325,11 @@ pub(super) fn render_zg(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
     for (k, parts, mem) in BUJIAN {
         ui.horizontal(|ui| {
-            label_hl_mk(ui, *k, |s| RichText::new(s).monospace().strong().color(ORANGE));
+            label_hl_mk(ui, k, |s| {
+                RichText::new(s).monospace().strong().color(ORANGE)
+            });
             label_hl(ui, ":");
-            label_hl(ui, *parts);
+            label_hl(ui, parts);
             if !mem.is_empty() {
                 label_hl(ui, "—");
                 ui.weak(*mem);
@@ -1308,16 +1348,21 @@ pub(super) fn render_zg(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
     for (k, chars) in XIAOZI {
         ui.horizontal(|ui| {
-            label_hl_mk(ui, *k, |s| RichText::new(s).monospace().strong().color(ORANGE));
+            label_hl_mk(ui, k, |s| {
+                RichText::new(s).monospace().strong().color(ORANGE)
+            });
             label_hl(ui, ":");
-            label_hl(ui, *chars);
+            label_hl(ui, chars);
         });
     }
     sp(ui);
 
     h4(ui, "五、拆分例字");
     ui.horizontal_wrapped(|ui| {
-        label_hl(ui, "理解下面单字的拆分，就基本掌握鹤形字根了，也可到 拆分学习 ");
+        label_hl(
+            ui,
+            "理解下面单字的拆分，就基本掌握鹤形字根了，也可到 拆分学习 ",
+        );
         ext_link(ui, "https://flypy.cc/if", "https://flypy.cc/if");
         label_hl(ui, " 页面进行拆分练习");
     });
@@ -1639,12 +1684,12 @@ pub(super) fn render_fh(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
     for (name, code_str, syms) in ZUHE {
         ui.horizontal(|ui| {
-            label_hl_mk(ui, *name, |s| RichText::new(s).strong());
+            label_hl_mk(ui, name, |s| RichText::new(s).strong());
             label_hl(ui, ":");
             code(ui, code_str);
             label_hl(ui, "→");
         });
-        label_hl(ui, *syms);
+        label_hl(ui, syms);
         sp(ui);
     }
 
@@ -1857,7 +1902,10 @@ pub(super) fn render_pc(ui: &mut Ui, nav: &mut HelpNav) {
     ui.horizontal(|ui| {
         label_hl(ui, "  输入");
         code(ui, "'2019.12");
-        label_hl(ui, "　候选：a. 二千零一十九点一二　b. 贰仟零壹拾玖元壹角贰分");
+        label_hl(
+            ui,
+            "　候选：a. 二千零一十九点一二　b. 贰仟零壹拾玖元壹角贰分",
+        );
     });
     ui.horizontal(|ui| {
         label_hl(ui, "  输入");
@@ -2125,7 +2173,9 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
     });
     ui.horizontal(|ui| {
         label_hl(ui, "  g. ");
-        label_hl_mk(ui, "全选、剪切、复制、粘贴", |s| RichText::new(s).strong());
+        label_hl_mk(ui, "全选、剪切、复制、粘贴", |s| {
+            RichText::new(s).strong()
+        });
         label_hl(ui, " 分别放在 ");
         code(ui, "AXCV");
         label_hl(ui, " 键上档");
@@ -2190,7 +2240,10 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
     ui.horizontal(|ui| {
         label_hl(ui, "  a. ");
         code(ui, "⌫");
-        label_hl(ui, " 开始左滑，删除前面的内容，左滑的位置继续右滑则恢复删除的内容");
+        label_hl(
+            ui,
+            " 开始左滑，删除前面的内容，左滑的位置继续右滑则恢复删除的内容",
+        );
     });
     ui.horizontal(|ui| {
         label_hl(ui, "  b. ");
@@ -2205,17 +2258,26 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
         code(ui, "☷");
     });
     ui.horizontal(|ui| {
-        label_hl(ui, "  b. 状态栏右侧隐藏键，在有更多候选时变换图标表示可展开");
+        label_hl(
+            ui,
+            "  b. 状态栏右侧隐藏键，在有更多候选时变换图标表示可展开",
+        );
     });
     ui.horizontal(|ui| {
         label_hl(ui, "  c. ");
         code(ui, "空格");
-        label_hl(ui, " 上的文字：+小鹤　小鹤　-小鹤，分别表示词库的三种模式：初学　常规　熟手");
+        label_hl(
+            ui,
+            " 上的文字：+小鹤　小鹤　-小鹤，分别表示词库的三种模式：初学　常规　熟手",
+        );
     });
     ui.horizontal(|ui| {
         label_hl(ui, "  d. ");
         code(ui, "空格");
-        label_hl(ui, " 文本 “—” 表达半角状态，“—” 表达全角状态，“⌒”表达英文补全状态");
+        label_hl(
+            ui,
+            " 文本 “—” 表达半角状态，“—” 表达全角状态，“⌒”表达英文补全状态",
+        );
     });
     p(
         ui,
@@ -2491,7 +2553,11 @@ pub(super) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
     p(ui, "创建API key");
     ui.horizontal_wrapped(|ui| {
         label_hl(ui, "语音注册豆包火山引擎：");
-        ext_link(ui, "https://www.volcengine.com/", "https://www.volcengine.com/");
+        ext_link(
+            ui,
+            "https://www.volcengine.com/",
+            "https://www.volcengine.com/",
+        );
     });
     num(ui, "2", "AI使用");
     qt(
@@ -2747,7 +2813,9 @@ pub(super) fn render_wv(ui: &mut Ui, nav: &mut HelpNav) {
         ui,
         "小鹤音形，要求你对双拼方案和双形方案都要掌握，这才是个完整的音形方案，使用小鹤音形的通常都来自于智能拼音的使用者，所以通常对这种字词平台的输入方式不习惯，习惯了大词库以及程序智能的输入方式，要习惯这种小词库非智能的输入方式肯定是要有个过程的。不过没关系，大不了还是用回习惯的智能输入方式。如果你有幸跳过这道槛，你就能体会另一种输入方式的新奇之处，也许从此爱上她。",
     );
-    label_hl_mk(ui, "散步的鹤 2010年9月6日", |s| RichText::new(s).italics());
+    label_hl_mk(ui, "散步的鹤 2010年9月6日", |s| {
+        RichText::new(s).italics()
+    });
     sp(ui);
 
     h4(ui, "附一篇：“音形码”游走于智能与字词之间");
@@ -2755,11 +2823,15 @@ pub(super) fn render_wv(ui: &mut Ui, nav: &mut HelpNav) {
         ui,
         "“音形码”方案是指前两码为“双拼”后两码为“双形”，全码四码的单字编码方案。唯有这种方案可以较好的游走于智能输入方式与字词输入方式之间。",
     );
-    label_hl_mk(ui, "散步的鹤 2011年2月27日", |s| RichText::new(s).italics());
+    label_hl_mk(ui, "散步的鹤 2011年2月27日", |s| {
+        RichText::new(s).italics()
+    });
     sp(ui);
 
     h4(ui, "又一篇：尴尬的辅助码");
-    label_hl_mk(ui, "散步的鹤 2017年3月8日", |s| RichText::new(s).italics());
+    label_hl_mk(ui, "散步的鹤 2017年3月8日", |s| {
+        RichText::new(s).italics()
+    });
     sp(ui);
 
     h3(ui, "二、谈谈双拼零声母方案");
@@ -2771,7 +2843,9 @@ pub(super) fn render_wv(ui: &mut Ui, nav: &mut HelpNav) {
     bul(ui, "零声母方案通常有两类：");
     num(ui, "1", "单一零声母方案（又称固定零声母方案）");
     num(ui, "2", "三分零声母方案（又称非固定零声母方案）");
-    label_hl_mk(ui, "散步的鹤 2010年5月17日", |s| RichText::new(s).italics());
+    label_hl_mk(ui, "散步的鹤 2010年5月17日", |s| {
+        RichText::new(s).italics()
+    });
     sp(ui);
 
     h3(ui, "三、“小字”字根设计目的");
@@ -2788,7 +2862,9 @@ pub(super) fn render_wv(ui: &mut Ui, nav: &mut HelpNav) {
         ui,
         "还有一种无规律字根，增加字根和安排字根的目的主要考虑离散重码",
     );
-    label_hl_mk(ui, "散步的鹤 2010年6月6日", |s| RichText::new(s).italics());
+    label_hl_mk(ui, "散步的鹤 2010年6月6日", |s| {
+        RichText::new(s).italics()
+    });
     sp(ui);
 
     h3(ui, "四、小鹤字词库");
@@ -2812,12 +2888,18 @@ pub(super) fn render_wv(ui: &mut Ui, nav: &mut HelpNav) {
     sp(ui);
 
     h3(ui, "六、“记”与“不记”");
-    label_hl_mk(ui, "不用记！千万别记！看着候选窗打字就好！", |s| RichText::new(s).strong());
+    label_hl_mk(
+        ui,
+        "不用记！千万别记！看着候选窗打字就好！",
+        |s| RichText::new(s).strong(),
+    );
     p(
         ui,
         "只要是固定字词序的输入法，你在逐渐的使用中，都会潜移默化的记忆",
     );
-    label_hl_mk(ui, "散步的鹤 2022年5月10日", |s| RichText::new(s).italics());
+    label_hl_mk(ui, "散步的鹤 2022年5月10日", |s| {
+        RichText::new(s).italics()
+    });
 
     hr(ui);
     navrow(ui, nav, Some(("2.5 挂接", "gj")), Some(("4 问题", "wt")));

@@ -117,10 +117,9 @@ impl DictApp {
             }
 
             // 清除按钮
-            if !self.query.is_empty() {
-                if ui.button("×").on_hover_text("清除搜索 (Esc)").clicked() {
-                    self.query.clear();
-                }
+            if !self.query.is_empty() && ui.button("×").on_hover_text("清除搜索 (Esc)").clicked()
+            {
+                self.query.clear();
             }
         });
 

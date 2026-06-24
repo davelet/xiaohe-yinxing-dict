@@ -224,7 +224,6 @@ impl HelpManager {
             .collect()
     }
 
-
     /// 在帮助文档中搜索，按句子匹配，返回匹配的章节及匹配句子（含在 search_text 中的索引）
     /// 只搜索汉字、字母和数字，忽略标点符号
     pub fn search(&self, query: &str) -> Vec<(&HelpChapter, Vec<(usize, &'static str)>)> {
@@ -233,11 +232,11 @@ impl HelpManager {
         }
         let q = query.to_lowercase();
         let q_filtered = filter_chinese_and_letters(&q);
-        
+
         if q_filtered.is_empty() {
             return Vec::new();
         }
-        
+
         self.chapters
             .iter()
             .filter_map(|c| {
@@ -321,7 +320,9 @@ pub(crate) fn split_search_segments(s: &str) -> Vec<(usize, String)> {
 /// 使用与搜索一致的标点感知匹配逻辑（split_search_segments + filter_chinese_and_letters）
 pub(crate) fn find_all_matches(text: &str, query: &str) -> Vec<(usize, usize)> {
     let q_filtered = filter_chinese_and_letters(&query.to_lowercase());
-    if q_filtered.is_empty() { return vec![]; }
+    if q_filtered.is_empty() {
+        return vec![];
+    }
 
     let mut results = Vec::new();
     for (seg_start, seg) in &split_search_segments(text) {
@@ -352,8 +353,12 @@ pub(crate) fn find_all_matches(text: &str, query: &str) -> Vec<(usize, usize)> {
             let mut mc_count = 0;
             let mut seg_byte_end = seg_byte_start;
             for (bi, c) in seg[seg_byte_start..].char_indices() {
-                if mc_count == q_char_count { break; }
-                if is_text_char(c) { mc_count += 1; }
+                if mc_count == q_char_count {
+                    break;
+                }
+                if is_text_char(c) {
+                    mc_count += 1;
+                }
                 seg_byte_end = seg_byte_start + bi + c.len_utf8();
             }
 
@@ -363,7 +368,9 @@ pub(crate) fn find_all_matches(text: &str, query: &str) -> Vec<(usize, usize)> {
     }
 
     // 合并重叠匹配
-    if results.len() <= 1 { return results; }
+    if results.len() <= 1 {
+        return results;
+    }
     let mut merged = vec![results[0]];
     for &m in &results[1..] {
         let last = merged.last_mut().unwrap();
@@ -384,22 +391,41 @@ fn render_hl_inline(ui: &mut Ui, text: &str, mk: impl Fn(&str) -> RichText) {
     let query = get_search_query();
     let query = match query.as_ref() {
         Some(q) if !q.is_empty() => q.as_str(),
-        _ => { ui.label(mk(text)); return; }
+        _ => {
+            ui.label(mk(text));
+            return;
+        }
     };
     let matches = find_all_matches(text, query);
     render_hl_matches(ui, text, mk, matches);
 }
 
 /// 渲染高亮片段（不另做查询，直接使用已计算的 matches）
-fn render_hl_matches(ui: &mut Ui, text: &str, mk: impl Fn(&str) -> RichText, matches: Vec<(usize, usize)>) {
-    if matches.is_empty() { ui.label(mk(text)); return; }
+fn render_hl_matches(
+    ui: &mut Ui,
+    text: &str,
+    mk: impl Fn(&str) -> RichText,
+    matches: Vec<(usize, usize)>,
+) {
+    if matches.is_empty() {
+        ui.label(mk(text));
+        return;
+    }
     let mut cursor = 0;
     for &(start, end) in &matches {
-        if cursor < start { ui.label(mk(&text[cursor..start])); }
-        ui.label(mk(&text[start..end]).background_color(HIGHLIGHT_BG).color(HIGHLIGHT_FG));
+        if cursor < start {
+            ui.label(mk(&text[cursor..start]));
+        }
+        ui.label(
+            mk(&text[start..end])
+                .background_color(HIGHLIGHT_BG)
+                .color(HIGHLIGHT_FG),
+        );
         cursor = end;
     }
-    if cursor < text.len() { ui.label(mk(&text[cursor..])); }
+    if cursor < text.len() {
+        ui.label(mk(&text[cursor..]));
+    }
 }
 
 // ── 内联高亮辅助（用于 ui.horizontal / ui.horizontal_wrapped 内） ──
@@ -419,12 +445,20 @@ fn render_hl(ui: &mut Ui, text: &str, mk: impl Fn(&str) -> RichText) {
     let query = get_search_query();
     let query = match query.as_ref() {
         Some(q) if !q.is_empty() => q.as_str(),
-        _ => { ui.horizontal_wrapped(|ui| { ui.label(mk(text)); }); return; }
+        _ => {
+            ui.horizontal_wrapped(|ui| {
+                ui.label(mk(text));
+            });
+            return;
+        }
     };
     let matches = find_all_matches(text, query);
     ui.horizontal_wrapped(|ui| {
-        if matches.is_empty() { ui.label(mk(text)); }
-        else { render_hl_matches(ui, text, mk, matches); }
+        if matches.is_empty() {
+            ui.label(mk(text));
+        } else {
+            render_hl_matches(ui, text, mk, matches);
+        }
     });
 }
 
@@ -475,7 +509,9 @@ fn num(ui: &mut Ui, n: &str, t: &str) {
 }
 
 fn qt(ui: &mut Ui, t: &str) {
-    render_hl(ui, &format!("  {}", t), |s| RichText::new(s).italics().color(GRAY));
+    render_hl(ui, &format!("  {}", t), |s| {
+        RichText::new(s).italics().color(GRAY)
+    });
 }
 
 fn red(ui: &mut Ui, t: &str) {
@@ -623,27 +659,43 @@ mod tests {
 
     fn chapter_mapping() -> HashMap<&'static str, &'static str> {
         HashMap::from([
-            ("readme", "render_readme"), ("xh", "render_xh"),
-            ("up", "render_up"), ("ux", "render_ux"),
-            ("gz", "render_gz"), ("zg", "render_zg"),
-            ("yy", "render_yy"), ("jm", "render_jm"),
-            ("fh", "render_fh"), ("pc", "render_pc"),
-            ("sj", "render_sj"), ("gj", "render_gj"),
-            ("wv", "render_wv"), ("wt", "render_wt"),
-            ("vy", "render_vy"), ("gy", "render_gy"),
+            ("readme", "render_readme"),
+            ("xh", "render_xh"),
+            ("up", "render_up"),
+            ("ux", "render_ux"),
+            ("gz", "render_gz"),
+            ("zg", "render_zg"),
+            ("yy", "render_yy"),
+            ("jm", "render_jm"),
+            ("fh", "render_fh"),
+            ("pc", "render_pc"),
+            ("sj", "render_sj"),
+            ("gj", "render_gj"),
+            ("wv", "render_wv"),
+            ("wt", "render_wt"),
+            ("vy", "render_vy"),
+            ("gy", "render_gy"),
         ])
     }
 
     fn const_name_to_id(name: &str) -> Option<&'static str> {
         match name {
-            "README_SEARCH_TEXT" => Some("readme"), "XH_SEARCH_TEXT" => Some("xh"),
-            "UP_SEARCH_TEXT" => Some("up"), "UX_SEARCH_TEXT" => Some("ux"),
-            "GZ_SEARCH_TEXT" => Some("gz"), "ZG_SEARCH_TEXT" => Some("zg"),
-            "YY_SEARCH_TEXT" => Some("yy"), "JM_SEARCH_TEXT" => Some("jm"),
-            "FH_SEARCH_TEXT" => Some("fh"), "PC_SEARCH_TEXT" => Some("pc"),
-            "SJ_SEARCH_TEXT" => Some("sj"), "GJ_SEARCH_TEXT" => Some("gj"),
-            "WV_SEARCH_TEXT" => Some("wv"), "WT_SEARCH_TEXT" => Some("wt"),
-            "VY_SEARCH_TEXT" => Some("vy"), "GY_SEARCH_TEXT" => Some("gy"),
+            "README_SEARCH_TEXT" => Some("readme"),
+            "XH_SEARCH_TEXT" => Some("xh"),
+            "UP_SEARCH_TEXT" => Some("up"),
+            "UX_SEARCH_TEXT" => Some("ux"),
+            "GZ_SEARCH_TEXT" => Some("gz"),
+            "ZG_SEARCH_TEXT" => Some("zg"),
+            "YY_SEARCH_TEXT" => Some("yy"),
+            "JM_SEARCH_TEXT" => Some("jm"),
+            "FH_SEARCH_TEXT" => Some("fh"),
+            "PC_SEARCH_TEXT" => Some("pc"),
+            "SJ_SEARCH_TEXT" => Some("sj"),
+            "GJ_SEARCH_TEXT" => Some("gj"),
+            "WV_SEARCH_TEXT" => Some("wv"),
+            "WT_SEARCH_TEXT" => Some("wt"),
+            "VY_SEARCH_TEXT" => Some("vy"),
+            "GY_SEARCH_TEXT" => Some("gy"),
             _ => None,
         }
     }
@@ -660,9 +712,12 @@ mod tests {
                 if let Some(prev) = id.take() {
                     result.push((prev, std::mem::take(&mut texts)));
                 }
-                id = line.split_whitespace().nth(2)
+                id = line
+                    .split_whitespace()
+                    .nth(2)
                     .map(|s| s.trim_end_matches(':'))
-                    .and_then(const_name_to_id).map(|s| s.to_string());
+                    .and_then(const_name_to_id)
+                    .map(|s| s.to_string());
                 continue;
             }
             if id.is_some() {
@@ -673,7 +728,9 @@ mod tests {
                     continue;
                 }
                 if let Some(s) = extract_string_literal(line) {
-                    if !s.is_empty() { texts.push(s); }
+                    if !s.is_empty() {
+                        texts.push(s);
+                    }
                 }
             }
         }
@@ -688,12 +745,22 @@ mod tests {
     /// 处理单行和多行调用两种形式。
     fn extract_renderer_texts(src: &str) -> Vec<(String, Vec<String>)> {
         let map = chapter_mapping();
-        let fn_to_id: HashMap<&str, &str> =
-            map.iter().map(|(&id, &f)| (f, id)).collect();
+        let fn_to_id: HashMap<&str, &str> = map.iter().map(|(&id, &f)| (f, id)).collect();
 
         const HELPERS: &[&str] = &[
-            "h1(", "h2(", "h3(", "h4(", "p(", "bul(", "num(",
-            "qt(", "red(", "blue(", "code(", "lnk(", "ext_link(",
+            "h1(",
+            "h2(",
+            "h3(",
+            "h4(",
+            "p(",
+            "bul(",
+            "num(",
+            "qt(",
+            "red(",
+            "blue(",
+            "code(",
+            "lnk(",
+            "ext_link(",
         ];
 
         let mut result: Vec<(String, Vec<String>)> = Vec::new();
@@ -718,12 +785,16 @@ mod tests {
                 }
                 continue;
             }
-            if cur_id.is_none() { continue; }
+            if cur_id.is_none() {
+                continue;
+            }
 
             // 多行调用的延续行：以 "..." 开头的行
             if pending && t.starts_with('"') {
                 if let Some(s) = extract_string_literal(t) {
-                    if s.chars().count() >= 2 { texts.push(s); }
+                    if s.chars().count() >= 2 {
+                        texts.push(s);
+                    }
                 }
                 // 检查本行是否闭合
                 pending = open_parens_after_first(t) > close_parens_in(t);
@@ -737,12 +808,16 @@ mod tests {
                     // 提取 helper 括号后的第一个字符串
                     let after = &t[t.find(helper).unwrap() + helper.len()..];
                     if let Some(s) = extract_string_literal(after) {
-                        if s.chars().count() >= 2 { texts.push(s); }
+                        if s.chars().count() >= 2 {
+                            texts.push(s);
+                        }
                     }
                     // 检查调用是否跨行（括号未闭合）
                     let open = open_parens_after_first(t);
                     let close = close_parens_in(t);
-                    if open > close { pending = true; }
+                    if open > close {
+                        pending = true;
+                    }
                     break;
                 }
             }
@@ -760,12 +835,27 @@ mod tests {
         let mut found_first = false;
         let mut count = 0usize;
         for ch in line.chars() {
-            if escape { escape = false; continue; }
-            if ch == '\\' && in_str { escape = true; continue; }
-            if ch == '"' { in_str = !in_str; continue; }
-            if in_str { continue; }
+            if escape {
+                escape = false;
+                continue;
+            }
+            if ch == '\\' && in_str {
+                escape = true;
+                continue;
+            }
+            if ch == '"' {
+                in_str = !in_str;
+                continue;
+            }
+            if in_str {
+                continue;
+            }
             if ch == '(' {
-                if !found_first { found_first = true; } else { count += 1; }
+                if !found_first {
+                    found_first = true;
+                } else {
+                    count += 1;
+                }
             }
         }
         count
@@ -777,10 +867,21 @@ mod tests {
         let mut escape = false;
         let mut count = 0usize;
         for ch in line.chars() {
-            if escape { escape = false; continue; }
-            if ch == '\\' && in_str { escape = true; continue; }
-            if ch == '"' { in_str = !in_str; continue; }
-            if !in_str && ch == ')' { count += 1; }
+            if escape {
+                escape = false;
+                continue;
+            }
+            if ch == '\\' && in_str {
+                escape = true;
+                continue;
+            }
+            if ch == '"' {
+                in_str = !in_str;
+                continue;
+            }
+            if !in_str && ch == ')' {
+                count += 1;
+            }
         }
         count
     }
@@ -806,7 +907,8 @@ mod tests {
             .expect("cannot read search_text.rs");
 
         let search_entries = parse_search_texts(&search_src);
-        let search_map: HashMap<&str, &[String]> = search_entries.iter()
+        let search_map: HashMap<&str, &[String]> = search_entries
+            .iter()
             .map(|(id, texts)| (id.as_str(), texts.as_slice()))
             .collect();
 
@@ -822,9 +924,15 @@ mod tests {
 
             for text in texts {
                 let trimmed = text.trim();
-                if trimmed.chars().count() < 4 { continue; }
-                if trimmed.starts_with("http://") || trimmed.starts_with("https://") { continue; }
-                if trimmed.chars().all(|c| c.is_ascii_digit() || c == '.') { continue; }
+                if trimmed.chars().count() < 4 {
+                    continue;
+                }
+                if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+                    continue;
+                }
+                if trimmed.chars().all(|c| c.is_ascii_digit() || c == '.') {
+                    continue;
+                }
 
                 if !all_search.contains(trimmed) {
                     missing.push(format!("  [{chapter_id}] \"{trimmed}\""));
@@ -837,7 +945,8 @@ mod tests {
             "renderers.rs 中有 {} 条文本未被 search_text 覆盖（基线 {}），\
              新增渲染内容后请同步更新 search_text.rs 并下调 BASELINE。\n\
              新增的不匹配项：\n{}",
-            missing.len(), BASELINE,
+            missing.len(),
+            BASELINE,
             missing[BASELINE..].join("\n"),
         );
     }
@@ -860,11 +969,17 @@ mod tests {
                         '\\' => result.push('\\'),
                         'n' => result.push('\n'),
                         't' => result.push('\t'),
-                        _ => { result.push('\\'); result.push(next); }
+                        _ => {
+                            result.push('\\');
+                            result.push(next);
+                        }
                     }
                     idx += 2;
                 }
-                _ => { result.push(ch); idx += 1; }
+                _ => {
+                    result.push(ch);
+                    idx += 1;
+                }
             }
         }
         None

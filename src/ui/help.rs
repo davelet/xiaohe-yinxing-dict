@@ -1,5 +1,5 @@
-use crate::help;
 use crate::DictApp;
+use crate::help;
 use eframe::egui;
 
 /// 清理输入文本，只保留汉字、字母和数字
@@ -54,26 +54,26 @@ pub(crate) fn render_help_fullscreen(app: &mut DictApp, ui: &mut egui::Ui) {
                         .hint_text("🔍 搜索（仅汉字和字母）...")
                         .desired_width(f32::INFINITY),
                 );
-                
+
                 // 检查ESC键清除（无论焦点状态）
                 if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                     app.help_search_query.clear();
                 }
-                
+
                 // 清除按钮（仅当有内容时显示）
-                if !app.help_search_query.is_empty() {
-                    if ui.button("×").on_hover_text("清除搜索 (Esc)").clicked() {
-                        app.help_search_query.clear();
-                    }
+                if !app.help_search_query.is_empty()
+                    && ui.button("×").on_hover_text("清除搜索 (Esc)").clicked()
+                {
+                    app.help_search_query.clear();
                 }
             });
-            
+
             // 自动清理输入：检查是否有非文字字母字符
             let cleaned = clean_input_text(&app.help_search_query);
             if cleaned != app.help_search_query {
                 app.help_search_query = cleaned;
             }
-            
+
             let query = app.help_search_query.trim().to_string();
             if !query.is_empty() {
                 let results = app.help_manager.search(&query);
@@ -84,11 +84,9 @@ pub(crate) fn render_help_fullscreen(app: &mut DictApp, ui: &mut egui::Ui) {
                     .id_salt("help_search_results")
                     .show(ui, |ui| {
                         for (chapter, segments) in &results {
-                            let is_selected =
-                                current_chapter.as_deref() == Some(chapter.id);
+                            let is_selected = current_chapter.as_deref() == Some(chapter.id);
                             if ui.selectable_label(is_selected, chapter.title).clicked() {
-                                app.selected_help_chapter =
-                                    Some(chapter.id.to_string());
+                                app.selected_help_chapter = Some(chapter.id.to_string());
                             }
                             for (_, seg) in segments.iter().take(2) {
                                 let matches = help::find_all_matches(seg, &query);
@@ -131,16 +129,21 @@ pub(crate) fn render_help_fullscreen(app: &mut DictApp, ui: &mut egui::Ui) {
                     });
 
                 // 仅在搜索词从空变为非空时自动导航到首个结果
-                if !app.help_search_auto_navigated {
-                    if let Some(first) = results.first() {
-                        app.selected_help_chapter = Some(first.0.id.to_string());
-                        app.help_search_auto_navigated = true;
-                    }
+                if !app.help_search_auto_navigated
+                    && let Some(first) = results.first()
+                {
+                    app.selected_help_chapter = Some(first.0.id.to_string());
+                    app.help_search_auto_navigated = true;
                 }
             } else {
                 app.help_search_auto_navigated = false;
                 ui.separator();
-                chapter_sidebar(ui, &chapters, &current_chapter, &mut app.selected_help_chapter);
+                chapter_sidebar(
+                    ui,
+                    &chapters,
+                    &current_chapter,
+                    &mut app.selected_help_chapter,
+                );
             }
         });
 

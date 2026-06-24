@@ -36,8 +36,8 @@ pub(super) const README_SEARCH_TEXT: &[&str] = &[
     "或者想对小鹤的持续发展提供一点支持",
     "欢迎给我们捐赠",
     "交流",
-    "可到小鹤QQ频道或QQ群 182883808 交流和反馈问题"
-    ];
+    "可到小鹤QQ频道或QQ群 182883808 交流和反馈问题",
+];
 
 pub(super) const XH_SEARCH_TEXT: &[&str] = &[
     "1 入门概述",
@@ -84,8 +84,8 @@ pub(super) const XH_SEARCH_TEXT: &[&str] = &[
     "采用《通用规范汉字表》国发〔2013〕23号文规定用字",
     "本表收字8105个",
     "拼字输入方式作为补充",
-    "支持GB18030-2022"
-    ];
+    "支持GB18030-2022",
+];
 
 pub(super) const UP_SEARCH_TEXT: &[&str] = &[
     "1",
@@ -269,8 +269,8 @@ pub(super) const UP_SEARCH_TEXT: &[&str] = &[
     "也降低了击键效率",
     "小鹤双拼降低跨排击键频率",
     "更多邻排击键好似凌波微步",
-    "击键效率更高"
-    ];
+    "击键效率更高",
+];
 
 pub(super) const UX_SEARCH_TEXT: &[&str] = &[
     "1",
@@ -411,8 +411,8 @@ pub(super) const UX_SEARCH_TEXT: &[&str] = &[
     "其它如",
     "丰申寸戈",
     "详细规则请看下页",
-    "规则"
-    ];
+    "规则",
+];
 
 pub(super) const GZ_SEARCH_TEXT: &[&str] = &[
     "1",
@@ -654,8 +654,8 @@ pub(super) const GZ_SEARCH_TEXT: &[&str] = &[
     "然后你就可以进入「拆分学习」https",
     "//flypy",
     "cc/if 网页进行拆分练习",
-    "以加强对规则的理解"
-    ];
+    "以加强对规则的理解",
+];
 
 pub(super) const ZG_SEARCH_TEXT: &[&str] = &[
     "1",
@@ -701,8 +701,8 @@ pub(super) const ZG_SEARCH_TEXT: &[&str] = &[
     "就基本掌握鹤形字根了",
     "也可到 拆分学习 https",
     "//flypy",
-    "cc/if 页面进行拆分练习"
-    ];
+    "cc/if 页面进行拆分练习",
+];
 
 pub(super) const YY_SEARCH_TEXT: &[&str] = &[
     "2 输入法应用",
@@ -775,8 +775,8 @@ pub(super) const YY_SEARCH_TEXT: &[&str] = &[
     "182883808",
     "小鹤双拼下载",
     "请到各大拼音输入法官方网站下载其拼音输入法",
-    "在其设置中选择小鹤双拼使用"
-    ];
+    "在其设置中选择小鹤双拼使用",
+];
 
 pub(super) const JM_SEARCH_TEXT: &[&str] = &[
     "2",
@@ -864,8 +864,8 @@ pub(super) const JM_SEARCH_TEXT: &[&str] = &[
     "则10字击键请直接以6击为目标）",
     "目标（乱序）",
     "10字6击",
-    "全500字4击"
-    ];
+    "全500字4击",
+];
 
 pub(super) const FH_SEARCH_TEXT: &[&str] = &[
     "2",
@@ -993,8 +993,8 @@ pub(super) const FH_SEARCH_TEXT: &[&str] = &[
     "日文小写平假名",
     "ofrx",
     "→",
-    "ぁ あ ぃ い ぅ う ぇ え ぉ お か が き ぎ ぱ く ぐ け げ こ ご さ ざ し じ す ず せ ぜ そ ぞ た だ ち ぢ っ つ づ て で と ど な に ぬ ね の は ば ひ び ぴ ふ ぶ ぷ へ べ ぺ ほ ぼ ぽ ま み む め も ゃ や ゅ ゆ ょ よ ら り る れ ろ ゎ わ ゐ ゑ を ん ゛ ゜ ゝ ゞ"
-    ];
+    "ぁ あ ぃ い ぅ う ぇ え ぉ お か が き ぎ ぱ く ぐ け げ こ ご さ ざ し じ す ず せ ぜ そ ぞ た だ ち ぢ っ つ づ て で と ど な に ぬ ね の は ば ひ び ぴ ふ ぶ ぷ へ べ ぺ ほ ぼ ぽ ま み む め も ゃ や ゅ ゆ ょ よ ら り る れ ろ ゎ わ ゐ ゑ を ん ゛ ゜ ゝ ゞ",
+];
 
 pub(super) const PC_SEARCH_TEXT: &[&str] = &[
     "2",
@@ -1224,7 +1224,6 @@ pub(super) const PC_SEARCH_TEXT: &[&str] = &[
     "＜全码字＞部分已出简码的字的全码&生僻字",
     "＜全码词＞部分已出简码的词的全码",
 ];
-
 
 pub(super) const SJ_SEARCH_TEXT: &[&str] = &[
     "2",
@@ -1995,4 +1994,3 @@ pub(super) const GY_SEARCH_TEXT: &[&str] = &[
     "南京的雨花台 珠海的太禾 深圳的蔚深",
     "小鹤双拼一直都在你们身边",
 ];
-
