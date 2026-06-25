@@ -29,7 +29,8 @@ fn chapter_sidebar(
 pub(crate) fn render_help_fullscreen(app: &mut DictApp, ui: &mut egui::Ui) {
     // Top bar: title + back button
     ui.horizontal(|ui| {
-        if ui.button("← 返回词典").clicked() {
+        if ui.button("← 返回词典").clicked() || ui.input(|i| i.key_pressed(egui::Key::Backspace))
+        {
             app.show_help_panel = false;
         }
         ui.heading("📖 帮助文档");
