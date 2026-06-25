@@ -102,11 +102,23 @@ impl DictApp {
     fn render_main_content(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         use crate::dict::Category;
 
+        let search_box_id = egui::Id::new("main_search_box");
+
+        // 当没有任何 widget 持有焦点时，自动聚焦搜索框
+        let has_focus = ui.memory(|mem| mem.has_focus(search_box_id));
+        if !has_focus && !self.show_update_dialog {
+            let no_widget_focused = ui.memory(|mem| mem.focused().is_none());
+            if no_widget_focused {
+                ui.memory_mut(|mem| mem.request_focus(search_box_id));
+            }
+        }
+
         // Search bar with clear button
         ui.horizontal(|ui| {
             ui.add_sized(
                 [ui.available_width() - 28.0, 32.0],
                 egui::TextEdit::singleline(&mut self.query)
+                    .id(search_box_id)
                     .hint_text("🔍 输入文字 或 编码...")
                     .desired_width(f32::INFINITY),
             );
