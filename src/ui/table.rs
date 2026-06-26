@@ -3,7 +3,6 @@ use egui::output::OutputCommand;
 
 use crate::CopyKind;
 use crate::DictApp;
-use crate::dict_data::DICT_ENTRIES;
 use crate::search;
 
 use super::split_at_range;
@@ -65,7 +64,7 @@ pub(crate) fn render_table(app: &mut DictApp, ui: &mut egui::Ui, ctx: &egui::Con
             if !app.search_results.is_empty() {
                 let results = app.search_results.clone();
                 for (row_num, (idx, match_kind)) in results.iter().enumerate() {
-                    let entry = &DICT_ENTRIES[*idx];
+                    let entry = &app.engine.entries()[*idx];
 
                     ui.horizontal(|ui| {
                         // Row number column (with background)

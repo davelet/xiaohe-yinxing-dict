@@ -19,6 +19,7 @@ pub enum Category {
     ErJianCiXuan,
     SiMaCiXuan,
     ShouXuanZiCi,
+    External,
 }
 
 impl Category {
@@ -73,6 +74,9 @@ impl Category {
             Category::ShouXuanZiCi => {
                 "首选字词是四码编码时的第一候选，即最常用的字词。\n\n输入四码后直接按空格即可上屏，无需选择。"
             }
+            Category::External => {
+                "外部词典条目来自用户添加的 Rime 词典文件。\n\n这些条目与内置词典完全独立，在输入法数据视图中检索和管理。"
+            }
         }
     }
 
@@ -99,6 +103,7 @@ impl Category {
             Category::ErJianCiXuan => "二简（次选字）",
             Category::SiMaCiXuan => "四码（次选词）",
             Category::ShouXuanZiCi => "首选字词",
+            Category::External => "外部词典",
         }
     }
 
@@ -130,13 +135,56 @@ impl fmt::Display for Category {
     }
 }
 
-/// 词典条目
+/// 可搜索条目的通用 trait
+pub trait SearchableEntry {
+    fn text(&self) -> &str;
+    fn code(&self) -> &str;
+    fn category(&self) -> Category;
+    fn is_secondary(&self) -> bool;
+}
+
+/// 词典条目（内置词典，使用静态引用）
 #[derive(Debug, Clone)]
 pub struct DictEntry {
     pub text: &'static str,
     pub code: &'static str,
     pub category: Category,
     pub is_secondary: bool,
+}
+
+/// 外部词典条目（运行时加载，使用 String）
+#[derive(Debug, Clone)]
+pub struct ExternalDictEntry {
+    pub text: String,
+    pub code: String,
+    pub category: Category,
+    pub is_secondary: bool,
+}
+
+impl ExternalDictEntry {
+    /// 创建外部词典条目
+    pub fn new(text: String, code: String, category: Category, is_secondary: bool) -> Self {
+        Self {
+            text,
+            code,
+            category,
+            is_secondary,
+        }
+    }
+}
+
+impl SearchableEntry for DictEntry {
+    fn text(&self) -> &str { self.text }
+    fn code(&self) -> &str { self.code }
+    fn category(&self) -> Category { self.category }
+    fn is_secondary(&self) -> bool { self.is_secondary }
+}
+
+impl SearchableEntry for ExternalDictEntry {
+    fn text(&self) -> &str { &self.text }
+    fn code(&self) -> &str { &self.code }
+    fn category(&self) -> Category { self.category }
+    fn is_secondary(&self) -> bool { self.is_secondary }
 }
 
 impl DictEntry {

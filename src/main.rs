@@ -11,22 +11,26 @@ pub mod search;
 mod trie;
 mod ui;
 pub mod update;
+pub mod config;
+pub mod rime_loader;
+pub mod app;
 
 use dict::Category;
 use help::HelpManager;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CopyKind {
+pub enum CopyKind {
     Text,
     Code,
 }
 use search::SearchEngine;
+use dict::DictEntry;
 
 mod dict_data;
 use dict_data::DICT_ENTRIES;
 
 impl DictApp {
-    fn new(engine: SearchEngine, ctx: &egui::Context) -> Self {
+    fn new(engine: SearchEngine<DictEntry>, ctx: &egui::Context) -> Self {
         let categories = dict::DictEntry::all_categories();
         let help_image = Self::load_help_image(ctx);
         let help_manager = HelpManager::new();
@@ -36,6 +40,7 @@ impl DictApp {
         std::thread::spawn(move || {
             Self::check_update_background(update_info_clone, ctx_clone);
         });
+
         Self {
             engine,
             categories,
@@ -57,6 +62,9 @@ impl DictApp {
             update_info,
             show_update_dialog: false,
             update_info_for_dialog: None,
+            // 视图切换
+            current_view: app::ViewMode::Dict,
+            manager: app::ManagerState::new(),
         }
     }
 
@@ -87,7 +95,7 @@ impl DictApp {
 }
 
 struct DictApp {
-    engine: SearchEngine,
+    engine: SearchEngine<DictEntry>,
     categories: Vec<Category>,
     query: String,
     last_query: String,
@@ -107,6 +115,10 @@ struct DictApp {
     update_info: Arc<Mutex<Option<update::UpdateInfo>>>,
     show_update_dialog: bool,
     update_info_for_dialog: Option<update::UpdateInfo>,
+    // 视图切换
+    current_view: app::ViewMode,
+    /// 管理视图状态（与词典视图完全独立）
+    manager: app::ManagerState,
 }
 
 fn create_app_icon() -> egui::IconData {

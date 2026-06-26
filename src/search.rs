@@ -1,4 +1,4 @@
-use crate::dict::{Category, DictEntry};
+use crate::dict::{Category, SearchableEntry};
 use crate::trie::Trie;
 use std::collections::HashSet;
 
@@ -13,14 +13,14 @@ pub enum MatchKind {
 
 /// 搜索引擎：支持正查（文字→编码）和反查（编码→文字）
 #[derive(Debug)]
-pub struct SearchEngine {
-    entries: Vec<DictEntry>,
+pub struct SearchEngine<E: SearchableEntry> {
+    entries: Vec<E>,
     trie: Trie,
 }
 
-impl SearchEngine {
-    /// 从静态数据构建搜索引擎
-    pub fn build(entries: &[DictEntry]) -> Self {
+impl<E: SearchableEntry + Clone> SearchEngine<E> {
+    /// 从数据构建搜索引擎
+    pub fn build(entries: &[E]) -> Self {
         let mut engine = SearchEngine {
             entries: entries.to_vec(),
             trie: Trie::new(),
@@ -28,7 +28,7 @@ impl SearchEngine {
 
         // 构建 Trie：将编码索引插入前缀树
         for (idx, entry) in entries.iter().enumerate() {
-            engine.trie.insert(&entry.code.to_lowercase(), idx);
+            engine.trie.insert(&entry.code().to_lowercase(), idx);
         }
 
         engine
@@ -61,7 +61,7 @@ impl SearchEngine {
         let results: Vec<(usize, MatchKind)> = if let Some(cat) = category_filter {
             candidates
                 .into_iter()
-                .filter(|(idx, _)| self.entries[*idx].category == cat)
+                .filter(|(idx, _)| self.entries[*idx].category() == cat)
                 .collect()
         } else {
             candidates
@@ -89,7 +89,7 @@ impl SearchEngine {
         // 2. 前缀匹配
         for idx in self.trie.prefix_search(query) {
             if seen.insert(idx) {
-                let code = &self.entries[idx].code.to_lowercase();
+                let code = &self.entries[idx].code().to_lowercase();
                 let match_end = query.len().min(code.len());
                 results.push((idx, MatchKind::Code(0..match_end)));
             }
@@ -100,7 +100,7 @@ impl SearchEngine {
             if seen.contains(&idx) {
                 continue;
             }
-            let code = entry.code.to_lowercase();
+            let code = entry.code().to_lowercase();
             if let Some(pos) = code.find(query) {
                 seen.insert(idx);
                 results.push((idx, MatchKind::Code(pos..pos + query.len())));
@@ -115,34 +115,35 @@ impl SearchEngine {
         let mut results = Vec::new();
 
         for (idx, entry) in self.entries.iter().enumerate() {
+            let text = entry.text();
             // 精确匹配文字
-            if entry.text == query {
-                results.push((idx, MatchKind::Text(0..entry.text.len())));
+            if text == query {
+                results.push((idx, MatchKind::Text(0..text.len())));
                 continue;
             }
 
             // 不区分大小写的精确匹配
-            if entry.text.to_lowercase() == query_lower {
-                results.push((idx, MatchKind::Text(0..entry.text.len())));
+            if text.to_lowercase() == query_lower {
+                results.push((idx, MatchKind::Text(0..text.len())));
                 continue;
             }
 
             // 子串匹配
-            if let Some(pos) = entry.text.find(query) {
+            if let Some(pos) = text.find(query) {
                 results.push((idx, MatchKind::Text(pos..pos + query.len())));
                 continue;
             }
 
             // 不区分大小写子串匹配
-            let text_lower = entry.text.to_lowercase();
+            let text_lower = text.to_lowercase();
             if let Some(pos) = text_lower.find(query_lower) {
                 results.push((idx, MatchKind::Text(pos..pos + query_lower.len())));
                 continue;
             }
 
             // 文字任意位置包含查询词
-            if entry.text.contains(query) {
-                let pos = entry.text.find(query).unwrap();
+            if text.contains(query) {
+                let pos = text.find(query).unwrap();
                 results.push((idx, MatchKind::Text(pos..pos + query.len())));
             }
         }
@@ -165,26 +166,27 @@ impl SearchEngine {
 
             // 字数少的优先，同字数时得分高的优先
             entry_a
-                .text
+                .text()
                 .chars()
                 .count()
-                .cmp(&entry_b.text.chars().count())
+                .cmp(&entry_b.text().chars().count())
                 .then(score_b.cmp(&score_a))
-                .then(entry_a.code.len().cmp(&entry_b.code.len()))
-                .then(entry_a.is_secondary.cmp(&entry_b.is_secondary))
+                .then(entry_a.code().len().cmp(&entry_b.code().len()))
+                .then(entry_a.is_secondary().cmp(&entry_b.is_secondary()))
         });
 
         results.truncate(100);
         results
     }
 
-    fn match_score(&self, entry: &DictEntry, query: &str, kind: &MatchKind) -> u32 {
+    fn match_score(&self, entry: &E, query: &str, kind: &MatchKind) -> u32 {
         match kind {
             MatchKind::Text(range) => {
-                let matched = &entry.text[range.start..range.end];
+                let text = entry.text();
+                let matched = &text[range.start..range.end];
                 if matched == query {
                     100
-                } else if entry.text.starts_with(query) {
+                } else if text.starts_with(query) {
                     80
                 } else if matched.len() == query.len() {
                     60
@@ -193,7 +195,7 @@ impl SearchEngine {
                 }
             }
             MatchKind::Code(_range) => {
-                let code = &entry.code.to_lowercase();
+                let code = &entry.code().to_lowercase();
                 if code == query {
                     90
                 } else if code.starts_with(query) {
@@ -206,14 +208,14 @@ impl SearchEngine {
     }
 
     /// 获取全部条目引用
-    pub fn entries(&self) -> &[DictEntry] {
+    pub fn entries(&self) -> &[E] {
         &self.entries
     }
 
     /// 获取分类的真实条目数量
     pub fn count_by_category(&self, category_filter: Option<Category>) -> usize {
         match category_filter {
-            Some(cat) => self.entries.iter().filter(|e| e.category == cat).count(),
+            Some(cat) => self.entries.iter().filter(|e| e.category() == cat).count(),
             None => self.entries.len(),
         }
     }
@@ -225,7 +227,7 @@ impl SearchEngine {
             .iter()
             .enumerate()
             .filter(|(_, entry)| match category_filter {
-                Some(cat) => entry.category == cat,
+                Some(cat) => entry.category() == cat,
                 None => true,
             })
             .map(|(idx, _)| (idx, MatchKind::Code(0..0)))
@@ -236,11 +238,11 @@ impl SearchEngine {
             let entry_a = &self.entries[a.0];
             let entry_b = &self.entries[b.0];
             entry_a
-                .text
+                .text()
                 .chars()
                 .count()
-                .cmp(&entry_b.text.chars().count())
-                .then(entry_a.code.len().cmp(&entry_b.code.len()))
+                .cmp(&entry_b.text().chars().count())
+                .then(entry_a.code().len().cmp(&entry_b.code().len()))
         });
 
         results.truncate(100);
@@ -263,7 +265,7 @@ mod tests {
         }
     }
 
-    fn build_engine(entries: &[DictEntry]) -> SearchEngine {
+    fn build_engine(entries: &[DictEntry]) -> SearchEngine<DictEntry> {
         SearchEngine::build(entries)
     }
 
@@ -278,7 +280,7 @@ mod tests {
         let (results, total) = engine.search("yi", None);
         assert_eq!(results.len(), 1);
         assert_eq!(total, 1);
-        assert_eq!(engine.entries[results[0].0].text, "一");
+        assert_eq!(engine.entries()[results[0].0].text, "一");
     }
 
     #[test]
@@ -290,7 +292,6 @@ mod tests {
         ];
         let engine = build_engine(&entries);
         let (results, total) = engine.search("q", None);
-        // Should find all entries starting with "q"
         assert_eq!(results.len(), 3);
         assert_eq!(total, 3);
     }
@@ -305,7 +306,7 @@ mod tests {
         let (results, total) = engine.search("你好", None);
         assert_eq!(results.len(), 1);
         assert_eq!(total, 1);
-        assert_eq!(engine.entries[results[0].0].text, "你好");
+        assert_eq!(engine.entries()[results[0].0].text, "你好");
     }
 
     #[test]
@@ -318,7 +319,7 @@ mod tests {
         let (results, total) = engine.search("人民", None);
         assert_eq!(results.len(), 1);
         assert_eq!(total, 1);
-        assert_eq!(engine.entries[results[0].0].text, "中华人民共和国");
+        assert_eq!(engine.entries()[results[0].0].text, "中华人民共和国");
     }
 
     #[test]
@@ -335,7 +336,7 @@ mod tests {
         assert!(
             results
                 .iter()
-                .all(|(idx, _)| engine.entries[*idx].category == Category::ErChongJianMa)
+                .all(|(idx, _)| engine.entries()[*idx].category == Category::ErChongJianMa)
         );
     }
 
@@ -371,7 +372,7 @@ mod tests {
         let engine = build_engine(&entries);
         let results = engine.get_by_category(Some(Category::YiJiJianMa));
         assert_eq!(results.len(), 1);
-        assert_eq!(engine.entries[results[0].0].text, "起");
+        assert_eq!(engine.entries()[results[0].0].text, "起");
     }
 
     #[test]
@@ -381,12 +382,11 @@ mod tests {
             make_entry("问", "wfh", Category::SiMaQuanMaZi),
         ];
         let engine = build_engine(&entries);
-        // Search for "dh" should match "vdh"
         let (results, _) = engine.search("dh", None);
         assert!(
             results
                 .iter()
-                .any(|(idx, _)| engine.entries[*idx].text == "装")
+                .any(|(idx, _)| engine.entries()[*idx].text == "装")
         );
     }
 
@@ -396,6 +396,6 @@ mod tests {
         let engine = build_engine(&entries);
         let (results, _) = engine.search("NIH", None);
         assert!(!results.is_empty());
-        assert_eq!(engine.entries[results[0].0].text, "你好");
+        assert_eq!(engine.entries()[results[0].0].text, "你好");
     }
 }

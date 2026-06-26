@@ -2,7 +2,9 @@ use crate::DictApp;
 use eframe::egui;
 
 mod help;
+mod manager_view;
 mod panel;
+mod styles;
 mod table;
 
 impl eframe::App for DictApp {
@@ -75,13 +77,21 @@ impl eframe::App for DictApp {
             }
         }
 
-        // Top panel (hidden in help mode)
+        // 根据视图模式应用样式（必须在所有 Panel 渲染之前，否则 egui Panel 用默认主题）
         if !self.show_help_panel {
+            match self.current_view {
+                crate::app::ViewMode::Dict => styles::DictViewStyle::apply(ui.style_mut()),
+                crate::app::ViewMode::Manager => styles::ManagerViewStyle::apply(ui.style_mut()),
+            }
+        }
+
+        // Top panel (hidden in help mode, only for dict view)
+        if !self.show_help_panel && self.current_view == crate::app::ViewMode::Dict {
             panel::render_top_panel(self, ui, &ctx);
         }
 
-        // Bottom panel (hidden in help mode)
-        if !self.show_help_panel {
+        // Bottom panel (hidden in help mode, only for dict view)
+        if !self.show_help_panel && self.current_view == crate::app::ViewMode::Dict {
             panel::render_bottom_panel(self, ui);
         }
 
@@ -100,6 +110,18 @@ impl eframe::App for DictApp {
 
 impl DictApp {
     fn render_main_content(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        // 根据当前视图渲染不同内容
+        match self.current_view {
+            crate::app::ViewMode::Dict => {
+                self.render_dict_content(ui, ctx);
+            }
+            crate::app::ViewMode::Manager => {
+                self.render_manager_content(ui, ctx);
+            }
+        }
+    }
+
+    fn render_dict_content(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         use crate::dict::Category;
 
         let search_box_id = egui::Id::new("main_search_box");
@@ -207,6 +229,15 @@ impl DictApp {
                 },
             );
         });
+    }
+
+    fn render_manager_content(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        manager_view::render_manager_view(
+            &mut self.manager,
+            ui,
+            ctx,
+            &mut self.current_view,
+        );
     }
 }
 

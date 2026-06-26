@@ -66,6 +66,10 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
                     app.selected_category = all_cats[next];
                 }
 
+                if ui.button("📂 输入法数据").clicked() {
+                    app.current_view = crate::app::ViewMode::Manager;
+                }
+
                 // ComboBox
                 ui.style_mut().spacing.combo_height = 550.0;
                 egui::ComboBox::from_id_salt("category_combo")
