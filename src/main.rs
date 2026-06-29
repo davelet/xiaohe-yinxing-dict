@@ -4,16 +4,16 @@ use std::sync::{Arc, Mutex};
 
 use eframe::egui;
 
+pub mod app;
+pub mod config;
 pub mod dict;
 pub mod help;
 pub mod icon;
+pub mod rime_loader;
 pub mod search;
 mod trie;
 mod ui;
 pub mod update;
-pub mod config;
-pub mod rime_loader;
-pub mod app;
 
 use dict::Category;
 use help::HelpManager;
@@ -23,8 +23,8 @@ pub enum CopyKind {
     Text,
     Code,
 }
-use search::SearchEngine;
 use dict::DictEntry;
+use search::SearchEngine;
 
 mod dict_data;
 use dict_data::DICT_ENTRIES;

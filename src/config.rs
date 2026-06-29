@@ -59,11 +59,7 @@ impl AppConfig {
 
     /// 添加外部词典文件
     pub fn add_external_dict(&mut self, path: String, name: String) {
-        if !self
-            .external_dict_files
-            .iter()
-            .any(|f| f.path == path)
-        {
+        if !self.external_dict_files.iter().any(|f| f.path == path) {
             self.external_dict_files.push(ExternalDictFile {
                 path,
                 name,
@@ -80,11 +76,7 @@ impl AppConfig {
 
     /// 切换外部词典文件启用状态
     pub fn toggle_external_dict(&mut self, path: &str) {
-        if let Some(file) = self
-            .external_dict_files
-            .iter_mut()
-            .find(|f| f.path == path)
-        {
+        if let Some(file) = self.external_dict_files.iter_mut().find(|f| f.path == path) {
             file.is_enabled = !file.is_enabled;
         }
     }

@@ -1,6 +1,7 @@
 use crate::DictApp;
 use eframe::egui;
 
+mod common;
 mod help;
 mod manager_view;
 mod panel;
@@ -77,6 +78,17 @@ impl eframe::App for DictApp {
             }
         }
 
+        // 右方向键切换到输入法管理视图（仅在词典视图且搜索框无焦点时）
+        if !self.show_help_panel && self.current_view == crate::app::ViewMode::Dict {
+            let search_box_id = egui::Id::new("main_search_box");
+            let search_focused = ui.memory(|mem| mem.has_focus(search_box_id));
+            if !search_focused && ui.input(|i| i.key_pressed(egui::Key::ArrowRight)) {
+                self.current_view = crate::app::ViewMode::Manager;
+                self.manager.search_auto_focus = true;
+                self.manager.check_and_reload_changed_files();
+            }
+        }
+
         // 根据视图模式应用样式（必须在所有 Panel 渲染之前，否则 egui Panel 用默认主题）
         if !self.show_help_panel {
             match self.current_view {
@@ -85,14 +97,28 @@ impl eframe::App for DictApp {
             }
         }
 
-        // Top panel (hidden in help mode, only for dict view)
-        if !self.show_help_panel && self.current_view == crate::app::ViewMode::Dict {
-            panel::render_top_panel(self, ui, &ctx);
+        // Top panel (hidden in help mode)
+        if !self.show_help_panel {
+            match self.current_view {
+                crate::app::ViewMode::Dict => panel::render_top_panel(self, ui, &ctx),
+                crate::app::ViewMode::Manager => {
+                    manager_view::render_manager_top_panel(
+                        &mut self.manager,
+                        ui,
+                        &mut self.current_view,
+                    );
+                }
+            }
         }
 
-        // Bottom panel (hidden in help mode, only for dict view)
-        if !self.show_help_panel && self.current_view == crate::app::ViewMode::Dict {
-            panel::render_bottom_panel(self, ui);
+        // Bottom panel (hidden in help mode)
+        if !self.show_help_panel {
+            match self.current_view {
+                crate::app::ViewMode::Dict => panel::render_bottom_panel(self, ui),
+                crate::app::ViewMode::Manager => {
+                    manager_view::render_manager_bottom_panel(&self.manager, ui);
+                }
+            }
         }
 
         // Central panel
@@ -232,12 +258,7 @@ impl DictApp {
     }
 
     fn render_manager_content(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        manager_view::render_manager_view(
-            &mut self.manager,
-            ui,
-            ctx,
-            &mut self.current_view,
-        );
+        manager_view::render_manager_view(&mut self.manager, ui, ctx);
     }
 }
 

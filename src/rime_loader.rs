@@ -28,20 +28,18 @@ impl RimeLoader {
         if let Ok(entries) = fs::read_dir(rime_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.is_file() {
-                    if let Some(name) = path.file_name() {
-                        let name_str = name.to_string_lossy().to_string();
-                        if name_str.ends_with(".dict.yaml") || name_str.ends_with(".txt") {
-                            let dict_name = name_str
-                                .replace(".dict.yaml", "")
-                                .replace(".txt", "");
-                            let entry_count = self.count_entries(&path);
-                            files.push(DictFileInfo {
-                                path: path.to_string_lossy().to_string(),
-                                name: dict_name,
-                                entry_count,
-                            });
-                        }
+                if path.is_file()
+                    && let Some(name) = path.file_name()
+                {
+                    let name_str = name.to_string_lossy().to_string();
+                    if name_str.ends_with(".dict.yaml") || name_str.ends_with(".txt") {
+                        let dict_name = name_str.replace(".dict.yaml", "").replace(".txt", "");
+                        let entry_count = self.count_entries(&path);
+                        files.push(DictFileInfo {
+                            path: path.to_string_lossy().to_string(),
+                            name: dict_name,
+                            entry_count,
+                        });
                     }
                 }
             }
@@ -54,28 +52,28 @@ impl RimeLoader {
                 if path.is_dir() {
                     let dir_name = path.file_name().unwrap().to_string_lossy().to_string();
                     // 跳过隐藏目录和特殊目录
-                    if dir_name.starts_with('.') || dir_name == "build" || dir_name == "flypy.userdb" {
+                    if dir_name.starts_with('.')
+                        || dir_name == "build"
+                        || dir_name == "flypy.userdb"
+                    {
                         continue;
                     }
                     if let Ok(sub_entries) = fs::read_dir(&path) {
                         for sub_entry in sub_entries.flatten() {
                             let sub_path = sub_entry.path();
-                            if sub_path.is_file() {
-                                if let Some(name) = sub_path.file_name() {
-                                    let name_str = name.to_string_lossy().to_string();
-                                    if name_str.ends_with(".dict.yaml")
-                                        || name_str.ends_with(".txt")
-                                    {
-                                        let dict_name = name_str
-                                            .replace(".dict.yaml", "")
-                                            .replace(".txt", "");
-                                        let entry_count = self.count_entries(&sub_path);
-                                        files.push(DictFileInfo {
-                                            path: sub_path.to_string_lossy().to_string(),
-                                            name: dict_name,
-                                            entry_count,
-                                        });
-                                    }
+                            if sub_path.is_file()
+                                && let Some(name) = sub_path.file_name()
+                            {
+                                let name_str = name.to_string_lossy().to_string();
+                                if name_str.ends_with(".dict.yaml") || name_str.ends_with(".txt") {
+                                    let dict_name =
+                                        name_str.replace(".dict.yaml", "").replace(".txt", "");
+                                    let entry_count = self.count_entries(&sub_path);
+                                    files.push(DictFileInfo {
+                                        path: sub_path.to_string_lossy().to_string(),
+                                        name: dict_name,
+                                        entry_count,
+                                    });
                                 }
                             }
                         }
@@ -89,10 +87,18 @@ impl RimeLoader {
 
     /// 加载词典文件
     pub fn load_dict_file(&self, path: &str) -> Result<Vec<ExternalDictEntry>, String> {
-        let content = fs::read_to_string(path)
-            .map_err(|e| format!("读取文件失败 '{}': {}", path, e))?;
+        let content =
+            fs::read_to_string(path).map_err(|e| format!("读取文件失败 '{}': {}", path, e))?;
 
-        let entries = self.parse_rime_content(&content)?;
+        // 从文件路径提取来源名称（文件名 stem）
+        let source = Path::new(path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown")
+            .replace(".dict.yaml", "")
+            .replace(".txt", "");
+
+        let entries = self.parse_rime_content(&content, &source)?;
         Ok(entries)
     }
 
@@ -134,13 +140,17 @@ impl RimeLoader {
     }
 
     /// 解析 Rime 词典内容
-    fn parse_rime_content(&self, content: &str) -> Result<Vec<ExternalDictEntry>, String> {
-        let mut lines = content.lines();
+    fn parse_rime_content(
+        &self,
+        content: &str,
+        source: &str,
+    ) -> Result<Vec<ExternalDictEntry>, String> {
+        let lines = content.lines();
         let mut in_yaml_header = false;
         let mut yaml_header_started = false;
         let mut data_lines = Vec::new();
 
-        while let Some(line) = lines.next() {
+        for line in lines {
             let trimmed = line.trim();
 
             // 检查 YAML 头部开始
@@ -172,11 +182,15 @@ impl RimeLoader {
         }
 
         // 解析数据行
-        self.parse_data_lines(&data_lines)
+        self.parse_data_lines(&data_lines, source)
     }
 
     /// 解析数据行
-    fn parse_data_lines(&self, lines: &[&str]) -> Result<Vec<ExternalDictEntry>, String> {
+    fn parse_data_lines(
+        &self,
+        lines: &[&str],
+        source: &str,
+    ) -> Result<Vec<ExternalDictEntry>, String> {
         let mut entries = Vec::new();
 
         for line in lines {
@@ -193,7 +207,13 @@ impl RimeLoader {
                 let code = code.trim().to_string();
 
                 if !text.is_empty() && !code.is_empty() {
-                    entries.push(ExternalDictEntry::new(text, code, Category::External, false));
+                    entries.push(ExternalDictEntry::new(
+                        text,
+                        code,
+                        Category::External,
+                        false,
+                        source.to_string(),
+                    ));
                 }
             }
         }
@@ -228,10 +248,11 @@ version: "1.0.0"
 锕	aajk
 "#;
 
-        let entries = loader.parse_rime_content(content).unwrap();
+        let entries = loader.parse_rime_content(content, "test").unwrap();
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].text, "阿");
         assert_eq!(entries[0].code, "aaek");
+        assert_eq!(entries[0].source, "test");
         assert_eq!(entries[1].text, "锕");
         assert_eq!(entries[1].code, "aajk");
     }
@@ -243,7 +264,7 @@ version: "1.0.0"
 锕	aajk
 "#;
 
-        let entries = loader.parse_rime_content(content).unwrap();
+        let entries = loader.parse_rime_content(content, "test").unwrap();
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].text, "阿");
         assert_eq!(entries[0].code, "aaek");
@@ -258,7 +279,7 @@ version: "1.0.0"
 锕	aajk
 "#;
 
-        let entries = loader.parse_rime_content(content).unwrap();
+        let entries = loader.parse_rime_content(content, "test").unwrap();
         assert_eq!(entries.len(), 2);
     }
 
@@ -271,7 +292,7 @@ version: "1.0.0"
 
 "#;
 
-        let entries = loader.parse_rime_content(content).unwrap();
+        let entries = loader.parse_rime_content(content, "test").unwrap();
         assert_eq!(entries.len(), 2);
     }
 
@@ -285,7 +306,7 @@ name: test
 阿	aaek
 "#;
 
-        let entries = loader.parse_rime_content(content).unwrap();
+        let entries = loader.parse_rime_content(content, "test").unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].text, "阿");
     }

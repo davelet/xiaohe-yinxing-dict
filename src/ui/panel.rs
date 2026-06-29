@@ -68,6 +68,9 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
 
                 if ui.button("📂 输入法数据").clicked() {
                     app.current_view = crate::app::ViewMode::Manager;
+                    app.manager.search_auto_focus = true;
+                    // 检查文件变更并自动重载
+                    app.manager.check_and_reload_changed_files();
                 }
 
                 // ComboBox

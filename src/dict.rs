@@ -141,6 +141,9 @@ pub trait SearchableEntry {
     fn code(&self) -> &str;
     fn category(&self) -> Category;
     fn is_secondary(&self) -> bool;
+    fn source(&self) -> &str {
+        ""
+    }
 }
 
 /// 词典条目（内置词典，使用静态引用）
@@ -159,32 +162,59 @@ pub struct ExternalDictEntry {
     pub code: String,
     pub category: Category,
     pub is_secondary: bool,
+    pub source: String,
 }
 
 impl ExternalDictEntry {
     /// 创建外部词典条目
-    pub fn new(text: String, code: String, category: Category, is_secondary: bool) -> Self {
+    pub fn new(
+        text: String,
+        code: String,
+        category: Category,
+        is_secondary: bool,
+        source: String,
+    ) -> Self {
         Self {
             text,
             code,
             category,
             is_secondary,
+            source,
         }
     }
 }
 
 impl SearchableEntry for DictEntry {
-    fn text(&self) -> &str { self.text }
-    fn code(&self) -> &str { self.code }
-    fn category(&self) -> Category { self.category }
-    fn is_secondary(&self) -> bool { self.is_secondary }
+    fn text(&self) -> &str {
+        self.text
+    }
+    fn code(&self) -> &str {
+        self.code
+    }
+    fn category(&self) -> Category {
+        self.category
+    }
+    fn is_secondary(&self) -> bool {
+        self.is_secondary
+    }
 }
 
 impl SearchableEntry for ExternalDictEntry {
-    fn text(&self) -> &str { &self.text }
-    fn code(&self) -> &str { &self.code }
-    fn category(&self) -> Category { self.category }
-    fn is_secondary(&self) -> bool { self.is_secondary }
+    fn text(&self) -> &str {
+        &self.text
+    }
+    fn code(&self) -> &str {
+        &self.code
+    }
+    fn category(&self) -> Category {
+        self.category
+    }
+    fn is_secondary(&self) -> bool {
+        self.is_secondary
+    }
+    fn source(&self) -> &str {
+        &self.source
+    }
 }
 
 impl DictEntry {
