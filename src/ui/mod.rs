@@ -82,12 +82,13 @@ impl eframe::App for DictApp {
         let previous_view = self.current_view;
 
         // 右方向键切换到输入法管理视图
-        if !self.show_help_panel && self.current_view == crate::app::ViewMode::Dict {
-            if ui.input(|i| i.key_pressed(egui::Key::ArrowRight)) {
-                self.current_view = crate::app::ViewMode::Manager;
-                self.manager.search_auto_focus = true;
-                self.manager.check_and_reload_changed_files();
-            }
+        if !self.show_help_panel
+            && self.current_view == crate::app::ViewMode::Dict
+            && ui.input(|i| i.key_pressed(egui::Key::ArrowRight))
+        {
+            self.current_view = crate::app::ViewMode::Manager;
+            self.manager.search_auto_focus = true;
+            self.manager.check_and_reload_changed_files();
         }
 
         // 根据视图模式应用样式（必须在所有 Panel 渲染之前，否则 egui Panel 用默认主题）
@@ -179,7 +180,9 @@ impl DictApp {
                     .id(search_box_id)
                     .hint_text("🔍 输入文字 或 编码...")
                     .desired_width(f32::INFINITY)
-                    .frame(egui::Frame::default().stroke(egui::Stroke::new(1.0, egui::Color32::GRAY))),
+                    .frame(
+                        egui::Frame::default().stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
+                    ),
             );
 
             // ESC 清空

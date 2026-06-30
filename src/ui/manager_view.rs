@@ -37,7 +37,9 @@ pub fn render_manager_top_panel(
                 [400.0, 30.0],
                 egui::TextEdit::singleline(&mut state.new_file_path)
                     .hint_text("输入词典文件路径...")
-                    .frame(egui::Frame::default().stroke(egui::Stroke::new(1.0, egui::Color32::GRAY))),
+                    .frame(
+                        egui::Frame::default().stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
+                    ),
             );
 
             if (ui.button("添加").clicked()
@@ -70,41 +72,45 @@ pub fn render_manager_top_panel(
 pub fn render_manager_bottom_panel(state: &ManagerState, ui: &mut egui::Ui) {
     let status_bg = egui::Color32::from_rgb(245, 245, 250);
     egui::Panel::bottom("manager_status_panel")
-        .frame(egui::Frame::new().fill(status_bg).inner_margin(egui::Margin::symmetric(8, 4)))
+        .frame(
+            egui::Frame::new()
+                .fill(status_bg)
+                .inner_margin(egui::Margin::symmetric(8, 4)),
+        )
         .show_inside(ui, |ui| {
-        ui.horizontal(|ui| {
-            let total_external = state.external_entries.len();
-            if !state.external_query.is_empty() {
-                let displayed = state.external_search_results.len();
-                let total = state.external_total_results;
-                if displayed < total {
-                    ui.label(format!(
-                        "找到 {} 条结果（当前显示 {} 条）| 外部词典共 {} 条",
-                        total, displayed, total_external
-                    ));
+            ui.horizontal(|ui| {
+                let total_external = state.external_entries.len();
+                if !state.external_query.is_empty() {
+                    let displayed = state.external_search_results.len();
+                    let total = state.external_total_results;
+                    if displayed < total {
+                        ui.label(format!(
+                            "找到 {} 条结果（当前显示 {} 条）| 外部词典共 {} 条",
+                            total, displayed, total_external
+                        ));
+                    } else {
+                        ui.label(format!(
+                            "找到 {} 条结果 | 外部词典共 {} 条",
+                            total, total_external
+                        ));
+                    }
                 } else {
+                    let total_entries: usize = state
+                        .discovered_files
+                        .iter()
+                        .filter_map(|f| f.entry_count)
+                        .sum();
                     ui.label(format!(
-                        "找到 {} 条结果 | 外部词典共 {} 条",
-                        total, total_external
+                        "外部词典 {} 条 | 扫描文件共 {} 条",
+                        total_external, total_entries
                     ));
                 }
-            } else {
-                let total_entries: usize = state
-                    .discovered_files
-                    .iter()
-                    .filter_map(|f| f.entry_count)
-                    .sum();
-                ui.label(format!(
-                    "外部词典 {} 条 | 扫描文件共 {} 条",
-                    total_external, total_entries
-                ));
-            }
 
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
+                });
             });
         });
-    });
 }
 
 /// 渲染输入法数据视图的中央内容区域
@@ -119,8 +125,8 @@ pub fn render_manager_view(state: &mut ManagerState, ui: &mut egui::Ui, ctx: &eg
         ctx.request_repaint();
     }
 
-    // Handle status message timer
-    if state.status_timer > 0.0 {
+    // Handle status and add_word timers (need repaint for countdown bar)
+    if state.status_timer > 0.0 || state.add_word_timer > 0.0 {
         let dt = ctx.input(|i| i.unstable_dt);
         state.tick(dt);
         ctx.request_repaint();
@@ -375,6 +381,8 @@ fn render_external_search_results(
 
 /// 渲染文件管理区域（搜索框为空时显示）
 fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
+    render_add_word_form(state, ui);
+
     // 显示初始加载失败的文件警告
     if !state.load_errors.is_empty() {
         let errors = state.load_errors.clone();
@@ -496,4 +504,93 @@ fn render_discovered_files(ui: &mut egui::Ui, state: &mut ManagerState) {
     if state.discovered_files.is_empty() {
         ui.label("未扫描到词典文件");
     }
+}
+
+/// 渲染添加新词的表单
+fn render_add_word_form(state: &mut ManagerState, ui: &mut egui::Ui) {
+    ui.add_space(4.0);
+
+    egui::Frame::new()
+        .fill(egui::Color32::from_rgb(245, 245, 250))
+        .corner_radius(6.0)
+        .inner_margin(egui::Margin::symmetric(10, 8))
+        .show(ui, |ui| {
+            ui.label("添加新词到小鹤音形词典:");
+
+            ui.horizontal(|ui| {
+                ui.label("文字:");
+                let _text_input = ui.add_sized(
+                    [120.0, 24.0],
+                    egui::TextEdit::singleline(&mut state.new_word_text)
+                        .hint_text("输入文字或词组")
+                        .frame(
+                            egui::Frame::default()
+                                .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
+                        ),
+                );
+
+                ui.label("编码:");
+                let _code_input = ui.add_sized(
+                    [160.0, 24.0],
+                    egui::TextEdit::singleline(&mut state.new_word_code)
+                        .hint_text("小鹤编码（小写字母）")
+                        .frame(
+                            egui::Frame::default()
+                                .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
+                        ),
+                );
+
+                // 按钮点击 或 有内容时按 Enter 即可提交
+                if ui.button("添加").clicked()
+                    || (ui.input(|i| i.key_pressed(egui::Key::Enter))
+                        && (!state.new_word_text.is_empty() || !state.new_word_code.is_empty()))
+                {
+                    state.add_new_word();
+                }
+            });
+
+            // 反馈消息（带手动关闭按钮，10 秒自动消失）
+            let mut dismiss_feedback = false;
+            if let Some((msg, success)) = state.add_word_feedback.clone() {
+                let (bg, text_color) = if success {
+                    (
+                        egui::Color32::from_rgb(230, 250, 235),
+                        egui::Color32::from_rgb(30, 120, 50),
+                    )
+                } else {
+                    (
+                        egui::Color32::from_rgb(255, 235, 235),
+                        egui::Color32::from_rgb(160, 20, 20),
+                    )
+                };
+                let bar_width = (state.add_word_timer / 10.0).clamp(0.0, 1.0);
+                egui::Frame::new()
+                    .fill(bg)
+                    .corner_radius(4.0)
+                    .inner_margin(egui::Margin::symmetric(8, 6))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.colored_label(text_color, &msg);
+                            if ui.button("×").on_hover_text("关闭").clicked() {
+                                dismiss_feedback = true;
+                            }
+                        });
+                        // 倒计时进度条（2px 高，与文字同色）
+                        let full_w = ui.available_width();
+                        let bar_rect = egui::Rect::from_min_size(
+                            ui.cursor().min,
+                            egui::vec2(full_w * bar_width, 2.0),
+                        );
+                        ui.painter()
+                            .rect_filled(bar_rect, egui::CornerRadius::ZERO, text_color);
+                        ui.allocate_space(egui::vec2(full_w, 2.0));
+                    });
+            }
+            if dismiss_feedback {
+                state.add_word_feedback = None;
+                state.add_word_timer = 0.0;
+            }
+        });
+
+    ui.add_space(4.0);
 }

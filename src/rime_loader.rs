@@ -1,5 +1,6 @@
 use crate::dict::{Category, ExternalDictEntry};
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 
 /// Rime 词典文件解析器
@@ -201,10 +202,16 @@ impl RimeLoader {
                 continue;
             }
 
-            // 解析 TSV 格式：文字\t编码
-            if let Some((text, code)) = trimmed.split_once('\t') {
-                let text = text.trim().to_string();
-                let code = code.trim().to_string();
+            // 解析 TSV 格式：文字	编码	[权重]
+            let parts: Vec<&str> = trimmed.split('\t').collect();
+            if parts.len() >= 2 {
+                let text = parts[0].trim().to_string();
+                let code = parts[1].trim().to_string();
+
+                // 跳过表头行（如 "文字	编码	权重"）
+                if (text == "文字" || text == "字") && (code == "编码" || code == "码") {
+                    continue;
+                }
 
                 if !text.is_empty() && !code.is_empty() {
                     entries.push(ExternalDictEntry::new(
@@ -220,6 +227,48 @@ impl RimeLoader {
 
         Ok(entries)
     }
+}
+
+/// 向小鹤音形自定义词典追加条目
+/// 返回文件路径
+pub fn append_entry_to_custom_dict(
+    rime_dir: &str,
+    text: &str,
+    code: &str,
+) -> Result<String, String> {
+    let custom_path = Path::new(rime_dir).join("flypy_custom.dict.yaml");
+    let path_str = custom_path.to_string_lossy().to_string();
+
+    let line = format!("{}\t{}\t500", text, code);
+
+    if !custom_path.exists() {
+        // 创建新文件，写入 YAML 头部 + 首条记录
+        let header = format!(
+            r#"# 小鹤音形自定义词典，通过小鹤音形词典软件添加
+
+---
+name: flypy_custom
+version: "1.0"
+sort: by_weight
+...
+
+{}
+"#,
+            line
+        );
+        fs::write(&custom_path, &header).map_err(|e| format!("创建自定义词典文件失败: {}", e))?;
+    } else {
+        let mut file = fs::OpenOptions::new()
+            .append(true)
+            .open(&custom_path)
+            .map_err(|e| format!("打开文件失败: {}", e))?;
+
+        let entry = format!("\n{}", line);
+        file.write_all(entry.as_bytes())
+            .map_err(|e| format!("写入文件失败: {}", e))?;
+    }
+
+    Ok(path_str)
 }
 
 /// 词典文件信息

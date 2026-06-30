@@ -3,6 +3,7 @@ use crate::dict::ExternalDictEntry;
 use crate::rime_loader::{DictFileInfo, RimeLoader};
 use crate::search;
 use std::collections::HashMap;
+use std::process::Command;
 use std::time::SystemTime;
 
 /// 排序字段
@@ -72,6 +73,14 @@ pub struct ManagerState {
     pub load_errors: Vec<String>,
     /// 已加载文件的修改时间（用于检测文件变更）
     pub file_mtimes: HashMap<String, SystemTime>,
+    /// 添加新词 - 文字输入
+    pub new_word_text: String,
+    /// 添加新词 - 编码输入
+    pub new_word_code: String,
+    /// 添加新词反馈消息 (消息, 是否成功)
+    pub add_word_feedback: Option<(String, bool)>,
+    /// 反馈消息计时器
+    pub add_word_timer: f32,
 }
 
 impl Default for ManagerState {
@@ -128,6 +137,10 @@ impl ManagerState {
             external_feedback_timer: 0.0,
             load_errors,
             file_mtimes,
+            new_word_text: String::new(),
+            new_word_code: String::new(),
+            add_word_feedback: None,
+            add_word_timer: 0.0,
         }
     }
 
@@ -289,6 +302,89 @@ impl ManagerState {
         });
     }
 
+    /// 添加新词到小鹤音形自定义词典
+    pub fn add_new_word(&mut self) {
+        let text = self.new_word_text.trim().to_string();
+        let code = self.new_word_code.trim().to_string();
+
+        if text.is_empty() || code.is_empty() {
+            self.add_word_feedback = Some(("文字和编码不能为空".to_string(), false));
+            self.add_word_timer = 10.0;
+            return;
+        }
+
+        if !code.chars().all(|c| c.is_ascii_lowercase()) {
+            self.add_word_feedback = Some(("编码只能包含小写字母 a-z".to_string(), false));
+            self.add_word_timer = 10.0;
+            return;
+        }
+
+        // 检查是否已存在相同文字+编码的条目（仅检查 flypy_custom 来源）
+        let already_exists = self
+            .external_entries
+            .iter()
+            .any(|e| e.text == text && e.code == code && e.source == "flypy_custom");
+        if already_exists {
+            self.add_word_feedback = Some((
+                format!("词 \"{}\" ({}) 已存在于自定义词典中", text, code),
+                false,
+            ));
+            self.add_word_timer = 10.0;
+            return;
+        }
+
+        let type_label = if text.chars().count() == 1 {
+            "单字"
+        } else {
+            "词组"
+        };
+        match crate::rime_loader::append_entry_to_custom_dict(
+            &self.config.rime_user_dir,
+            &text,
+            &code,
+        ) {
+            Ok(path) => {
+                self.add_word_feedback = Some((
+                    format!(
+                        "已添加{}「{}」(编码: {})，已自动部署",
+                        type_label, text, code
+                    ),
+                    true,
+                ));
+                self.add_word_timer = 10.0;
+                self.new_word_text.clear();
+                self.new_word_code.clear();
+
+                // 如果自定义词典尚未加入配置，自动添加并加载
+                let already_added = self
+                    .config
+                    .external_dict_files
+                    .iter()
+                    .any(|f| f.path == path);
+                if !already_added {
+                    self.add_external_dict(path, "flypy_custom".to_string());
+                } else {
+                    self.reload_external_dicts();
+                }
+
+                // 自动触发鼠须管重新部署
+                trigger_squirrel_deploy();
+            }
+            Err(e) => {
+                // 简化错误信息对外展示
+                let friendly_msg = if e.contains("创建") {
+                    "创建自定义词典文件失败，请检查目录权限"
+                } else if e.contains("打开") || e.contains("写入") {
+                    "写入词典文件失败，请检查文件权限"
+                } else {
+                    &e
+                };
+                self.add_word_feedback = Some((friendly_msg.to_string(), false));
+                self.add_word_timer = 10.0;
+            }
+        }
+    }
+
     /// 刷新扫描到的词典文件列表
     pub fn refresh_discovered_files(&mut self) {
         self.discovered_files = self.rime_loader.scan_dict_files();
@@ -310,6 +406,13 @@ impl ManagerState {
                 self.status_timer = 0.0;
             }
         }
+        if self.add_word_timer > 0.0 {
+            self.add_word_timer -= dt;
+            if self.add_word_timer <= 0.0 {
+                self.add_word_feedback = None;
+                self.add_word_timer = 0.0;
+            }
+        }
     }
 
     /// 清除状态消息
@@ -317,4 +420,11 @@ impl ManagerState {
         self.status_message = None;
         self.status_timer = 0.0;
     }
+}
+
+/// 通过 Squirrel --reload 触发鼠须管重新部署（macOS）
+fn trigger_squirrel_deploy() {
+    let _ = Command::new("/Library/Input Methods/Squirrel.app/Contents/MacOS/Squirrel")
+        .arg("--reload")
+        .output();
 }
