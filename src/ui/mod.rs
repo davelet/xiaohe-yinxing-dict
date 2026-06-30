@@ -78,11 +78,12 @@ impl eframe::App for DictApp {
             }
         }
 
-        // 右方向键切换到输入法管理视图（仅在词典视图且搜索框无焦点时）
+        // 记录当前视图，用于检测视图切换
+        let previous_view = self.current_view;
+
+        // 右方向键切换到输入法管理视图
         if !self.show_help_panel && self.current_view == crate::app::ViewMode::Dict {
-            let search_box_id = egui::Id::new("main_search_box");
-            let search_focused = ui.memory(|mem| mem.has_focus(search_box_id));
-            if !search_focused && ui.input(|i| i.key_pressed(egui::Key::ArrowRight)) {
+            if ui.input(|i| i.key_pressed(egui::Key::ArrowRight)) {
                 self.current_view = crate::app::ViewMode::Manager;
                 self.manager.search_auto_focus = true;
                 self.manager.check_and_reload_changed_files();
@@ -129,12 +130,24 @@ impl eframe::App for DictApp {
                 self.render_main_content(ui, &ctx);
             }
         });
+
+        // 检查是否切换到了词典视图，如果是则设置自动聚焦标志
+        self.check_view_changed_to_dict(previous_view);
     }
 
     fn on_exit(&mut self) {}
 }
 
 impl DictApp {
+    /// 检查是否切换到了词典视图，如果是则设置自动聚焦标志
+    fn check_view_changed_to_dict(&mut self, previous_view: crate::app::ViewMode) {
+        if self.current_view == crate::app::ViewMode::Dict
+            && previous_view != crate::app::ViewMode::Dict
+        {
+            self.search_auto_focus = true;
+        }
+    }
+
     fn render_main_content(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         // 根据当前视图渲染不同内容
         match self.current_view {
@@ -152,13 +165,10 @@ impl DictApp {
 
         let search_box_id = egui::Id::new("main_search_box");
 
-        // 当没有任何 widget 持有焦点时，自动聚焦搜索框
-        let has_focus = ui.memory(|mem| mem.has_focus(search_box_id));
-        if !has_focus && !self.show_update_dialog {
-            let no_widget_focused = ui.memory(|mem| mem.focused().is_none());
-            if no_widget_focused {
-                ui.memory_mut(|mem| mem.request_focus(search_box_id));
-            }
+        // 自动聚焦搜索框（仅首帧）
+        if self.search_auto_focus {
+            ui.memory_mut(|mem| mem.request_focus(search_box_id));
+            self.search_auto_focus = false;
         }
 
         // Search bar with clear button
@@ -168,7 +178,8 @@ impl DictApp {
                 egui::TextEdit::singleline(&mut self.query)
                     .id(search_box_id)
                     .hint_text("🔍 输入文字 或 编码...")
-                    .desired_width(f32::INFINITY),
+                    .desired_width(f32::INFINITY)
+                    .frame(egui::Frame::default().stroke(egui::Stroke::new(1.0, egui::Color32::GRAY))),
             );
 
             // ESC 清空

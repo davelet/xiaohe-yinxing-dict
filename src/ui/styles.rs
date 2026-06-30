@@ -31,5 +31,6 @@ impl ManagerViewStyle {
         style.visuals.window_fill = egui::Color32::from_rgb(255, 255, 255);
         style.visuals.panel_fill = egui::Color32::from_rgb(255, 255, 255);
         style.spacing.item_spacing = egui::vec2(8.0, 6.0);
+        style.spacing.window_margin.bottom = 0;
     }
 }

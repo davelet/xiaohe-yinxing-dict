@@ -65,6 +65,7 @@ impl DictApp {
             // 视图切换
             current_view: app::ViewMode::Dict,
             manager: app::ManagerState::new(),
+            search_auto_focus: true,
         }
     }
 
@@ -119,6 +120,8 @@ struct DictApp {
     current_view: app::ViewMode,
     /// 管理视图状态（与词典视图完全独立）
     manager: app::ManagerState,
+    /// 是否需要在进入视图时自动聚焦搜索框（仅首帧）
+    search_auto_focus: bool,
 }
 
 fn create_app_icon() -> egui::IconData {

@@ -36,7 +36,8 @@ pub fn render_manager_top_panel(
             let response = ui.add_sized(
                 [400.0, 30.0],
                 egui::TextEdit::singleline(&mut state.new_file_path)
-                    .hint_text("输入词典文件路径..."),
+                    .hint_text("输入词典文件路径...")
+                    .frame(egui::Frame::default().stroke(egui::Stroke::new(1.0, egui::Color32::GRAY))),
             );
 
             if (ui.button("添加").clicked()
@@ -62,14 +63,15 @@ pub fn render_manager_top_panel(
         if let Some(msg) = &state.status_message {
             ui.colored_label(ManagerViewStyle::success_color(), msg);
         }
-
-        ui.separator();
     });
 }
 
 /// 渲染输入法数据视图的底部面板（使用 Panel::bottom 锚定）
 pub fn render_manager_bottom_panel(state: &ManagerState, ui: &mut egui::Ui) {
-    egui::Panel::bottom("manager_status_panel").show_inside(ui, |ui| {
+    let status_bg = egui::Color32::from_rgb(245, 245, 250);
+    egui::Panel::bottom("manager_status_panel")
+        .frame(egui::Frame::new().fill(status_bg).inner_margin(egui::Margin::symmetric(8, 4)))
+        .show_inside(ui, |ui| {
         ui.horizontal(|ui| {
             let total_external = state.external_entries.len();
             if !state.external_query.is_empty() {
@@ -139,7 +141,8 @@ pub fn render_manager_view(state: &mut ManagerState, ui: &mut egui::Ui, ctx: &eg
             egui::TextEdit::singleline(&mut state.external_query)
                 .id(search_box_id)
                 .hint_text("🔍 在外部词典中搜索文字或编码...")
-                .desired_width(f32::INFINITY),
+                .desired_width(f32::INFINITY)
+                .frame(egui::Frame::default().stroke(egui::Stroke::new(1.0, egui::Color32::GRAY))),
         );
         if response.changed() {
             query_changed = true;
@@ -177,8 +180,6 @@ pub fn render_manager_view(state: &mut ManagerState, ui: &mut egui::Ui, ctx: &eg
             state.external_total_results = 0;
         }
     }
-
-    ui.separator();
 
     // Main content
     if !state.external_query.is_empty() {
@@ -403,7 +404,7 @@ fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
 
     egui::ScrollArea::vertical()
         .id_salt("manager_file_scroll")
-        .max_height(ui.available_height() - 25.0)
+        .max_height(ui.available_height())
         .show(ui, |ui| {
             render_external_files(ui, state);
             ui.separator();
@@ -425,8 +426,8 @@ fn render_external_files(ui: &mut egui::Ui, state: &mut ManagerState) {
 
         egui::Frame::new()
             .fill(card_bg)
-            .corner_radius(8.0)
-            .inner_margin(8.0)
+            .corner_radius(6.0)
+            .inner_margin(egui::Margin::symmetric(8, 3))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     let mut enabled = dict_file.is_enabled;
