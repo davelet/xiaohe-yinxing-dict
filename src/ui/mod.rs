@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::DictApp;
 use eframe::egui;
 
@@ -26,6 +28,7 @@ impl eframe::App for DictApp {
         if let Ok(guard) = self.update_info.lock()
             && let Some(info) = guard.as_ref()
             && !self.show_update_dialog
+            && *self.update_state.lock().unwrap_or_else(|e| e.into_inner()) == crate::update::UpdateState::Idle
         {
             self.show_update_dialog = true;
             self.update_info_for_dialog = Some(info.clone());
@@ -37,6 +40,8 @@ impl eframe::App for DictApp {
             && let Some(info) = &self.update_info_for_dialog
         {
             let info_clone = info.clone();
+            let update_state = self.update_state.clone();
+            let update_state_clone = update_state.clone();
             egui::Window::new("发现新版本")
                 .collapsible(false)
                 .resizable(false)
@@ -52,8 +57,40 @@ impl eframe::App for DictApp {
                         });
                     ui.separator();
                     ui.horizontal(|ui| {
-                        if ui.button("前往下载").clicked() {
-                            let _ = open::that(&info_clone.download_url);
+                        let is_downloading = {
+                            let guard = update_state_clone.lock().unwrap_or_else(|e| e.into_inner());
+                            *guard == crate::update::UpdateState::Downloading
+                                || *guard == crate::update::UpdateState::Installing
+                        };
+                        if ui.add_enabled(!is_downloading, egui::Button::new("立即更新")).clicked()
+                        {
+                            let state = update_state.clone();
+                            let info = info_clone.clone();
+                            let ctx = ui.ctx().clone();
+                            *state.lock().unwrap_or_else(|e| e.into_inner()) = crate::update::UpdateState::Downloading;
+                            ctx.request_repaint();
+                            std::thread::spawn(move || {
+                                let result = (|| -> Result<PathBuf, String> {
+                                    let zip_path =
+                                        crate::update::download_update(&info)?;
+                                    *state.lock().unwrap_or_else(|e| e.into_inner()) =
+                                        crate::update::UpdateState::Installing;
+                                    ctx.request_repaint();
+                                    let new_exe = crate::update::apply_update(&zip_path)?;
+                                    Ok(new_exe)
+                                })();
+                                match result {
+                                    Ok(new_exe) => {
+                                        *state.lock().unwrap_or_else(|e| e.into_inner()) =
+                                            crate::update::UpdateState::Done(new_exe);
+                                    }
+                                    Err(e) => {
+                                        *state.lock().unwrap_or_else(|e| e.into_inner()) =
+                                            crate::update::UpdateState::Failed(e);
+                                    }
+                                }
+                                ctx.request_repaint();
+                            });
                             close_dialog = true;
                         }
                         if ui.button("稍后再说").clicked() {
@@ -68,6 +105,39 @@ impl eframe::App for DictApp {
             if let Ok(mut guard) = self.update_info.lock() {
                 *guard = None;
             }
+        }
+
+        // Show update done dialog
+        let mut close_done_dialog = false;
+        if let crate::update::UpdateState::Done(ref exe_path) =
+            *self.update_state.lock().unwrap_or_else(|e| e.into_inner())
+        {
+            let exe_path = exe_path.clone();
+            egui::Window::new("更新完成")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(&ctx, |ui| {
+                    ui.label("更新完成，重启后生效");
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui.button("立即重启").clicked() {
+                            #[cfg(target_os = "macos")]
+                            {
+                                let _ = std::process::Command::new("open")
+                                    .arg(&exe_path)
+                                    .spawn();
+                            }
+                            std::process::exit(0);
+                        }
+                        if ui.button("稍后").clicked() {
+                            close_done_dialog = true;
+                        }
+                    });
+                });
+        }
+        if close_done_dialog {
+            *self.update_state.lock().unwrap_or_else(|e| e.into_inner()) = crate::update::UpdateState::Idle;
         }
 
         // F1 切换帮助文档

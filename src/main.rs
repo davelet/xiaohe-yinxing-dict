@@ -31,6 +31,8 @@ use dict_data::DICT_ENTRIES;
 
 impl DictApp {
     fn new(engine: SearchEngine<DictEntry>, ctx: &egui::Context) -> Self {
+        update::cleanup_old_files_keep_previous();
+
         let categories = dict::DictEntry::all_categories();
         let help_image = Self::load_help_image(ctx);
         let help_manager = HelpManager::new();
@@ -62,6 +64,7 @@ impl DictApp {
             update_info,
             show_update_dialog: false,
             update_info_for_dialog: None,
+            update_state: Arc::new(Mutex::new(update::UpdateState::Idle)),
             // 视图切换
             current_view: app::ViewMode::Dict,
             manager: app::ManagerState::new(),
@@ -116,6 +119,7 @@ struct DictApp {
     update_info: Arc<Mutex<Option<update::UpdateInfo>>>,
     show_update_dialog: bool,
     update_info_for_dialog: Option<update::UpdateInfo>,
+    update_state: Arc<Mutex<update::UpdateState>>,
     // 视图切换
     current_view: app::ViewMode,
     /// 管理视图状态（与词典视图完全独立）

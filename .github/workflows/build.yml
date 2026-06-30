@@ -113,7 +113,7 @@ jobs:
       - name: Create x86_64 .app bundle
         run: |
           set -euo pipefail
-          APP_DIR="target/x86_64-apple-darwin/release/${APP_NAME}.app"
+          APP_DIR="target/x86_64-apple-darwin/release/${DMG_VOLNAME}.app"
           mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
           cp "target/x86_64-apple-darwin/release/${APP_NAME}" "$APP_DIR/Contents/MacOS/"
           [ -f AppIcon.icns ] && cp AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
@@ -155,7 +155,7 @@ jobs:
       - name: Create aarch64 .app bundle
         run: |
           set -euo pipefail
-          APP_DIR="target/aarch64-apple-darwin/release/${APP_NAME}.app"
+          APP_DIR="target/aarch64-apple-darwin/release/${DMG_VOLNAME}.app"
           mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
           cp "target/aarch64-apple-darwin/release/${APP_NAME}" "$APP_DIR/Contents/MacOS/"
           [ -f AppIcon.icns ] && cp AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
@@ -222,7 +222,7 @@ jobs:
         run: |
           set -euo pipefail
           for arch in x86_64-apple-darwin aarch64-apple-darwin; do
-            APP="target/$arch/release/${APP_NAME}.app"
+            APP="target/$arch/release/${DMG_VOLNAME}.app"
             codesign --deep --force --options runtime --timestamp \
               --sign "Developer ID Application: ${APPLE_TEAM_ID}" "$APP"
             codesign --verify --deep --strict --verbose=2 "$APP"
@@ -237,7 +237,7 @@ jobs:
         run: |
           set -euo pipefail
           for arch in x86_64-apple-darwin aarch64-apple-darwin; do
-            APP="target/$arch/release/${APP_NAME}.app"
+            APP="target/$arch/release/${DMG_VOLNAME}.app"
             ditto -c -k --sequesterRsrc --keepParent "$APP" "${APP}.zip"
             xcrun notarytool submit "${APP}.zip" \
               --apple-id "$APPLE_ID" \
@@ -252,37 +252,71 @@ jobs:
           set -euo pipefail
           STAGING="target/x86_64-apple-darwin/release/dmg_staging"
           rm -rf "$STAGING" && mkdir -p "$STAGING"
-          cp -R "target/x86_64-apple-darwin/release/${APP_NAME}.app" "$STAGING/"
+          cp -R "target/x86_64-apple-darwin/release/${DMG_VOLNAME}.app" "$STAGING/"
           ln -s /Applications "$STAGING/Applications"
           hdiutil create -volname "${DMG_VOLNAME} (Intel)" \
             -srcfolder "$STAGING" \
             -ov -format UDZO \
-            "target/x86_64-apple-darwin/release/${APP_NAME}-macos-x86_64.dmg"
+            "target/x86_64-apple-darwin/release/${DMG_VOLNAME}-macos-x86_64.dmg"
 
       - name: Create aarch64 DMG
         run: |
           set -euo pipefail
           STAGING="target/aarch64-apple-darwin/release/dmg_staging"
           rm -rf "$STAGING" && mkdir -p "$STAGING"
-          cp -R "target/aarch64-apple-darwin/release/${APP_NAME}.app" "$STAGING/"
+          cp -R "target/aarch64-apple-darwin/release/${DMG_VOLNAME}.app" "$STAGING/"
           ln -s /Applications "$STAGING/Applications"
           hdiutil create -volname "${DMG_VOLNAME} (Apple Silicon)" \
             -srcfolder "$STAGING" \
             -ov -format UDZO \
-            "target/aarch64-apple-darwin/release/${APP_NAME}-macos-aarch64.dmg"
+            "target/aarch64-apple-darwin/release/${DMG_VOLNAME}-macos-aarch64.dmg"
+
+      - name: Create x86_64 zip (for auto-update)
+        run: |
+          set -euo pipefail
+          ZIP="target/x86_64-apple-darwin/release/${DMG_VOLNAME}-macos-x86_64.zip"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "target/x86_64-apple-darwin/release/${DMG_VOLNAME}.app" "$ZIP"
+          shasum -a 256 "$ZIP" | awk '{print $1}' > "${ZIP}.sha256"
+
+      - name: Create aarch64 zip (for auto-update)
+        run: |
+          set -euo pipefail
+          ZIP="target/aarch64-apple-darwin/release/${DMG_VOLNAME}-macos-aarch64.zip"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "target/aarch64-apple-darwin/release/${DMG_VOLNAME}.app" "$ZIP"
+          shasum -a 256 "$ZIP" | awk '{print $1}' > "${ZIP}.sha256"
 
       - name: Upload x86_64 DMG (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: xiaohe-yinxing-dict-macos-x86_64
-          path: target/x86_64-apple-darwin/release/xiaohe-yinxing-dict-macos-x86_64.dmg
+          path: target/x86_64-apple-darwin/release/${DMG_VOLNAME}-macos-x86_64.dmg
           if-no-files-found: error
 
       - name: Upload aarch64 DMG (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: xiaohe-yinxing-dict-macos-aarch64
-          path: target/aarch64-apple-darwin/release/xiaohe-yinxing-dict-macos-aarch64.dmg
+          path: target/aarch64-apple-darwin/release/${DMG_VOLNAME}-macos-aarch64.dmg
+          if-no-files-found: error
+
+      - name: Upload x86_64 zip (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaohe-yinxing-dict-macos-x86_64-zip
+          path: |
+            target/x86_64-apple-darwin/release/${DMG_VOLNAME}-macos-x86_64.zip
+            target/x86_64-apple-darwin/release/${DMG_VOLNAME}-macos-x86_64.zip.sha256
+          if-no-files-found: error
+
+      - name: Upload aarch64 zip (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaohe-yinxing-dict-macos-aarch64-zip
+          path: |
+            target/aarch64-apple-darwin/release/${DMG_VOLNAME}-macos-aarch64.zip
+            target/aarch64-apple-darwin/release/${DMG_VOLNAME}-macos-aarch64.zip.sha256
           if-no-files-found: error
 
   # ---------------------------------------------------------------
@@ -313,18 +347,26 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $dst = "target/release/xiaohe-yinxing-dict-windows"
+          $dst = "target/release/小鹤音形词典-windows"
           New-Item -ItemType Directory -Force -Path $dst | Out-Null
-          Copy-Item "target/release/xiaohe-yinxing-dict.exe" "$dst/"
+          Copy-Item "target/release/xiaohe-yinxing-dict.exe" "$dst/小鹤音形词典.exe"
+          if (Test-Path "target/release/updater.exe") {
+            Copy-Item "target/release/updater.exe" "$dst/updater.exe"
+          }
           if (Test-Path README.md) { Copy-Item README.md "$dst/README.txt" }
-          Compress-Archive -Path $dst -DestinationPath "target/release/xiaohe-yinxing-dict-windows.zip"
-          Get-ChildItem "target/release/xiaohe-yinxing-dict-windows.zip"
+          $zip = "target/release/小鹤音形词典-windows.zip"
+          Compress-Archive -Path $dst -DestinationPath $zip
+          $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
+          Set-Content -Path "${zip}.sha256" -Value $hash
+          Get-ChildItem $zip, "${zip}.sha256"
 
       - name: Upload zip (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: xiaohe-yinxing-dict-windows
-          path: target/release/xiaohe-yinxing-dict-windows.zip
+          path: |
+            target/release/小鹤音形词典-windows.zip
+            target/release/小鹤音形词典-windows.zip.sha256
           if-no-files-found: error
 
   # ---------------------------------------------------------------
@@ -356,6 +398,18 @@ jobs:
           name: xiaohe-yinxing-dict-windows
           path: artifacts
 
+      - name: Download macOS x86_64 zip
+        uses: actions/download-artifact@v4
+        with:
+          name: xiaohe-yinxing-dict-macos-x86_64-zip
+          path: artifacts
+
+      - name: Download macOS aarch64 zip
+        uses: actions/download-artifact@v4
+        with:
+          name: xiaohe-yinxing-dict-macos-aarch64-zip
+          path: artifacts
+
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
@@ -364,6 +418,11 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
-            artifacts/xiaohe-yinxing-dict-macos-x86_64.dmg
-            artifacts/xiaohe-yinxing-dict-macos-aarch64.dmg
-            artifacts/xiaohe-yinxing-dict-windows.zip
+            artifacts/${{ env.DMG_VOLNAME }}-macos-x86_64.dmg
+            artifacts/${{ env.DMG_VOLNAME }}-macos-aarch64.dmg
+            artifacts/${{ env.DMG_VOLNAME }}-macos-x86_64.zip
+            artifacts/${{ env.DMG_VOLNAME }}-macos-x86_64.zip.sha256
+            artifacts/${{ env.DMG_VOLNAME }}-macos-aarch64.zip
+            artifacts/${{ env.DMG_VOLNAME }}-macos-aarch64.zip.sha256
+            artifacts/小鹤音形词典-windows.zip
+            artifacts/小鹤音形词典-windows.zip.sha256

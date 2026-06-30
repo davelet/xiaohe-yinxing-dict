@@ -133,7 +133,21 @@ pub(crate) fn render_bottom_panel(app: &DictApp, ui: &mut egui::Ui) {
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let version = env!("CARGO_PKG_VERSION");
-                ui.label(format!("v{}", version));
+                let version_label = format!("v{}", version);
+
+                if let crate::update::UpdateState::Failed(ref err) =
+                    *app.update_state.lock().unwrap_or_else(|e| e.into_inner())
+                {
+                    let err_clone = err.clone();
+                    ui.label(
+                        egui::RichText::new("更新失败")
+                            .color(egui::Color32::from_rgb(220, 50, 50)),
+                    )
+                    .on_hover_text(err_clone);
+                    ui.label(&version_label);
+                } else {
+                    ui.label(&version_label);
+                }
             });
         });
     });

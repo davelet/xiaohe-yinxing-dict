@@ -1,4 +1,8 @@
+use std::io::Read;
+use std::path::{Path, PathBuf};
+
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 const REPO_OWNER: &str = "davelet";
 const REPO_NAME: &str = "xiaohe-yinxing-dict";
@@ -7,14 +11,32 @@ const REPO_NAME: &str = "xiaohe-yinxing-dict";
 pub struct UpdateInfo {
     pub latest_version: String,
     pub download_url: String,
+    pub sha256: Option<String>,
     pub release_notes: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UpdateState {
+    Idle,
+    Downloading,
+    Installing,
+    Done(PathBuf),
+    Failed(String),
 }
 
 #[derive(Deserialize)]
 struct GitHubRelease {
     tag_name: String,
     body: String,
+    #[allow(dead_code)]
     html_url: String,
+    assets: Vec<GitHubAsset>,
+}
+
+#[derive(Deserialize)]
+struct GitHubAsset {
+    name: String,
+    browser_download_url: String,
 }
 
 pub fn check_for_update(current_version: &str) -> Option<UpdateInfo> {
@@ -42,11 +64,401 @@ pub fn check_for_update(current_version: &str) -> Option<UpdateInfo> {
         return None;
     }
 
+    let download_url = find_download_url(&release)?;
+    let sha256 = find_checksum_url(&release)
+        .and_then(|url| fetch_checksum(&client, &url).ok());
+    let release_notes = release.body;
+
     Some(UpdateInfo {
         latest_version,
-        download_url: release.html_url,
-        release_notes: release.body,
+        download_url,
+        sha256,
+        release_notes,
     })
+}
+
+fn find_download_url(release: &GitHubRelease) -> Option<String> {
+    let suffix = platform_asset_suffix()?;
+    release
+        .assets
+        .iter()
+        .find(|a| a.name.ends_with(&suffix))
+        .map(|a| a.browser_download_url.clone())
+}
+
+fn find_checksum_url(release: &GitHubRelease) -> Option<String> {
+    let suffix = platform_asset_suffix()?;
+    let checksum_name = format!("{}.sha256", suffix);
+    release
+        .assets
+        .iter()
+        .find(|a| a.name.ends_with(&checksum_name))
+        .map(|a| a.browser_download_url.clone())
+}
+
+fn fetch_checksum(client: &reqwest::blocking::Client, url: &str) -> Result<String, String> {
+    let resp = client.get(url).send().map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    let text = resp.text().map_err(|e| e.to_string())?;
+    let hash = text.split_whitespace().next().unwrap_or("").to_string();
+    if hash.is_empty() {
+        return Err("checksum file is empty".to_string());
+    }
+    Ok(hash)
+}
+
+fn platform_asset_suffix() -> Option<&'static str> {
+    #[cfg(target_os = "macos")]
+    {
+        let arch = std::env::consts::ARCH;
+        match arch {
+            "aarch64" => Some("-macos-aarch64.zip"),
+            "x86_64" => Some("-macos-x86_64.zip"),
+            _ => None,
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        Some("-windows.zip")
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        None
+    }
+}
+
+pub fn download_update(info: &UpdateInfo) -> Result<PathBuf, String> {
+    let tmp_dir = std::env::temp_dir();
+    let filename = info
+        .download_url
+        .rsplit('/')
+        .next()
+        .unwrap_or("update.zip");
+    let zip_path = tmp_dir.join(filename);
+
+    let result = do_download(info, &zip_path);
+    if result.is_err() {
+        let _ = std::fs::remove_file(&zip_path);
+    }
+    let zip_path = result?;
+
+    if let Some(ref expected) = info.sha256 {
+        if let Err(e) = verify_checksum(&zip_path, expected) {
+            let _ = std::fs::remove_file(&zip_path);
+            return Err(e);
+        }
+    }
+
+    Ok(zip_path)
+}
+
+fn do_download(info: &UpdateInfo, zip_path: &Path) -> Result<PathBuf, String> {
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("xiaohe-yinxing-dict")
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    let mut response = client
+        .get(&info.download_url)
+        .send()
+        .map_err(|e| format!("下载请求失败: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("下载失败: HTTP {}", response.status()));
+    }
+
+    let content_length = response.content_length().unwrap_or(0);
+
+    let mut file = std::fs::File::create(zip_path)
+        .map_err(|e| format!("创建临时文件失败: {}", e))?;
+
+    let mut downloaded: u64 = 0;
+    let mut buffer = vec![0u8; 8192];
+    loop {
+        let bytes_read = response
+            .read(&mut buffer)
+            .map_err(|e| format!("读取下载数据失败: {}", e))?;
+        if bytes_read == 0 {
+            break;
+        }
+        std::io::Write::write_all(&mut file, &buffer[..bytes_read])
+            .map_err(|e| format!("写入文件失败: {}", e))?;
+        downloaded += bytes_read as u64;
+    }
+
+    drop(file);
+
+    if downloaded < 1_000_000 {
+        return Err("下载文件过小，可能不完整".to_string());
+    }
+
+    if content_length > 0 && downloaded != content_length {
+        return Err(format!(
+            "文件大小不一致: 预期 {} 字节，实际 {} 字节",
+            content_length, downloaded
+        ));
+    }
+
+    Ok(zip_path.to_path_buf())
+}
+
+fn verify_checksum(file_path: &Path, expected_sha256: &str) -> Result<(), String> {
+    let contents = std::fs::read(file_path)
+        .map_err(|e| format!("读取文件失败: {}", e))?;
+    let digest = Sha256::digest(&contents);
+    let hex = format!("{:x}", digest);
+    if hex != expected_sha256 {
+        return Err(format!(
+            "校验失败: 预期 {}，实际 {}",
+            expected_sha256, hex
+        ));
+    }
+    Ok(())
+}
+
+pub fn apply_update(zip_path: &Path) -> Result<PathBuf, String> {
+    #[cfg(target_os = "macos")]
+    {
+        apply_update_macos(zip_path)
+    }
+    #[cfg(target_os = "windows")]
+    {
+        apply_update_windows(zip_path)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = zip_path;
+        Err("当前平台不支持自动更新".to_string())
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn apply_update_macos(zip_path: &Path) -> Result<PathBuf, String> {
+    let tmp_dir = std::env::temp_dir();
+    let extract_dir = tmp_dir.join(format!("xiaohe-update-{}", std::process::id()));
+    std::fs::create_dir_all(&extract_dir)
+        .map_err(|e| format!("创建解压目录失败: {}", e))?;
+
+    let zip_file = std::fs::File::open(zip_path)
+        .map_err(|e| format!("打开 zip 文件失败: {}", e))?;
+    let mut archive = zip::ZipArchive::new(zip_file)
+        .map_err(|e| format!("解析 zip 文件失败: {}", e))?;
+
+    archive
+        .extract(&extract_dir)
+        .map_err(|e| format!("解压失败: {}", e))?;
+
+    let new_app = find_app_in_dir(&extract_dir)?;
+
+    remove_quarantine(&new_app)?;
+
+    let current_exe = std::env::current_exe().map_err(|e| format!("获取当前程序路径失败: {}", e))?;
+    let current_app = current_exe
+        .parent()
+        .ok_or("无法获取当前程序父目录")?
+        .parent()
+        .ok_or("无法获取 Contents 目录")?
+        .parent()
+        .ok_or("无法获取 .app 目录")?
+        .to_path_buf();
+    let app_parent = current_app
+        .parent()
+        .ok_or("无法获取 .app 父目录")?
+        .to_path_buf();
+    let app_name = current_app
+        .file_name()
+        .ok_or("无法获取 .app 名称")?;
+
+    let old_app = app_parent.join(format!(
+        "{}.old",
+        app_name.to_str().unwrap_or("app")
+    ));
+
+    let _ = std::fs::remove_dir_all(&old_app);
+
+    std::fs::rename(&current_app, &old_app)
+        .map_err(|e| format!("重命名旧版本失败: {}", e))?;
+
+    let target_app = app_parent.join(app_name);
+    std::fs::rename(&new_app, &target_app)
+        .map_err(|e| format!("安装新版本失败: {}", e))?;
+
+    let _ = std::fs::remove_dir_all(&extract_dir);
+    let _ = std::fs::remove_file(zip_path);
+
+    Ok(target_app)
+}
+
+#[cfg(target_os = "macos")]
+fn find_app_in_dir(dir: &Path) -> Result<PathBuf, String> {
+    let entries = std::fs::read_dir(dir).map_err(|e| format!("读取目录失败: {}", e))?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|ext| ext == "app") {
+            return Ok(path);
+        }
+        if path.is_dir() {
+            if let Ok(found) = find_app_in_dir(&path) {
+                return Ok(found);
+            }
+        }
+    }
+    Err("未找到 .app bundle".to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn remove_quarantine(path: &Path) -> Result<(), String> {
+    let check = std::process::Command::new("xattr")
+        .args(["-p", "com.apple.quarantine"])
+        .arg(path)
+        .output();
+    match check {
+        Ok(output) if !output.status.success() => return Ok(()),
+        Err(_) => return Ok(()),
+        _ => {}
+    }
+
+    let status = std::process::Command::new("xattr")
+        .args(["-d", "-r", "com.apple.quarantine"])
+        .arg(path)
+        .status()
+        .map_err(|e| format!("执行 xattr 失败: {}", e))?;
+    if !status.success() {
+        return Err(format!(
+            "清除 quarantine 属性失败: exit code {}",
+            status.code().unwrap_or(-1)
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn apply_update_windows(zip_path: &Path) -> Result<PathBuf, String> {
+    let tmp_dir = std::env::temp_dir();
+    let extract_dir = tmp_dir.join(format!("xiaohe-update-{}", std::process::id()));
+    std::fs::create_dir_all(&extract_dir)
+        .map_err(|e| format!("创建解压目录失败: {}", e))?;
+
+    let zip_file = std::fs::File::open(zip_path)
+        .map_err(|e| format!("打开 zip 文件失败: {}", e))?;
+    let mut archive = zip::ZipArchive::new(zip_file)
+        .map_err(|e| format!("解析 zip 文件失败: {}", e))?;
+
+    archive
+        .extract(&extract_dir)
+        .map_err(|e| format!("解压失败: {}", e))?;
+
+    let new_exe = find_exe_in_dir(&extract_dir)?;
+
+    let current_exe = std::env::current_exe()
+        .map_err(|e| format!("获取当前程序路径失败: {}", e))?;
+
+    let old_exe = current_exe.with_extension("exe.old");
+    let _ = std::fs::remove_file(&old_exe);
+
+    let updater_exe = current_exe
+        .parent()
+        .ok_or("无法获取程序目录")?
+        .join("updater.exe");
+
+    if updater_exe.exists() {
+        let _ = std::process::Command::new(&updater_exe)
+            .arg("--old")
+            .arg(&current_exe)
+            .arg("--new")
+            .arg(&new_exe)
+            .spawn()
+            .map_err(|e| format!("启动 updater 失败: {}", e))?;
+    } else {
+        let bat_path = current_exe.parent().unwrap()
+            .join(format!("xiaohe-restart-{}.bat", std::process::id()));
+        let exe_name = current_exe.file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let old_str = current_exe.to_string_lossy().to_string();
+        let new_str = new_exe.to_string_lossy().to_string();
+
+        let bat_content = format!(
+            "@echo off\r\n\
+             setlocal enabledelayedexpansion\r\n\
+             :wait\r\n\
+             tasklist /FI \"IMAGENAME eq {exe}\" /NH 2>nul | find /I \"{exe}\" >nul\r\n\
+             if not errorlevel 1 (\r\n\
+                 timeout /t 1 /nobreak >nul\r\n\
+                 goto wait\r\n\
+             )\r\n\
+             move /Y \"{old}\" \"{old}.bak\" >nul 2>&1\r\n\
+             copy /Y \"{new}\" \"{old}\" >nul 2>&1\r\n\
+             start \"\" \"{old}\"\r\n\
+             del \"%~f0\"\r\n",
+            exe = exe_name,
+            old = old_str,
+            new = new_str
+        );
+
+        std::fs::write(&bat_path, &bat_content)
+            .map_err(|e| format!("创建重启脚本失败: {}", e))?;
+
+        std::process::Command::new(&bat_path)
+            .spawn()
+            .map_err(|e| format!("启动重启脚本失败: {}", e))?;
+    }
+
+    let _ = std::fs::remove_dir_all(&extract_dir);
+    let _ = std::fs::remove_file(zip_path);
+
+    Ok(current_exe)
+}
+
+#[cfg(target_os = "windows")]
+fn find_exe_in_dir(dir: &Path) -> Result<PathBuf, String> {
+    let entries = std::fs::read_dir(dir).map_err(|e| format!("读取目录失败: {}", e))?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|ext| ext == "exe")
+            && !path.file_stem().is_some_and(|s| s == "updater")
+        {
+            return Ok(path);
+        }
+        if path.is_dir() {
+            if let Ok(found) = find_exe_in_dir(&path) {
+                return Ok(found);
+            }
+        }
+    }
+    Err("未找到 .exe 文件".to_string())
+}
+
+pub fn cleanup_old_files_keep_previous() {
+    if let Ok(current_exe) = std::env::current_exe() {
+        #[cfg(target_os = "macos")]
+        {
+            if let Some(macos_dir) = current_exe.parent() {
+                if let Some(contents_dir) = macos_dir.parent() {
+                    if let Some(app_bundle) = contents_dir.parent() {
+                        if let Some(app_parent) = app_bundle.parent() {
+                            let app_name = app_bundle.file_name().unwrap_or_default().to_string_lossy();
+                            let old_app = app_parent.join(format!("{}.old", app_name));
+                            let older_app = app_parent.join(format!("{}.old.old", app_name));
+                            let _ = std::fs::remove_dir_all(&older_app);
+                            let _ = std::fs::rename(&old_app, &older_app);
+                        }
+                    }
+                }
+            }
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            let old_exe = current_exe.with_extension("exe.old");
+            let older_exe = current_exe.with_extension("exe.old.old");
+            let _ = std::fs::remove_file(&older_exe);
+            let _ = std::fs::rename(&old_exe, &older_exe);
+        }
+    }
 }
 
 fn is_newer_version(current: &str, latest: &str) -> bool {
