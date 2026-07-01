@@ -727,10 +727,10 @@ mod tests {
                     }
                     continue;
                 }
-                if let Some(s) = extract_string_literal(line) {
-                    if !s.is_empty() {
-                        texts.push(s);
-                    }
+                if let Some(s) = extract_string_literal(line)
+                    && !s.is_empty()
+                {
+                    texts.push(s);
                 }
             }
         }
@@ -791,10 +791,10 @@ mod tests {
 
             // 多行调用的延续行：以 "..." 开头的行
             if pending && t.starts_with('"') {
-                if let Some(s) = extract_string_literal(t) {
-                    if s.chars().count() >= 2 {
-                        texts.push(s);
-                    }
+                if let Some(s) = extract_string_literal(t)
+                    && s.chars().count() >= 2
+                {
+                    texts.push(s);
                 }
                 // 检查本行是否闭合
                 pending = open_parens_after_first(t) > close_parens_in(t);
@@ -807,10 +807,10 @@ mod tests {
                 if t.starts_with(helper) {
                     // 提取 helper 括号后的第一个字符串
                     let after = &t[t.find(helper).unwrap() + helper.len()..];
-                    if let Some(s) = extract_string_literal(after) {
-                        if s.chars().count() >= 2 {
-                            texts.push(s);
-                        }
+                    if let Some(s) = extract_string_literal(after)
+                        && s.chars().count() >= 2
+                    {
+                        texts.push(s);
                     }
                     // 检查调用是否跨行（括号未闭合）
                     let open = open_parens_after_first(t);

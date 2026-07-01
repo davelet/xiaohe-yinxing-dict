@@ -28,7 +28,8 @@ impl eframe::App for DictApp {
         if let Ok(guard) = self.update_info.lock()
             && let Some(info) = guard.as_ref()
             && !self.show_update_dialog
-            && *self.update_state.lock().unwrap_or_else(|e| e.into_inner()) == crate::update::UpdateState::Idle
+            && *self.update_state.lock().unwrap_or_else(|e| e.into_inner())
+                == crate::update::UpdateState::Idle
         {
             self.show_update_dialog = true;
             self.update_info_for_dialog = Some(info.clone());
@@ -58,21 +59,24 @@ impl eframe::App for DictApp {
                     ui.separator();
                     ui.horizontal(|ui| {
                         let is_downloading = {
-                            let guard = update_state_clone.lock().unwrap_or_else(|e| e.into_inner());
+                            let guard =
+                                update_state_clone.lock().unwrap_or_else(|e| e.into_inner());
                             *guard == crate::update::UpdateState::Downloading
                                 || *guard == crate::update::UpdateState::Installing
                         };
-                        if ui.add_enabled(!is_downloading, egui::Button::new("立即更新")).clicked()
+                        if ui
+                            .add_enabled(!is_downloading, egui::Button::new("立即更新"))
+                            .clicked()
                         {
                             let state = update_state.clone();
                             let info = info_clone.clone();
                             let ctx = ui.ctx().clone();
-                            *state.lock().unwrap_or_else(|e| e.into_inner()) = crate::update::UpdateState::Downloading;
+                            *state.lock().unwrap_or_else(|e| e.into_inner()) =
+                                crate::update::UpdateState::Downloading;
                             ctx.request_repaint();
                             std::thread::spawn(move || {
                                 let result = (|| -> Result<PathBuf, String> {
-                                    let zip_path =
-                                        crate::update::download_update(&info)?;
+                                    let zip_path = crate::update::download_update(&info)?;
                                     *state.lock().unwrap_or_else(|e| e.into_inner()) =
                                         crate::update::UpdateState::Installing;
                                     ctx.request_repaint();
@@ -124,9 +128,7 @@ impl eframe::App for DictApp {
                         if ui.button("立即重启").clicked() {
                             #[cfg(target_os = "macos")]
                             {
-                                let _ = std::process::Command::new("open")
-                                    .arg(&exe_path)
-                                    .spawn();
+                                let _ = std::process::Command::new("open").arg(&exe_path).spawn();
                             }
                             std::process::exit(0);
                         }
@@ -137,7 +139,8 @@ impl eframe::App for DictApp {
                 });
         }
         if close_done_dialog {
-            *self.update_state.lock().unwrap_or_else(|e| e.into_inner()) = crate::update::UpdateState::Idle;
+            *self.update_state.lock().unwrap_or_else(|e| e.into_inner()) =
+                crate::update::UpdateState::Idle;
         }
 
         // F1 切换帮助文档

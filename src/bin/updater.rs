@@ -98,10 +98,7 @@ fn wait_for_process_exit(exe_path: &PathBuf) -> bool {
         match output {
             Ok(out) => {
                 let stdout = String::from_utf8_lossy(&out.stdout);
-                let running: Vec<&str> = stdout
-                    .lines()
-                    .filter(|l| l.contains(&exe_name))
-                    .collect();
+                let running: Vec<&str> = stdout.lines().filter(|l| l.contains(&exe_name)).collect();
 
                 if running.is_empty() {
                     return true;

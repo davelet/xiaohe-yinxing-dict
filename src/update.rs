@@ -65,8 +65,7 @@ pub fn check_for_update(current_version: &str) -> Option<UpdateInfo> {
     }
 
     let download_url = find_download_url(&release)?;
-    let sha256 = find_checksum_url(&release)
-        .and_then(|url| fetch_checksum(&client, &url).ok());
+    let sha256 = find_checksum_url(&release).and_then(|url| fetch_checksum(&client, &url).ok());
     let release_notes = release.body;
 
     Some(UpdateInfo {
@@ -131,11 +130,7 @@ fn platform_asset_suffix() -> Option<&'static str> {
 
 pub fn download_update(info: &UpdateInfo) -> Result<PathBuf, String> {
     let tmp_dir = std::env::temp_dir();
-    let filename = info
-        .download_url
-        .rsplit('/')
-        .next()
-        .unwrap_or("update.zip");
+    let filename = info.download_url.rsplit('/').next().unwrap_or("update.zip");
     let zip_path = tmp_dir.join(filename);
 
     let result = do_download(info, &zip_path);
@@ -144,11 +139,11 @@ pub fn download_update(info: &UpdateInfo) -> Result<PathBuf, String> {
     }
     let zip_path = result?;
 
-    if let Some(ref expected) = info.sha256 {
-        if let Err(e) = verify_checksum(&zip_path, expected) {
-            let _ = std::fs::remove_file(&zip_path);
-            return Err(e);
-        }
+    if let Some(ref expected) = info.sha256
+        && let Err(e) = verify_checksum(&zip_path, expected)
+    {
+        let _ = std::fs::remove_file(&zip_path);
+        return Err(e);
     }
 
     Ok(zip_path)
@@ -172,8 +167,8 @@ fn do_download(info: &UpdateInfo, zip_path: &Path) -> Result<PathBuf, String> {
 
     let content_length = response.content_length().unwrap_or(0);
 
-    let mut file = std::fs::File::create(zip_path)
-        .map_err(|e| format!("创建临时文件失败: {}", e))?;
+    let mut file =
+        std::fs::File::create(zip_path).map_err(|e| format!("创建临时文件失败: {}", e))?;
 
     let mut downloaded: u64 = 0;
     let mut buffer = vec![0u8; 8192];
@@ -206,15 +201,11 @@ fn do_download(info: &UpdateInfo, zip_path: &Path) -> Result<PathBuf, String> {
 }
 
 fn verify_checksum(file_path: &Path, expected_sha256: &str) -> Result<(), String> {
-    let contents = std::fs::read(file_path)
-        .map_err(|e| format!("读取文件失败: {}", e))?;
+    let contents = std::fs::read(file_path).map_err(|e| format!("读取文件失败: {}", e))?;
     let digest = Sha256::digest(&contents);
     let hex = format!("{:x}", digest);
     if hex != expected_sha256 {
-        return Err(format!(
-            "校验失败: 预期 {}，实际 {}",
-            expected_sha256, hex
-        ));
+        return Err(format!("校验失败: 预期 {}，实际 {}", expected_sha256, hex));
     }
     Ok(())
 }
@@ -239,13 +230,12 @@ pub fn apply_update(zip_path: &Path) -> Result<PathBuf, String> {
 fn apply_update_macos(zip_path: &Path) -> Result<PathBuf, String> {
     let tmp_dir = std::env::temp_dir();
     let extract_dir = tmp_dir.join(format!("xiaohe-update-{}", std::process::id()));
-    std::fs::create_dir_all(&extract_dir)
-        .map_err(|e| format!("创建解压目录失败: {}", e))?;
+    std::fs::create_dir_all(&extract_dir).map_err(|e| format!("创建解压目录失败: {}", e))?;
 
-    let zip_file = std::fs::File::open(zip_path)
-        .map_err(|e| format!("打开 zip 文件失败: {}", e))?;
-    let mut archive = zip::ZipArchive::new(zip_file)
-        .map_err(|e| format!("解析 zip 文件失败: {}", e))?;
+    let zip_file =
+        std::fs::File::open(zip_path).map_err(|e| format!("打开 zip 文件失败: {}", e))?;
+    let mut archive =
+        zip::ZipArchive::new(zip_file).map_err(|e| format!("解析 zip 文件失败: {}", e))?;
 
     archive
         .extract(&extract_dir)
@@ -255,7 +245,8 @@ fn apply_update_macos(zip_path: &Path) -> Result<PathBuf, String> {
 
     remove_quarantine(&new_app)?;
 
-    let current_exe = std::env::current_exe().map_err(|e| format!("获取当前程序路径失败: {}", e))?;
+    let current_exe =
+        std::env::current_exe().map_err(|e| format!("获取当前程序路径失败: {}", e))?;
     let current_app = current_exe
         .parent()
         .ok_or("无法获取当前程序父目录")?
@@ -268,23 +259,16 @@ fn apply_update_macos(zip_path: &Path) -> Result<PathBuf, String> {
         .parent()
         .ok_or("无法获取 .app 父目录")?
         .to_path_buf();
-    let app_name = current_app
-        .file_name()
-        .ok_or("无法获取 .app 名称")?;
+    let app_name = current_app.file_name().ok_or("无法获取 .app 名称")?;
 
-    let old_app = app_parent.join(format!(
-        "{}.old",
-        app_name.to_str().unwrap_or("app")
-    ));
+    let old_app = app_parent.join(format!("{}.old", app_name.to_str().unwrap_or("app")));
 
     let _ = std::fs::remove_dir_all(&old_app);
 
-    std::fs::rename(&current_app, &old_app)
-        .map_err(|e| format!("重命名旧版本失败: {}", e))?;
+    std::fs::rename(&current_app, &old_app).map_err(|e| format!("重命名旧版本失败: {}", e))?;
 
     let target_app = app_parent.join(app_name);
-    std::fs::rename(&new_app, &target_app)
-        .map_err(|e| format!("安装新版本失败: {}", e))?;
+    std::fs::rename(&new_app, &target_app).map_err(|e| format!("安装新版本失败: {}", e))?;
 
     let _ = std::fs::remove_dir_all(&extract_dir);
     let _ = std::fs::remove_file(zip_path);
@@ -300,10 +284,10 @@ fn find_app_in_dir(dir: &Path) -> Result<PathBuf, String> {
         if path.extension().is_some_and(|ext| ext == "app") {
             return Ok(path);
         }
-        if path.is_dir() {
-            if let Ok(found) = find_app_in_dir(&path) {
-                return Ok(found);
-            }
+        if path.is_dir()
+            && let Ok(found) = find_app_in_dir(&path)
+        {
+            return Ok(found);
         }
     }
     Err("未找到 .app bundle".to_string())
@@ -339,13 +323,12 @@ fn remove_quarantine(path: &Path) -> Result<(), String> {
 fn apply_update_windows(zip_path: &Path) -> Result<PathBuf, String> {
     let tmp_dir = std::env::temp_dir();
     let extract_dir = tmp_dir.join(format!("xiaohe-update-{}", std::process::id()));
-    std::fs::create_dir_all(&extract_dir)
-        .map_err(|e| format!("创建解压目录失败: {}", e))?;
+    std::fs::create_dir_all(&extract_dir).map_err(|e| format!("创建解压目录失败: {}", e))?;
 
-    let zip_file = std::fs::File::open(zip_path)
-        .map_err(|e| format!("打开 zip 文件失败: {}", e))?;
-    let mut archive = zip::ZipArchive::new(zip_file)
-        .map_err(|e| format!("解析 zip 文件失败: {}", e))?;
+    let zip_file =
+        std::fs::File::open(zip_path).map_err(|e| format!("打开 zip 文件失败: {}", e))?;
+    let mut archive =
+        zip::ZipArchive::new(zip_file).map_err(|e| format!("解析 zip 文件失败: {}", e))?;
 
     archive
         .extract(&extract_dir)
@@ -353,8 +336,8 @@ fn apply_update_windows(zip_path: &Path) -> Result<PathBuf, String> {
 
     let new_exe = find_exe_in_dir(&extract_dir)?;
 
-    let current_exe = std::env::current_exe()
-        .map_err(|e| format!("获取当前程序路径失败: {}", e))?;
+    let current_exe =
+        std::env::current_exe().map_err(|e| format!("获取当前程序路径失败: {}", e))?;
 
     let old_exe = current_exe.with_extension("exe.old");
     let _ = std::fs::remove_file(&old_exe);
@@ -373,9 +356,12 @@ fn apply_update_windows(zip_path: &Path) -> Result<PathBuf, String> {
             .spawn()
             .map_err(|e| format!("启动 updater 失败: {}", e))?;
     } else {
-        let bat_path = current_exe.parent().unwrap()
+        let bat_path = current_exe
+            .parent()
+            .unwrap()
             .join(format!("xiaohe-restart-{}.bat", std::process::id()));
-        let exe_name = current_exe.file_name()
+        let exe_name = current_exe
+            .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
         let old_str = current_exe.to_string_lossy().to_string();
@@ -399,8 +385,7 @@ fn apply_update_windows(zip_path: &Path) -> Result<PathBuf, String> {
             new = new_str
         );
 
-        std::fs::write(&bat_path, &bat_content)
-            .map_err(|e| format!("创建重启脚本失败: {}", e))?;
+        std::fs::write(&bat_path, &bat_content).map_err(|e| format!("创建重启脚本失败: {}", e))?;
 
         std::process::Command::new(&bat_path)
             .spawn()
@@ -436,18 +421,16 @@ pub fn cleanup_old_files_keep_previous() {
     if let Ok(current_exe) = std::env::current_exe() {
         #[cfg(target_os = "macos")]
         {
-            if let Some(macos_dir) = current_exe.parent() {
-                if let Some(contents_dir) = macos_dir.parent() {
-                    if let Some(app_bundle) = contents_dir.parent() {
-                        if let Some(app_parent) = app_bundle.parent() {
-                            let app_name = app_bundle.file_name().unwrap_or_default().to_string_lossy();
-                            let old_app = app_parent.join(format!("{}.old", app_name));
-                            let older_app = app_parent.join(format!("{}.old.old", app_name));
-                            let _ = std::fs::remove_dir_all(&older_app);
-                            let _ = std::fs::rename(&old_app, &older_app);
-                        }
-                    }
-                }
+            if let Some(macos_dir) = current_exe.parent()
+                && let Some(contents_dir) = macos_dir.parent()
+                && let Some(app_bundle) = contents_dir.parent()
+                && let Some(app_parent) = app_bundle.parent()
+            {
+                let app_name = app_bundle.file_name().unwrap_or_default().to_string_lossy();
+                let old_app = app_parent.join(format!("{}.old", app_name));
+                let older_app = app_parent.join(format!("{}.old.old", app_name));
+                let _ = std::fs::remove_dir_all(&older_app);
+                let _ = std::fs::rename(&old_app, &older_app);
             }
         }
 

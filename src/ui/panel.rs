@@ -140,8 +140,7 @@ pub(crate) fn render_bottom_panel(app: &DictApp, ui: &mut egui::Ui) {
                 {
                     let err_clone = err.clone();
                     ui.label(
-                        egui::RichText::new("更新失败")
-                            .color(egui::Color32::from_rgb(220, 50, 50)),
+                        egui::RichText::new("更新失败").color(egui::Color32::from_rgb(220, 50, 50)),
                     )
                     .on_hover_text(err_clone);
                     ui.label(&version_label);

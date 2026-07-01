@@ -291,14 +291,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xiaohe-yinxing-dict-macos-x86_64
-          path: target/x86_64-apple-darwin/release/${DMG_VOLNAME}-macos-x86_64.dmg
+          path: target/x86_64-apple-darwin/release/${{ env.DMG_VOLNAME }}-macos-x86_64.dmg
           if-no-files-found: error
 
       - name: Upload aarch64 DMG (artifact)
         uses: actions/upload-artifact@v4
         with:
           name: xiaohe-yinxing-dict-macos-aarch64
-          path: target/aarch64-apple-darwin/release/${DMG_VOLNAME}-macos-aarch64.dmg
+          path: target/aarch64-apple-darwin/release/${{ env.DMG_VOLNAME }}-macos-aarch64.dmg
           if-no-files-found: error
 
       - name: Upload x86_64 zip (artifact)
@@ -306,8 +306,8 @@ jobs:
         with:
           name: xiaohe-yinxing-dict-macos-x86_64-zip
           path: |
-            target/x86_64-apple-darwin/release/${DMG_VOLNAME}-macos-x86_64.zip
-            target/x86_64-apple-darwin/release/${DMG_VOLNAME}-macos-x86_64.zip.sha256
+            target/x86_64-apple-darwin/release/${{ env.DMG_VOLNAME }}-macos-x86_64.zip
+            target/x86_64-apple-darwin/release/${{ env.DMG_VOLNAME }}-macos-x86_64.zip.sha256
           if-no-files-found: error
 
       - name: Upload aarch64 zip (artifact)
@@ -315,8 +315,8 @@ jobs:
         with:
           name: xiaohe-yinxing-dict-macos-aarch64-zip
           path: |
-            target/aarch64-apple-darwin/release/${DMG_VOLNAME}-macos-aarch64.zip
-            target/aarch64-apple-darwin/release/${DMG_VOLNAME}-macos-aarch64.zip.sha256
+            target/aarch64-apple-darwin/release/${{ env.DMG_VOLNAME }}-macos-aarch64.zip
+            target/aarch64-apple-darwin/release/${{ env.DMG_VOLNAME }}-macos-aarch64.zip.sha256
           if-no-files-found: error
 
   # ---------------------------------------------------------------
