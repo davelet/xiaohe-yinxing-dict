@@ -1,5 +1,8 @@
 use eframe::egui;
 
+/// 所有文本输入框的统一高度
+pub const INPUT_BOX_HEIGHT: f32 = 28.0;
+
 /// 词典视图样式（浅色、简洁）
 pub struct DictViewStyle;
 

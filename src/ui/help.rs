@@ -48,11 +48,16 @@ pub(crate) fn render_help_fullscreen(app: &mut DictApp, ui: &mut egui::Ui) {
         .show_inside(ui, |ui| {
             // Search box with clear button
             ui.horizontal(|ui| {
-                ui.add_sized(
-                    [ui.available_width() - 28.0, 24.0],
-                    egui::TextEdit::singleline(&mut app.help_search_query)
-                        .hint_text("🔍 搜索（仅汉字和字母）...")
-                        .desired_width(f32::INFINITY),
+                ui.allocate_ui_with_layout(
+                    egui::vec2(ui.available_width() - 28.0, super::styles::INPUT_BOX_HEIGHT),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        ui.add(
+                            egui::TextEdit::singleline(&mut app.help_search_query)
+                                .hint_text("🔍 搜索（仅汉字和字母）...")
+                                .desired_width(f32::INFINITY),
+                        );
+                    },
                 );
 
                 // 检查ESC键清除（无论焦点状态）

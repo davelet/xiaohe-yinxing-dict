@@ -247,15 +247,21 @@ impl DictApp {
 
         // Search bar with clear button
         ui.horizontal(|ui| {
-            ui.add_sized(
-                [ui.available_width() - 28.0, 32.0],
-                egui::TextEdit::singleline(&mut self.query)
-                    .id(search_box_id)
-                    .hint_text("🔍 输入文字 或 编码...")
-                    .desired_width(f32::INFINITY)
-                    .frame(
-                        egui::Frame::default().stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
-                    ),
+            ui.allocate_ui_with_layout(
+                egui::vec2(ui.available_width() - 28.0, styles::INPUT_BOX_HEIGHT),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.query)
+                            .id(search_box_id)
+                            .hint_text("🔍 输入文字 或 编码...")
+                            .desired_width(f32::INFINITY)
+                            .frame(
+                                egui::Frame::default()
+                                    .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
+                            ),
+                    );
+                },
             );
 
             // ESC 清空

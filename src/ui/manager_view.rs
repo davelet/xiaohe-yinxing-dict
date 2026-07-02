@@ -33,14 +33,22 @@ pub fn render_manager_top_panel(
         // 添加文件区域
         ui.horizontal(|ui| {
             ui.label("添加文件路径:");
-            let response = ui.add_sized(
-                [400.0, 30.0],
-                egui::TextEdit::singleline(&mut state.new_file_path)
-                    .hint_text("输入词典文件路径...")
-                    .frame(
-                        egui::Frame::default().stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
-                    ),
-            );
+            let response = ui
+                .allocate_ui_with_layout(
+                    egui::vec2(400.0, super::styles::INPUT_BOX_HEIGHT),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        ui.add(
+                            egui::TextEdit::singleline(&mut state.new_file_path)
+                                .hint_text("输入词典文件路径...")
+                                .frame(
+                                    egui::Frame::default()
+                                        .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
+                                ),
+                        )
+                    },
+                )
+                .inner;
 
             if (ui.button("添加").clicked()
                 || (response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))))
@@ -142,14 +150,24 @@ pub fn render_manager_view(state: &mut ManagerState, ui: &mut egui::Ui, ctx: &eg
     let mut query_changed = false;
 
     ui.horizontal(|ui| {
-        let response = ui.add_sized(
-            [ui.available_width() - 28.0, 28.0],
-            egui::TextEdit::singleline(&mut state.external_query)
-                .id(search_box_id)
-                .hint_text("🔍 在外部词典中搜索文字或编码...")
-                .desired_width(f32::INFINITY)
-                .frame(egui::Frame::default().stroke(egui::Stroke::new(1.0, egui::Color32::GRAY))),
-        );
+        let response = ui
+            .allocate_ui_with_layout(
+                egui::vec2(ui.available_width() - 28.0, super::styles::INPUT_BOX_HEIGHT),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut state.external_query)
+                            .id(search_box_id)
+                            .hint_text("🔍 在外部词典中搜索文字或编码...")
+                            .desired_width(f32::INFINITY)
+                            .frame(
+                                egui::Frame::default()
+                                    .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
+                            ),
+                    )
+                },
+            )
+            .inner;
         if response.changed() {
             query_changed = true;
         }
@@ -518,27 +536,55 @@ fn render_add_word_form(state: &mut ManagerState, ui: &mut egui::Ui) {
             ui.label("添加新词到小鹤音形词典:");
 
             ui.horizontal(|ui| {
-                ui.label("文字:");
-                let _text_input = ui.add_sized(
-                    [120.0, 24.0],
-                    egui::TextEdit::singleline(&mut state.new_word_text)
-                        .hint_text("输入文字或词组")
-                        .frame(
-                            egui::Frame::default()
-                                .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
-                        ),
+                ui.allocate_ui_with_layout(
+                    egui::vec2(44.0, super::styles::INPUT_BOX_HEIGHT),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        ui.label("文字:");
+                    },
                 );
+                let _text_input = ui
+                    .allocate_ui_with_layout(
+                        egui::vec2(120.0, super::styles::INPUT_BOX_HEIGHT),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut state.new_word_text)
+                                    .hint_text("输入文字或词组")
+                                    .desired_width(f32::INFINITY)
+                                    .frame(
+                                        egui::Frame::default()
+                                            .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
+                                    ),
+                            )
+                        },
+                    )
+                    .inner;
 
-                ui.label("编码:");
-                let _code_input = ui.add_sized(
-                    [160.0, 24.0],
-                    egui::TextEdit::singleline(&mut state.new_word_code)
-                        .hint_text("小鹤编码（小写字母）")
-                        .frame(
-                            egui::Frame::default()
-                                .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
-                        ),
+                ui.allocate_ui_with_layout(
+                    egui::vec2(44.0, super::styles::INPUT_BOX_HEIGHT),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        ui.label("编码:");
+                    },
                 );
+                let _code_input = ui
+                    .allocate_ui_with_layout(
+                        egui::vec2(160.0, super::styles::INPUT_BOX_HEIGHT),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut state.new_word_code)
+                                    .hint_text("小鹤编码（小写字母）")
+                                    .desired_width(f32::INFINITY)
+                                    .frame(
+                                        egui::Frame::default()
+                                            .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
+                                    ),
+                            )
+                        },
+                    )
+                    .inner;
 
                 // 按钮点击 或 有内容时按 Enter 即可提交
                 if ui.button("添加").clicked()
