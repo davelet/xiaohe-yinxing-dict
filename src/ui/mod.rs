@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use crate::DictApp;
 use eframe::egui;
 
@@ -69,32 +67,11 @@ impl eframe::App for DictApp {
                             .clicked()
                         {
                             let state = update_state.clone();
+                            let progress = self.update_progress.clone();
                             let info = info_clone.clone();
                             let ctx = ui.ctx().clone();
-                            *state.lock().unwrap_or_else(|e| e.into_inner()) =
-                                crate::update::UpdateState::Downloading;
-                            ctx.request_repaint();
-                            std::thread::spawn(move || {
-                                let result = (|| -> Result<PathBuf, String> {
-                                    let zip_path = crate::update::download_update(&info)?;
-                                    *state.lock().unwrap_or_else(|e| e.into_inner()) =
-                                        crate::update::UpdateState::Installing;
-                                    ctx.request_repaint();
-                                    let new_exe = crate::update::apply_update(&zip_path)?;
-                                    Ok(new_exe)
-                                })();
-                                match result {
-                                    Ok(new_exe) => {
-                                        *state.lock().unwrap_or_else(|e| e.into_inner()) =
-                                            crate::update::UpdateState::Done(new_exe);
-                                    }
-                                    Err(e) => {
-                                        *state.lock().unwrap_or_else(|e| e.into_inner()) =
-                                            crate::update::UpdateState::Failed(e);
-                                    }
-                                }
-                                ctx.request_repaint();
-                            });
+                            self.update_retry_info = Some(info.clone());
+                            self.start_update_thread(state, progress, info, ctx);
                             close_dialog = true;
                         }
                         if ui.button("稍后再说").clicked() {
@@ -109,38 +86,6 @@ impl eframe::App for DictApp {
             if let Ok(mut guard) = self.update_info.lock() {
                 *guard = None;
             }
-        }
-
-        // Show update done dialog
-        let mut close_done_dialog = false;
-        if let crate::update::UpdateState::Done(ref exe_path) =
-            *self.update_state.lock().unwrap_or_else(|e| e.into_inner())
-        {
-            let exe_path = exe_path.clone();
-            egui::Window::new("更新完成")
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-                .show(&ctx, |ui| {
-                    ui.label("更新完成，重启后生效");
-                    ui.separator();
-                    ui.horizontal(|ui| {
-                        if ui.button("立即重启").clicked() {
-                            #[cfg(target_os = "macos")]
-                            {
-                                let _ = std::process::Command::new("open").arg(&exe_path).spawn();
-                            }
-                            std::process::exit(0);
-                        }
-                        if ui.button("稍后").clicked() {
-                            close_done_dialog = true;
-                        }
-                    });
-                });
-        }
-        if close_done_dialog {
-            *self.update_state.lock().unwrap_or_else(|e| e.into_inner()) =
-                crate::update::UpdateState::Idle;
         }
 
         // F1 切换帮助文档
@@ -207,12 +152,401 @@ impl eframe::App for DictApp {
 
         // 检查是否切换到了词典视图，如果是则设置自动聚焦标志
         self.check_view_changed_to_dict(previous_view);
+
+        // ========== 跨视图更新进度 toast（从 update_progress 读取详情）==========
+        let dt = ui.ctx().input(|i| i.unstable_dt);
+
+        // 记录下载开始时间（用于计算已用时间）
+        if let Ok(guard) = self.update_state.lock() {
+            if *guard == crate::update::UpdateState::Downloading
+                || *guard == crate::update::UpdateState::Installing
+            {
+                if self.update_started_at.is_none() {
+                    self.update_started_at = Some(std::time::Instant::now());
+                }
+            } else {
+                self.update_started_at = None;
+            }
+        }
+
+        // 从 update_state 同步 toast 开关
+        let mut in_progress = false;
+        let mut is_done = false;
+        let mut is_failed = false;
+        if let Ok(guard) = self.update_state.lock() {
+            match &*guard {
+                crate::update::UpdateState::Downloading
+                | crate::update::UpdateState::Installing => {
+                    self.update_toast_timer = 0.0;
+                    in_progress = true;
+                }
+                crate::update::UpdateState::Done(_) => {
+                    if !self.update_toast_shown_done_or_failed {
+                        self.update_toast_shown_done_or_failed = true;
+                    }
+                    self.update_toast_timer = 0.0; // 常驻，不自动消失
+                    is_done = true;
+                }
+                crate::update::UpdateState::Failed(_) => {
+                    if !self.update_toast_shown_done_or_failed {
+                        self.update_toast_shown_done_or_failed = true;
+                    }
+                    self.update_toast_timer = 0.0; // 常驻，不自动消失
+                    is_failed = true;
+                }
+                crate::update::UpdateState::Idle => {
+                    self.update_toast_dismissed = true;
+                }
+            }
+        }
+
+        // toast 倒计时（不再用于 Done/Failed 自动消失，只用于兼容）
+        if self.update_toast_timer > 0.0 {
+            self.update_toast_timer -= dt;
+            if self.update_toast_timer <= 0.0 {
+                self.update_toast_timer = 0.0;
+            }
+        }
+
+        let show_toast = in_progress || is_done || is_failed;
+
+        // 渲染富文本 toast
+        if show_toast {
+            // 从 progress / state 读取详细信息
+            let (prog_msg, prog_down, prog_total, sha256_ok) =
+                if let Ok(p) = self.update_progress.lock() {
+                    (
+                        p.message.clone(),
+                        p.bytes_downloaded,
+                        p.bytes_total,
+                        p.sha256_ok,
+                    )
+                } else {
+                    (String::new(), 0, 0, None)
+                };
+
+            let (state_label, state_color) = if in_progress {
+                if let Ok(guard) = self.update_state.lock() {
+                    match &*guard {
+                        crate::update::UpdateState::Downloading => ("下载中", egui::Color32::WHITE),
+                        crate::update::UpdateState::Installing => ("安装中", egui::Color32::WHITE),
+                        _ => ("进行中", egui::Color32::WHITE),
+                    }
+                } else {
+                    ("进行中", egui::Color32::WHITE)
+                }
+            } else if is_done {
+                ("完成", egui::Color32::from_rgb(100, 220, 100))
+            } else {
+                ("失败", egui::Color32::from_rgb(255, 80, 80))
+            };
+
+            // 计算已用时间
+            let elapsed_str = self.update_started_at.map(|start| {
+                let secs = start.elapsed().as_secs_f64();
+                if secs < 60.0 {
+                    format!("{:.0}秒", secs)
+                } else if secs < 3600.0 {
+                    format!("{:.0}分{:.0}秒", secs / 60.0, secs % 60.0)
+                } else {
+                    format!("{:.1}小时", secs / 3600.0)
+                }
+            });
+
+            // 进度百分比
+            let progress_ratio = if prog_total > 0 {
+                (prog_down as f64 / prog_total as f64).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+
+            let bg = if in_progress {
+                egui::Color32::from_rgba_premultiplied(30, 30, 40, 230)
+            } else {
+                egui::Color32::from_rgba_premultiplied(40, 40, 50, 220)
+            };
+            let text_color = egui::Color32::from_rgb(220, 220, 220);
+
+            // 完成/失败时读取 exe_path 和错误详情
+            let (done_exe_path, fail_error) = if !in_progress {
+                if let Ok(guard) = self.update_state.lock() {
+                    match &*guard {
+                        crate::update::UpdateState::Done(path) => (Some(path.clone()), None),
+                        crate::update::UpdateState::Failed(e) => (None, Some(e.clone())),
+                        _ => (None, None),
+                    }
+                } else {
+                    (None, None)
+                }
+            } else {
+                (None, None)
+            };
+
+            let retry_info = self.update_retry_info.clone();
+
+            egui::Area::new("update_progress_toast".into())
+                .anchor(egui::Align2::CENTER_BOTTOM, [0.0, -36.0])
+                .order(egui::Order::Foreground)
+                .show(ui.ctx(), |ui| {
+                    let frame = egui::Frame::NONE
+                        .fill(bg)
+                        .corner_radius(8.0)
+                        .inner_margin(egui::Margin::symmetric(14, 10));
+                    frame.show(ui, |ui| {
+                        ui.set_max_width(420.0);
+
+                        // 第一行：状态标签 + 已用时间
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new(state_label)
+                                    .color(state_color)
+                                    .size(12.0)
+                                    .strong(),
+                            );
+                            if let Some(ref elap) = elapsed_str {
+                                ui.label(
+                                    egui::RichText::new(format!("  ⏱ {}", elap))
+                                        .color(egui::Color32::from_rgb(160, 180, 200))
+                                        .size(11.0),
+                                );
+                            }
+                        });
+
+                        ui.add_space(4.0);
+
+                        // 第二行：下载进度 + 大小（仅在下载中显示）
+                        if in_progress && prog_total > 0 {
+                            // 进度条
+                            let bar_width = 390.0;
+                            let bar_height = 6.0;
+                            let (bar_rect, _) = ui.allocate_exact_size(
+                                egui::vec2(bar_width, bar_height),
+                                egui::Sense::hover(),
+                            );
+                            if ui.is_rect_visible(bar_rect) {
+                                ui.painter().rect_filled(
+                                    bar_rect,
+                                    egui::CornerRadius::same(3),
+                                    egui::Color32::from_rgba_premultiplied(255, 255, 255, 30),
+                                );
+                                let filled_w = (bar_rect.width() as f64 * progress_ratio) as f32;
+                                if filled_w > 0.0 {
+                                    let filled_rect = egui::Rect::from_min_size(
+                                        bar_rect.min,
+                                        egui::vec2(filled_w, bar_height),
+                                    );
+                                    ui.painter().rect_filled(
+                                        filled_rect,
+                                        egui::CornerRadius::same(3),
+                                        egui::Color32::from_rgb(80, 180, 255),
+                                    );
+                                }
+                            }
+
+                            ui.add_space(2.0);
+
+                            // 大小文本
+                            let down_mb = prog_down as f64 / 1_048_576.0;
+                            let total_mb = prog_total as f64 / 1_048_576.0;
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "{:.1} MB / {:.1} MB  ({:.0}%)",
+                                    down_mb,
+                                    total_mb,
+                                    progress_ratio * 100.0
+                                ))
+                                .color(egui::Color32::from_rgb(180, 200, 220))
+                                .size(11.0),
+                            );
+                        } else if in_progress && prog_total == 0 {
+                            ui.label(egui::RichText::new(&prog_msg).color(text_color).size(12.0));
+                        }
+
+                        // 第三行：SHA256 校验 + 状态消息
+                        if !prog_msg.is_empty() {
+                            ui.add_space(2.0);
+                            ui.horizontal(|ui| {
+                                if let Some(ok) = sha256_ok {
+                                    let (icon, hash_color) = if ok {
+                                        ("✓", egui::Color32::from_rgb(100, 220, 100))
+                                    } else {
+                                        ("✗", egui::Color32::from_rgb(255, 80, 80))
+                                    };
+                                    ui.label(
+                                        egui::RichText::new(format!("SHA256 {}", icon))
+                                            .color(hash_color)
+                                            .size(11.0),
+                                    );
+                                    ui.add_space(4.0);
+                                }
+                                ui.label(
+                                    egui::RichText::new(&prog_msg).color(text_color).size(11.0),
+                                );
+                            });
+                        }
+
+                        // 第四行：失败详情
+                        if let Some(ref err) = fail_error {
+                            ui.add_space(2.0);
+                            ui.label(
+                                egui::RichText::new(err)
+                                    .color(egui::Color32::from_rgb(255, 140, 140))
+                                    .size(11.0),
+                            );
+                        }
+
+                        // 第五行：操作按钮（Done / Failed / 下载中取消）
+                        ui.add_space(6.0);
+                        ui.horizontal(|ui| {
+                            if in_progress {
+                                // 下载/安装中：取消按钮
+                                if ui
+                                    .add(
+                                        egui::Button::new(" ✕ 取消 ")
+                                            .min_size(egui::vec2(60.0, 24.0)),
+                                    )
+                                    .clicked()
+                                {
+                                    self.update_cancelled
+                                        .store(true, std::sync::atomic::Ordering::Relaxed);
+                                    *self.update_state.lock().unwrap_or_else(|e| e.into_inner()) =
+                                        crate::update::UpdateState::Idle;
+                                }
+                            } else if is_done {
+                                // 完成：重启 + 稍后
+                                let exe_path = done_exe_path.clone();
+                                if ui
+                                    .add(
+                                        egui::Button::new(" 🔄 立即重启 ")
+                                            .min_size(egui::vec2(90.0, 24.0)),
+                                    )
+                                    .clicked()
+                                {
+                                    #[cfg(target_os = "macos")]
+                                    if let Some(ref p) = exe_path {
+                                        let _ = std::process::Command::new("open").arg(p).spawn();
+                                    }
+                                    std::process::exit(0);
+                                }
+                                if ui
+                                    .add(
+                                        egui::Button::new(" 稍后 ")
+                                            .min_size(egui::vec2(60.0, 24.0)),
+                                    )
+                                    .clicked()
+                                {
+                                    *self.update_state.lock().unwrap_or_else(|e| e.into_inner()) =
+                                        crate::update::UpdateState::Idle;
+                                }
+                            } else if is_failed {
+                                // 失败：重试 + 关闭
+                                if retry_info.is_some()
+                                    && ui
+                                        .add(
+                                            egui::Button::new(" 🔄 重试 ")
+                                                .min_size(egui::vec2(70.0, 24.0)),
+                                        )
+                                        .clicked()
+                                    && let Some(ref info) = retry_info
+                                {
+                                    // 重置状态并重新开始下载
+                                    *self.update_state.lock().unwrap_or_else(|e| e.into_inner()) =
+                                        crate::update::UpdateState::Idle;
+                                    self.start_update_thread(
+                                        self.update_state.clone(),
+                                        self.update_progress.clone(),
+                                        info.clone(),
+                                        ui.ctx().clone(),
+                                    );
+                                }
+                                if ui
+                                    .add(
+                                        egui::Button::new(" ✕ 关闭 ")
+                                            .min_size(egui::vec2(60.0, 24.0)),
+                                    )
+                                    .clicked()
+                                {
+                                    *self.update_state.lock().unwrap_or_else(|e| e.into_inner()) =
+                                        crate::update::UpdateState::Idle;
+                                }
+                            }
+                        });
+                    });
+
+                    if in_progress {
+                        ui.ctx().request_repaint();
+                    }
+                });
+        }
     }
 
     fn on_exit(&mut self) {}
 }
 
 impl DictApp {
+    /// 启动更新下载和安装线程
+    fn start_update_thread(
+        &mut self,
+        state: std::sync::Arc<std::sync::Mutex<crate::update::UpdateState>>,
+        progress: std::sync::Arc<std::sync::Mutex<crate::update::UpdateProgress>>,
+        info: crate::update::UpdateInfo,
+        ctx: egui::Context,
+    ) {
+        let cancelled = self.update_cancelled.clone();
+        cancelled.store(false, std::sync::atomic::Ordering::Relaxed);
+        {
+            let mut s = state.lock().unwrap_or_else(|e| e.into_inner());
+            *s = crate::update::UpdateState::Downloading;
+        }
+        {
+            let mut p = progress.lock().unwrap_or_else(|e| e.into_inner());
+            p.message = "正在连接服务器...".to_string();
+            p.bytes_downloaded = 0;
+            p.bytes_total = 0;
+            p.sha256_ok = None;
+        }
+        self.update_toast_shown_done_or_failed = false;
+        ctx.request_repaint();
+        std::thread::spawn(move || {
+            let result = (|| -> Result<std::path::PathBuf, String> {
+                let zip_path = crate::update::download_update(&info, &progress, &cancelled)?;
+                // 如果中途被取消，直接返回
+                if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+                    let _ = std::fs::remove_file(&zip_path);
+                    return Err("已取消".to_string());
+                }
+                *state.lock().unwrap_or_else(|e| e.into_inner()) =
+                    crate::update::UpdateState::Installing;
+                {
+                    let mut p = progress.lock().unwrap_or_else(|e| e.into_inner());
+                    p.message = "正在安装...".to_string();
+                }
+                ctx.request_repaint();
+                // 安装前再次检查取消
+                if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+                    return Err("已取消".to_string());
+                }
+                let new_exe = crate::update::apply_update(&zip_path)?;
+                Ok(new_exe)
+            })();
+            // 如果已取消，不更新状态（状态已在取消时被设为 Idle）
+            if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+                return;
+            }
+            match result {
+                Ok(new_exe) => {
+                    *state.lock().unwrap_or_else(|e| e.into_inner()) =
+                        crate::update::UpdateState::Done(new_exe);
+                }
+                Err(e) => {
+                    *state.lock().unwrap_or_else(|e| e.into_inner()) =
+                        crate::update::UpdateState::Failed(e);
+                }
+            }
+            ctx.request_repaint();
+        });
+    }
+
     /// 检查是否切换到了词典视图，如果是则设置自动聚焦标志
     fn check_view_changed_to_dict(&mut self, previous_view: crate::app::ViewMode) {
         if self.current_view == crate::app::ViewMode::Dict

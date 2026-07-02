@@ -1,5 +1,7 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -22,6 +24,15 @@ pub enum UpdateState {
     Installing,
     Done(PathBuf),
     Failed(String),
+}
+
+/// 详细更新进度（跨线程共享）
+#[derive(Debug, Clone)]
+pub struct UpdateProgress {
+    pub message: String,
+    pub bytes_downloaded: u64,
+    pub bytes_total: u64,
+    pub sha256_ok: Option<bool>, // None=未校验, Some(true)=通过, Some(false)=不匹配
 }
 
 #[derive(Deserialize)]
@@ -128,28 +139,70 @@ fn platform_asset_suffix() -> Option<&'static str> {
     }
 }
 
-pub fn download_update(info: &UpdateInfo) -> Result<PathBuf, String> {
+pub fn download_update(
+    info: &UpdateInfo,
+    progress: &Arc<Mutex<UpdateProgress>>,
+    cancelled: &AtomicBool,
+) -> Result<PathBuf, String> {
     let tmp_dir = std::env::temp_dir();
     let filename = info.download_url.rsplit('/').next().unwrap_or("update.zip");
     let zip_path = tmp_dir.join(filename);
 
-    let result = do_download(info, &zip_path);
+    {
+        let mut p = progress.lock().unwrap_or_else(|e| e.into_inner());
+        p.message = "开始下载...".to_string();
+        p.bytes_downloaded = 0;
+        p.bytes_total = 0;
+        p.sha256_ok = None;
+    }
+
+    let result = do_download(info, &zip_path, progress, cancelled);
     if result.is_err() {
         let _ = std::fs::remove_file(&zip_path);
     }
     let zip_path = result?;
 
+    // 安装前检查取消
+    if cancelled.load(Ordering::Relaxed) {
+        let _ = std::fs::remove_file(&zip_path);
+        return Err("已取消".to_string());
+    }
+
+    // 更新进度：SHA256 校验阶段
+    if info.sha256.is_some() {
+        {
+            let mut p = progress.lock().unwrap_or_else(|e| e.into_inner());
+            p.message = "正在验证 SHA256 完整性...".to_string();
+        }
+    }
+
     if let Some(ref expected) = info.sha256
         && let Err(e) = verify_checksum(&zip_path, expected)
     {
+        {
+            let mut p = progress.lock().unwrap_or_else(|e| e.into_inner());
+            p.sha256_ok = Some(false);
+            p.message = format!("SHA256 校验失败: {}", e);
+        }
         let _ = std::fs::remove_file(&zip_path);
         return Err(e);
+    }
+
+    if info.sha256.is_some() {
+        let mut p = progress.lock().unwrap_or_else(|e| e.into_inner());
+        p.sha256_ok = Some(true);
+        p.message = "SHA256 校验通过 ✓".to_string();
     }
 
     Ok(zip_path)
 }
 
-fn do_download(info: &UpdateInfo, zip_path: &Path) -> Result<PathBuf, String> {
+fn do_download(
+    info: &UpdateInfo,
+    zip_path: &Path,
+    progress: &Arc<Mutex<UpdateProgress>>,
+    cancelled: &AtomicBool,
+) -> Result<PathBuf, String> {
     let client = reqwest::blocking::Client::builder()
         .user_agent("xiaohe-yinxing-dict")
         .timeout(std::time::Duration::from_secs(120))
@@ -172,7 +225,19 @@ fn do_download(info: &UpdateInfo, zip_path: &Path) -> Result<PathBuf, String> {
 
     let mut downloaded: u64 = 0;
     let mut buffer = vec![0u8; 8192];
+
+    {
+        let mut p = progress.lock().unwrap_or_else(|e| e.into_inner());
+        p.bytes_total = content_length;
+    }
+
     loop {
+        // 检查取消
+        if cancelled.load(Ordering::Relaxed) {
+            let _ = std::fs::remove_file(zip_path);
+            return Err("已取消".to_string());
+        }
+
         let bytes_read = response
             .read(&mut buffer)
             .map_err(|e| format!("读取下载数据失败: {}", e))?;
@@ -182,6 +247,33 @@ fn do_download(info: &UpdateInfo, zip_path: &Path) -> Result<PathBuf, String> {
         std::io::Write::write_all(&mut file, &buffer[..bytes_read])
             .map_err(|e| format!("写入文件失败: {}", e))?;
         downloaded += bytes_read as u64;
+
+        // 每 256KB 更新一次进度（避免锁竞争太频繁）
+        if downloaded % 262_144 < bytes_read as u64
+            && let Ok(mut p) = progress.lock()
+        {
+            p.bytes_downloaded = downloaded;
+            if content_length > 0 {
+                let ratio = downloaded as f64 / content_length as f64;
+                let downloaded_mb = downloaded as f64 / 1_048_576.0;
+                let total_mb = content_length as f64 / 1_048_576.0;
+                p.message = format!(
+                    "正在下载  {:.1}MB / {:.1}MB  ({:.0}%)",
+                    downloaded_mb,
+                    total_mb,
+                    ratio * 100.0
+                );
+            } else {
+                let downloaded_mb = downloaded as f64 / 1_048_576.0;
+                p.message = format!("正在下载  {:.1}MB", downloaded_mb);
+            }
+        }
+    }
+
+    // 下载完成后再次检查取消
+    if cancelled.load(Ordering::Relaxed) {
+        let _ = std::fs::remove_file(zip_path);
+        return Err("已取消".to_string());
     }
 
     drop(file);

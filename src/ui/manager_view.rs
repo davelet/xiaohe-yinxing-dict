@@ -20,11 +20,17 @@ pub fn render_manager_top_panel(
             ui.heading("输入法数据");
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                // Keyboard nav: left arrow to go back
+                // Keyboard nav: left arrow to go back（添加新词输入框聚焦时不触发）
                 if ui.input(|i| i.key_pressed(egui::Key::ArrowLeft)) {
-                    *current_view = ViewMode::Dict;
+                    let add_word_focused = ui.memory(|mem| {
+                        mem.has_focus(egui::Id::new("add_word_text"))
+                            || mem.has_focus(egui::Id::new("add_word_code"))
+                    });
+                    if !add_word_focused {
+                        *current_view = ViewMode::Dict;
+                    }
                 }
-                if ui.button("📖 默认数据").clicked() {
+                if ui.button("← 默认数据").clicked() {
                     *current_view = ViewMode::Dict;
                 }
             });
@@ -40,6 +46,7 @@ pub fn render_manager_top_panel(
                     |ui| {
                         ui.add(
                             egui::TextEdit::singleline(&mut state.new_file_path)
+                                .id("add_file_path".into())
                                 .hint_text("输入词典文件路径...")
                                 .frame(
                                     egui::Frame::default()
@@ -159,11 +166,7 @@ pub fn render_manager_view(state: &mut ManagerState, ui: &mut egui::Ui, ctx: &eg
                         egui::TextEdit::singleline(&mut state.external_query)
                             .id(search_box_id)
                             .hint_text("🔍 在外部词典中搜索文字或编码...")
-                            .desired_width(f32::INFINITY)
-                            .frame(
-                                egui::Frame::default()
-                                    .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
-                            ),
+                            .desired_width(f32::INFINITY),
                     )
                 },
             )
@@ -550,6 +553,7 @@ fn render_add_word_form(state: &mut ManagerState, ui: &mut egui::Ui) {
                         |ui| {
                             ui.add(
                                 egui::TextEdit::singleline(&mut state.new_word_text)
+                                    .id("add_word_text".into())
                                     .hint_text("输入文字或词组")
                                     .desired_width(f32::INFINITY)
                                     .frame(
@@ -575,6 +579,7 @@ fn render_add_word_form(state: &mut ManagerState, ui: &mut egui::Ui) {
                         |ui| {
                             ui.add(
                                 egui::TextEdit::singleline(&mut state.new_word_code)
+                                    .id("add_word_code".into())
                                     .hint_text("小鹤编码（小写字母）")
                                     .desired_width(f32::INFINITY)
                                     .frame(

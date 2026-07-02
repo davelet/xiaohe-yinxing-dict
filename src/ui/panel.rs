@@ -66,7 +66,7 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
                     app.selected_category = all_cats[next];
                 }
 
-                if ui.button("📂 输入法数据").clicked() {
+                if ui.button("→ 输入法数据").clicked() {
                     app.current_view = crate::app::ViewMode::Manager;
                     app.manager.search_auto_focus = true;
                     // 检查文件变更并自动重载

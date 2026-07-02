@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
 use eframe::egui;
@@ -65,10 +66,23 @@ impl DictApp {
             show_update_dialog: false,
             update_info_for_dialog: None,
             update_state: Arc::new(Mutex::new(update::UpdateState::Idle)),
+            update_progress: Arc::new(Mutex::new(update::UpdateProgress {
+                message: String::new(),
+                bytes_downloaded: 0,
+                bytes_total: 0,
+                sha256_ok: None,
+            })),
+            update_started_at: None,
             // 视图切换
             current_view: app::ViewMode::Dict,
             manager: app::ManagerState::new(),
             search_auto_focus: true,
+            // 跨视图更新进度 toast
+            update_toast_timer: 0.0,
+            update_toast_shown_done_or_failed: false,
+            update_toast_dismissed: true,
+            update_retry_info: None,
+            update_cancelled: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -120,12 +134,26 @@ struct DictApp {
     show_update_dialog: bool,
     update_info_for_dialog: Option<update::UpdateInfo>,
     update_state: Arc<Mutex<update::UpdateState>>,
+    /// 详细更新进度（跨线程共享给 toast 渲染）
+    update_progress: Arc<Mutex<update::UpdateProgress>>,
+    /// 更新开始时间（用于计算已用时间）
+    update_started_at: Option<std::time::Instant>,
     // 视图切换
     current_view: app::ViewMode,
     /// 管理视图状态（与词典视图完全独立）
     manager: app::ManagerState,
     /// 是否需要在进入视图时自动聚焦搜索框（仅首帧）
     search_auto_focus: bool,
+    /// 跨视图更新进度 toast 倒计时（<= 0 时清除，0.0 表示常驻）
+    update_toast_timer: f32,
+    /// 用于失败后重试的更新信息
+    update_retry_info: Option<update::UpdateInfo>,
+    /// 取消更新下载的标志
+    update_cancelled: Arc<AtomicBool>,
+    /// 是否已为当前 Done/Failed 状态显示过 toast（状态回到 Idle 时重置）
+    update_toast_shown_done_or_failed: bool,
+    /// 标记Idle是否出现过，用来重置 shown_done_or_failed
+    update_toast_dismissed: bool,
 }
 
 fn create_app_icon() -> egui::IconData {
