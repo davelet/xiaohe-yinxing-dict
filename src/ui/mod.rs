@@ -403,7 +403,7 @@ impl eframe::App for DictApp {
                                 // 下载/安装中：取消按钮
                                 if ui
                                     .add(
-                                        egui::Button::new(" ✕ 取消 ")
+                                        egui::Button::new("x 取消")
                                             .min_size(egui::vec2(60.0, 24.0)),
                                     )
                                     .clicked()
@@ -462,7 +462,7 @@ impl eframe::App for DictApp {
                                 }
                                 if ui
                                     .add(
-                                        egui::Button::new(" ✕ 关闭 ")
+                                        egui::Button::new("x 关闭")
                                             .min_size(egui::vec2(60.0, 24.0)),
                                     )
                                     .clicked()
