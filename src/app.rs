@@ -8,6 +8,19 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::SystemTime;
 
+type ExternalLoadResult = (
+    Vec<ExternalDictEntry>,
+    HashMap<String, SystemTime>,
+    Vec<String>,
+    HashMap<String, usize>,
+);
+
+type ExternalCacheResult = (
+    Vec<ExternalDictEntry>,
+    HashMap<String, SystemTime>,
+    HashMap<String, usize>,
+);
+
 /// 排序字段
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortField {
@@ -42,18 +55,19 @@ struct ExternalDictCache {
     file_mtimes: HashMap<String, u64>,
     /// 所有已加载的外部词典条目
     entries: Vec<ExternalDictEntry>,
+    /// 文件路径 → 条目数
+    #[serde(default)]
+    entry_counts: HashMap<String, usize>,
 }
 
 fn cache_path() -> Option<PathBuf> {
-    AppConfig::config_path().map(|p| {
-        p.parent()
-            .unwrap()
-            .join("external_dicts.cache")
-    })
+    let p = AppConfig::config_path()?;
+    Some(p.parent()?.join("external_dicts.cache"))
 }
 
-/// 尝试从缓存加载条目（校验所有文件 mtime，返回的 entries 包含所有文件）
-fn try_load_external_cache(config: &AppConfig) -> Option<(Vec<ExternalDictEntry>, HashMap<String, SystemTime>)> {
+/// 尝试从缓存加载条目（校验所有文件 mtime）
+/// 返回 (entries, file_mtimes, entry_counts)
+fn try_load_external_cache(config: &AppConfig) -> Option<ExternalCacheResult> {
     let cache_path = cache_path()?;
     let data = std::fs::read_to_string(cache_path).ok()?;
     let cache: ExternalDictCache = serde_json::from_str(&data).ok()?;
@@ -91,12 +105,18 @@ fn try_load_external_cache(config: &AppConfig) -> Option<(Vec<ExternalDictEntry>
         })
         .collect();
 
-    Some((cache.entries, file_mtimes))
+    Some((cache.entries, file_mtimes, cache.entry_counts))
 }
 
 /// 保存外部词典缓存
-fn save_external_cache(entries: &[ExternalDictEntry], file_mtimes: &HashMap<String, SystemTime>) {
-    let Some(cache_path) = cache_path() else { return };
+fn save_external_cache(
+    entries: &[ExternalDictEntry],
+    file_mtimes: &HashMap<String, SystemTime>,
+    entry_counts: &HashMap<String, usize>,
+) {
+    let Some(cache_path) = cache_path() else {
+        return;
+    };
     let mtimes: HashMap<String, u64> = file_mtimes
         .iter()
         .filter_map(|(path, mtime)| {
@@ -110,6 +130,7 @@ fn save_external_cache(entries: &[ExternalDictEntry], file_mtimes: &HashMap<Stri
     let cache = ExternalDictCache {
         file_mtimes: mtimes,
         entries: entries.to_vec(),
+        entry_counts: entry_counts.clone(),
     };
 
     if let Ok(data) = serde_json::to_string(&cache) {
@@ -187,18 +208,12 @@ impl ManagerState {
         let discovered_files = rime_loader.scan_dict_files();
 
         // 尝试从缓存加载，失败则从文件加载
-        let (external_entries, file_mtimes, load_errors) = load_external_entries(&config, &rime_loader);
+        let (external_entries, file_mtimes, load_errors, entry_counts) =
+            load_external_entries(&config, &rime_loader);
 
-        // 更新 entry_count（缓存加载时不会自动更新）
+        // 更新 entry_count
         for file in config.external_dict_files.iter_mut() {
-            let source_name = std::path::Path::new(&file.path)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("");
-            let count = external_entries.iter().filter(|e| e.source == source_name).count();
-            if count > 0 {
-                file.entry_count = Some(count);
-            }
+            file.entry_count = entry_counts.get(&file.path).copied();
         }
 
         let external_engine = search::SearchEngine::build(&external_entries);
@@ -300,10 +315,10 @@ impl ManagerState {
 
         // 加载所有文件（包含禁用的），缓存需要全部数据
         let mut all_entries: Vec<ExternalDictEntry> = Vec::new();
-        let mut pending_counts: Vec<(String, usize)> = Vec::new();
+        let mut entry_counts: HashMap<String, usize> = HashMap::new();
         for dict_file in self.config.external_dict_files.iter() {
             if let Ok(entries) = self.rime_loader.load_dict_file(&dict_file.path) {
-                pending_counts.push((dict_file.path.clone(), entries.len()));
+                entry_counts.insert(dict_file.path.clone(), entries.len());
                 if dict_file.is_enabled {
                     self.external_entries.extend(entries.iter().cloned());
                 }
@@ -317,19 +332,12 @@ impl ManagerState {
                 self.load_errors.push(dict_file.path.clone());
             }
         }
-        for (path, count) in pending_counts {
-            if let Some(file) = self
-                .config
-                .external_dict_files
-                .iter_mut()
-                .find(|f| f.path == path)
-            {
-                file.entry_count = Some(count);
-            }
+        for file in self.config.external_dict_files.iter_mut() {
+            file.entry_count = entry_counts.get(&file.path).copied();
         }
 
         self.rebuild_external_engine();
-        save_external_cache(&all_entries, &self.file_mtimes);
+        save_external_cache(&all_entries, &self.file_mtimes, &entry_counts);
     }
 
     /// 检查文件是否有变更，如果有则重新加载
@@ -337,10 +345,13 @@ impl ManagerState {
         let mtime_seconds = |path: &str| -> Option<u64> {
             let meta = std::fs::metadata(path).ok()?;
             let mtime = meta.modified().ok()?;
-            mtime.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs().into()
+            Some(mtime.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs())
         };
         let stored_seconds = |mtime: &SystemTime| -> u64 {
-            mtime.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+            mtime
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0)
         };
 
         let mut changed = false;
@@ -352,7 +363,9 @@ impl ManagerState {
             .collect();
 
         for path in &enabled_paths {
-            let Some(current) = mtime_seconds(path) else { continue };
+            let Some(current) = mtime_seconds(path) else {
+                continue;
+            };
             let stored = self.file_mtimes.get(path).map(stored_seconds);
             if stored != Some(current) {
                 changed = true;
@@ -521,10 +534,7 @@ impl ManagerState {
 
 /// 加载外部词典条目（优先使用缓存）
 /// 返回的 entries 仅包含已启用文件，file_mtimes 包含所有文件
-fn load_external_entries(
-    config: &AppConfig,
-    rime_loader: &RimeLoader,
-) -> (Vec<ExternalDictEntry>, HashMap<String, SystemTime>, Vec<String>) {
+fn load_external_entries(config: &AppConfig, rime_loader: &RimeLoader) -> ExternalLoadResult {
     // 辅助函数：从 entries 中过滤出已启用文件对应的条目
     let filter_enabled = |entries: &[ExternalDictEntry]| -> Vec<ExternalDictEntry> {
         let enabled_sources: std::collections::HashSet<&str> = config
@@ -543,19 +553,21 @@ fn load_external_entries(
             .collect()
     };
 
-    if let Some((all_entries, mtimes)) = try_load_external_cache(config) {
+    if let Some((all_entries, mtimes, entry_counts)) = try_load_external_cache(config) {
         let entries = filter_enabled(&all_entries);
-        return (entries, mtimes, Vec::new());
+        return (entries, mtimes, Vec::new(), entry_counts);
     }
 
     // 缓存失效，重新从所有文件加载（包含禁用的，缓存需要它们的数据）
     let mut all_entries = Vec::new();
     let mut mtimes = HashMap::new();
     let mut load_errors = Vec::new();
+    let mut entry_counts = HashMap::new();
 
     for dict_file in config.external_dict_files.iter() {
         match rime_loader.load_dict_file(&dict_file.path) {
             Ok(loaded) => {
+                entry_counts.insert(dict_file.path.clone(), loaded.len());
                 all_entries.extend(loaded);
                 if let Ok(metadata) = std::fs::metadata(&dict_file.path)
                     && let Ok(mtime) = metadata.modified()
@@ -570,8 +582,8 @@ fn load_external_entries(
     let entries = filter_enabled(&all_entries);
 
     // 保存缓存供下次启动使用
-    save_external_cache(&all_entries, &mtimes);
-    (entries, mtimes, load_errors)
+    save_external_cache(&all_entries, &mtimes, &entry_counts);
+    (entries, mtimes, load_errors, entry_counts)
 }
 
 /// 通过 Squirrel --reload 触发鼠须管重新部署（macOS）

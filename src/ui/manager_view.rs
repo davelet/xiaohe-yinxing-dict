@@ -117,12 +117,19 @@ pub fn render_manager_view(state: &mut ManagerState, ui: &mut egui::Ui, ctx: &eg
 
     let mut query_changed = false;
 
-    let modifier_key = if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" };
+    let modifier_key = if cfg!(target_os = "macos") {
+        "⌘"
+    } else {
+        "Ctrl"
+    };
 
     ui.horizontal(|ui| {
         let response = ui
             .allocate_ui_with_layout(
-                egui::vec2(ui.available_width() - 130.0, super::styles::INPUT_BOX_HEIGHT),
+                egui::vec2(
+                    ui.available_width() - 130.0,
+                    super::styles::INPUT_BOX_HEIGHT,
+                ),
                 egui::Layout::left_to_right(egui::Align::Center),
                 |ui| {
                     ui.add(
@@ -520,9 +527,8 @@ fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
                             {
                                 let name_str = name.to_string_lossy().to_string();
                                 if name_str.ends_with(".dict.yaml") || name_str.ends_with(".txt") {
-                                    let dict_name = name_str
-                                        .replace(".dict.yaml", "")
-                                        .replace(".txt", "");
+                                    let dict_name =
+                                        name_str.replace(".dict.yaml", "").replace(".txt", "");
                                     state.add_external_dict(
                                         p.to_string_lossy().to_string(),
                                         dict_name,
@@ -555,7 +561,10 @@ fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
             state.show_manual_add = false;
             state.new_file_path.clear();
         }
-    } else if ui.input(|i| i.key_pressed(egui::Key::Escape)) && !state.new_file_path.is_empty() {
+    } else if !state.show_add_word_dialog
+        && ui.input(|i| i.key_pressed(egui::Key::Escape))
+        && !state.new_file_path.is_empty()
+    {
         state.new_file_path.clear();
     }
 
@@ -664,10 +673,8 @@ fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
 
                     let path_bg = egui::Color32::from_rgb(248, 248, 250);
                     let avail_w = ui.available_width().max(100.0);
-                    let (rect, _) = ui.allocate_exact_size(
-                        egui::vec2(avail_w, row_height),
-                        egui::Sense::hover(),
-                    );
+                    let (rect, _) = ui
+                        .allocate_exact_size(egui::vec2(avail_w, row_height), egui::Sense::hover());
                     let mut child_ui = ui.new_child(
                         egui::UiBuilder::new()
                             .max_rect(rect)
@@ -694,5 +701,4 @@ fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
     if let Some((path, name)) = to_add {
         state.add_external_dict(path, name);
     }
-
 }

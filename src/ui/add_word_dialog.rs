@@ -36,8 +36,10 @@ pub fn show_add_word_dialog(state: &mut ManagerState, ctx: &egui::Context) {
 
             ui.add_space(12.0);
 
-            let text_focused = ui.memory(|mem| mem.has_focus(egui::Id::new("dialog_add_word_text")));
-            let code_focused = ui.memory(|mem| mem.has_focus(egui::Id::new("dialog_add_word_code")));
+            let text_focused =
+                ui.memory(|mem| mem.has_focus(egui::Id::new("dialog_add_word_text")));
+            let code_focused =
+                ui.memory(|mem| mem.has_focus(egui::Id::new("dialog_add_word_code")));
 
             let enter_pressed = ui.input(|i| i.key_pressed(egui::Key::Enter));
             let escape_pressed = ui.input(|i| i.key_pressed(egui::Key::Escape));
@@ -47,11 +49,14 @@ pub fn show_add_word_dialog(state: &mut ManagerState, ctx: &egui::Context) {
             }
 
             ui.horizontal(|ui| {
-                if ui.button("添加").clicked()
-                    || (enter_pressed && (text_focused || code_focused))
+                if ui.button("添加").clicked() || (enter_pressed && (text_focused || code_focused))
                 {
                     state.add_new_word();
-                    if state.add_word_feedback.as_ref().is_some_and(|(_, success)| *success) {
+                    if state
+                        .add_word_feedback
+                        .as_ref()
+                        .is_some_and(|(_, success)| *success)
+                    {
                         close_dialog = true;
                         state.show_add_word_dialog = false;
                     }
