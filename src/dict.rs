@@ -1,7 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// 词典条目分类枚举
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Category {
     YiJiJianMa,
     ErChongJianMa,
@@ -156,7 +157,7 @@ pub struct DictEntry {
 }
 
 /// 外部词典条目（运行时加载，使用 String）
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExternalDictEntry {
     pub text: String,
     pub code: String,

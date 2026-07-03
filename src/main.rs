@@ -172,8 +172,8 @@ fn main() -> eframe::Result {
         run_and_return: false,
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([950.0, 650.0])
-            .with_resizable(true)
-            .with_maximize_button(true)
+            .with_resizable(false)
+            .with_maximize_button(false)
             .with_icon(icon),
         ..Default::default()
     };

@@ -5,6 +5,7 @@ use crate::search;
 use eframe::egui;
 use egui::output::OutputCommand;
 
+use super::add_word_dialog;
 use super::common::{CODE_BG, ROW_NUM_BG, TEXT_BG, render_cell};
 use super::split_at_range;
 use super::styles::ManagerViewStyle;
@@ -34,46 +35,6 @@ pub fn render_manager_top_panel(
                     *current_view = ViewMode::Dict;
                 }
             });
-        });
-
-        // 添加文件区域
-        ui.horizontal(|ui| {
-            ui.label("添加文件路径:");
-            let response = ui
-                .allocate_ui_with_layout(
-                    egui::vec2(400.0, super::styles::INPUT_BOX_HEIGHT),
-                    egui::Layout::left_to_right(egui::Align::Center),
-                    |ui| {
-                        ui.add(
-                            egui::TextEdit::singleline(&mut state.new_file_path)
-                                .id("add_file_path".into())
-                                .hint_text("输入词典文件路径...")
-                                .frame(
-                                    egui::Frame::default()
-                                        .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
-                                ),
-                        )
-                    },
-                )
-                .inner;
-
-            if (ui.button("添加").clicked()
-                || (response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))))
-                && !state.new_file_path.trim().is_empty()
-            {
-                let path = state.new_file_path.clone();
-                let name = std::path::Path::new(&path)
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("unknown")
-                    .to_string();
-                state.add_external_dict(path, name);
-                state.new_file_path.clear();
-            }
-
-            if ui.button("扫描目录").clicked() {
-                state.refresh_discovered_files();
-            }
         });
 
         // 状态消息
@@ -156,17 +117,23 @@ pub fn render_manager_view(state: &mut ManagerState, ui: &mut egui::Ui, ctx: &eg
 
     let mut query_changed = false;
 
+    let modifier_key = if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" };
+
     ui.horizontal(|ui| {
         let response = ui
             .allocate_ui_with_layout(
-                egui::vec2(ui.available_width() - 28.0, super::styles::INPUT_BOX_HEIGHT),
+                egui::vec2(ui.available_width() - 130.0, super::styles::INPUT_BOX_HEIGHT),
                 egui::Layout::left_to_right(egui::Align::Center),
                 |ui| {
                     ui.add(
                         egui::TextEdit::singleline(&mut state.external_query)
                             .id(search_box_id)
                             .hint_text("🔍 在外部词典中搜索文字或编码...")
-                            .desired_width(f32::INFINITY),
+                            .desired_width(f32::INFINITY)
+                            .frame(
+                                egui::Frame::default()
+                                    .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
+                            ),
                     )
                 },
             )
@@ -183,6 +150,19 @@ pub fn render_manager_view(state: &mut ManagerState, ui: &mut egui::Ui, ctx: &eg
         {
             state.external_query.clear();
             query_changed = true;
+        }
+
+        let open_dialog = ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::N));
+
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui.button(format!("➕ 添加新词  {modifier_key}N")).clicked() {
+                state.show_add_word_dialog = true;
+                state.add_word_dialog_auto_focus = true;
+            }
+        });
+        if open_dialog {
+            state.show_add_word_dialog = true;
+            state.add_word_dialog_auto_focus = true;
         }
     });
 
@@ -216,6 +196,11 @@ pub fn render_manager_view(state: &mut ManagerState, ui: &mut egui::Ui, ctx: &eg
         }
     } else {
         render_file_management(state, ui);
+    }
+
+    // Add word dialog
+    if state.show_add_word_dialog {
+        add_word_dialog::show_add_word_dialog(state, ctx);
     }
 }
 
@@ -400,10 +385,22 @@ fn render_external_search_results(
     copy_action
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum FileStatus {
+    Enabled,
+    Disabled,
+    Discovered,
+}
+
+struct DictFileItem {
+    path: String,
+    name: String,
+    entry_count: Option<usize>,
+    status: FileStatus,
+}
+
 /// 渲染文件管理区域（搜索框为空时显示）
 fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
-    render_add_word_form(state, ui);
-
     // 显示初始加载失败的文件警告
     if !state.load_errors.is_empty() {
         let errors = state.load_errors.clone();
@@ -431,71 +428,7 @@ fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
         ui.separator();
     }
 
-    egui::ScrollArea::vertical()
-        .id_salt("manager_file_scroll")
-        .max_height(ui.available_height())
-        .show(ui, |ui| {
-            render_external_files(ui, state);
-            ui.separator();
-            render_discovered_files(ui, state);
-        });
-}
-
-/// 渲染外部词典文件列表
-fn render_external_files(ui: &mut egui::Ui, state: &mut ManagerState) {
-    ui.label("已添加的外部词典:");
-
-    let mut to_remove = None;
-    let mut to_toggle = None;
-
-    let dict_files: Vec<_> = state.config.external_dict_files.iter().collect();
-
-    for dict_file in &dict_files {
-        let card_bg = ManagerViewStyle::card_background();
-
-        egui::Frame::new()
-            .fill(card_bg)
-            .corner_radius(6.0)
-            .inner_margin(egui::Margin::symmetric(8, 3))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    let mut enabled = dict_file.is_enabled;
-                    if ui.checkbox(&mut enabled, &dict_file.name).changed() {
-                        to_toggle = Some(dict_file.path.clone());
-                    }
-
-                    ui.label(&dict_file.path);
-
-                    if let Some(count) = dict_file.entry_count {
-                        ui.label(format!("({} 条)", count));
-                    }
-
-                    if ui.button("移除").clicked() {
-                        to_remove = Some(dict_file.path.clone());
-                    }
-                });
-            });
-    }
-
-    if let Some(path) = to_toggle {
-        state.toggle_external_dict(&path);
-    }
-
-    if let Some(path) = to_remove {
-        state.remove_external_dict(&path);
-    }
-
-    if state.config.external_dict_files.is_empty() {
-        ui.label("暂无外部词典文件");
-    }
-}
-
-/// 渲染发现的文件列表
-fn render_discovered_files(ui: &mut egui::Ui, state: &mut ManagerState) {
-    ui.label("扫描到的词典文件:");
-
-    let mut to_add = None;
-
+    // Build merged file list
     let added_paths: std::collections::HashSet<&str> = state
         .config
         .external_dict_files
@@ -503,145 +436,263 @@ fn render_discovered_files(ui: &mut egui::Ui, state: &mut ManagerState) {
         .map(|f| f.path.as_str())
         .collect();
 
-    for dict_file in &state.discovered_files {
-        let already_added = added_paths.contains(dict_file.path.as_str());
+    let mut items: Vec<DictFileItem> = Vec::new();
 
-        ui.horizontal(|ui| {
-            ui.label(&dict_file.name);
-            ui.label(&dict_file.path);
-
-            if already_added {
-                ui.label("已添加");
-            } else if ui.button("添加").clicked() {
-                to_add = Some((dict_file.path.clone(), dict_file.name.clone()));
-            }
+    for f in &state.config.external_dict_files {
+        items.push(DictFileItem {
+            path: f.path.clone(),
+            name: f.name.clone(),
+            entry_count: f.entry_count,
+            status: if f.is_enabled {
+                FileStatus::Enabled
+            } else {
+                FileStatus::Disabled
+            },
         });
     }
 
+    for f in &state.discovered_files {
+        if !added_paths.contains(f.path.as_str()) {
+            items.push(DictFileItem {
+                path: f.path.clone(),
+                name: f.name.clone(),
+                entry_count: f.entry_count,
+                status: FileStatus::Discovered,
+            });
+        }
+    }
+
+    let col_widths = [150.0, 40.0, 70.0, 90.0];
+    let row_height = 24.0;
+
+    // Title row + scan button (always visible)
+    ui.horizontal(|ui| {
+        ui.strong(format!("词典文件（{}）", items.len()));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui.button("🔄 重扫默认目录").clicked() {
+                state.refresh_discovered_files();
+            }
+            if ui.link("手动添加词典").clicked() {
+                state.show_manual_add = !state.show_manual_add;
+                if !state.show_manual_add {
+                    state.new_file_path.clear();
+                }
+            }
+        });
+    });
+
+    // Inline manual add (visible when triggered)
+    if state.show_manual_add {
+        let mut close = false;
+        ui.horizontal(|ui| {
+            let response = ui
+                .allocate_ui_with_layout(
+                    egui::vec2(400.0, super::styles::INPUT_BOX_HEIGHT),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        ui.add(
+                            egui::TextEdit::singleline(&mut state.new_file_path)
+                                .id("add_file_path".into())
+                                .hint_text("输入词典文件路径...")
+                                .frame(
+                                    egui::Frame::default()
+                                        .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
+                                ),
+                        )
+                    },
+                )
+                .inner;
+
+            if (ui.button("添加").clicked()
+                || (response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))))
+                && !state.new_file_path.trim().is_empty()
+            {
+                let raw_path = state.new_file_path.trim().to_string();
+                let path = std::path::Path::new(&raw_path);
+                if path.is_dir() {
+                    // 目录 → 扫描该目录下的 .dict.yaml / .txt 文件逐个添加
+                    if let Ok(entries) = std::fs::read_dir(path) {
+                        let mut count = 0;
+                        for entry in entries.flatten() {
+                            let p = entry.path();
+                            if p.is_file()
+                                && let Some(name) = p.file_name()
+                            {
+                                let name_str = name.to_string_lossy().to_string();
+                                if name_str.ends_with(".dict.yaml") || name_str.ends_with(".txt") {
+                                    let dict_name = name_str
+                                        .replace(".dict.yaml", "")
+                                        .replace(".txt", "");
+                                    state.add_external_dict(
+                                        p.to_string_lossy().to_string(),
+                                        dict_name,
+                                    );
+                                    count += 1;
+                                }
+                            }
+                        }
+                        state.set_status(format!("已从目录添加 {} 个词典文件", count));
+                    } else {
+                        state.set_status(format!("无法读取目录: {}", raw_path));
+                    }
+                } else {
+                    // 文件 → 直接添加
+                    let name = path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("unknown")
+                        .to_string();
+                    state.add_external_dict(raw_path, name);
+                }
+                state.new_file_path.clear();
+                close = true;
+            }
+            if ui.button("关闭").clicked() {
+                close = true;
+            }
+        });
+        if close {
+            state.show_manual_add = false;
+            state.new_file_path.clear();
+        }
+    } else if ui.input(|i| i.key_pressed(egui::Key::Escape)) && !state.new_file_path.is_empty() {
+        state.new_file_path.clear();
+    }
+
+    ui.separator();
+
+    if items.is_empty() {
+        ui.label("暂无词典文件");
+        return;
+    }
+
+    // Table header — outside ScrollArea, always visible
+    ui.horizontal(|ui| {
+        render_cell(ui, col_widths[0], row_height, false, None, |ui| {
+            ui.strong("文件名");
+        });
+        render_cell(ui, col_widths[1], row_height, true, None, |ui| {
+            ui.strong("条目");
+        });
+        render_cell(ui, col_widths[2], row_height, true, None, |ui| {
+            ui.strong("状态");
+        });
+        render_cell(ui, col_widths[3], row_height, true, None, |ui| {
+            ui.strong("操作");
+        });
+        ui.strong("路径");
+    });
+
+    // Rows inside scrollable area
+    let mut to_toggle: Option<String> = None;
+    let mut to_remove: Option<String> = None;
+    let mut to_add: Option<(String, String)> = None;
+
+    egui::ScrollArea::vertical()
+        .id_salt("manager_file_scroll")
+        .max_height(ui.available_height())
+        .show(ui, |ui| {
+            for item in &items {
+                let (row_bg, status_label, status_color) = match item.status {
+                    FileStatus::Enabled => (
+                        egui::Color32::from_rgb(240, 250, 240),
+                        "已启用",
+                        egui::Color32::from_rgb(30, 140, 60),
+                    ),
+                    FileStatus::Disabled => (
+                        egui::Color32::from_rgb(245, 245, 245),
+                        "已禁用",
+                        egui::Color32::from_rgb(140, 140, 140),
+                    ),
+                    FileStatus::Discovered => (
+                        egui::Color32::from_rgb(255, 255, 255),
+                        "未添加",
+                        egui::Color32::from_rgb(40, 100, 200),
+                    ),
+                };
+
+                ui.horizontal(|ui| {
+                    render_cell(ui, col_widths[0], row_height, false, Some(row_bg), |ui| {
+                        ui.label(&item.name);
+                    });
+
+                    render_cell(ui, col_widths[1], row_height, true, Some(row_bg), |ui| {
+                        if let Some(count) = item.entry_count {
+                            ui.label(format!("{}", count));
+                        } else {
+                            ui.label("-");
+                        }
+                    });
+
+                    render_cell(ui, col_widths[2], row_height, true, Some(row_bg), |ui| {
+                        ui.colored_label(status_color, status_label);
+                    });
+
+                    let action_bg = if item.status == FileStatus::Discovered {
+                        egui::Color32::from_rgb(245, 250, 255)
+                    } else {
+                        row_bg
+                    };
+                    {
+                        let (rect, _) = ui.allocate_exact_size(
+                            egui::vec2(col_widths[3], row_height),
+                            egui::Sense::hover(),
+                        );
+                        let mut child_ui = ui.new_child(
+                            egui::UiBuilder::new()
+                                .max_rect(rect)
+                                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+                        );
+                        child_ui.painter().rect_filled(rect, 0.0, action_bg);
+                        match item.status {
+                            FileStatus::Enabled | FileStatus::Disabled => {
+                                let mut enabled = item.status == FileStatus::Enabled;
+                                if child_ui.checkbox(&mut enabled, "").changed() {
+                                    to_toggle = Some(item.path.clone());
+                                }
+                                if child_ui.button("删除").clicked() {
+                                    to_remove = Some(item.path.clone());
+                                }
+                            }
+                            FileStatus::Discovered => {
+                                if child_ui.button("添加").clicked() {
+                                    to_add = Some((item.path.clone(), item.name.clone()));
+                                }
+                            }
+                        }
+                    }
+
+                    let path_bg = egui::Color32::from_rgb(248, 248, 250);
+                    let avail_w = ui.available_width().max(100.0);
+                    let (rect, _) = ui.allocate_exact_size(
+                        egui::vec2(avail_w, row_height),
+                        egui::Sense::hover(),
+                    );
+                    let mut child_ui = ui.new_child(
+                        egui::UiBuilder::new()
+                            .max_rect(rect)
+                            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+                    );
+                    child_ui.painter().rect_filled(rect, 0.0, path_bg);
+                    egui::ScrollArea::horizontal()
+                        .id_salt(format!("path_scroll_{}", item.path))
+                        .show(&mut child_ui, |ui| {
+                            ui.set_min_height(row_height);
+                            ui.monospace(&item.path);
+                        });
+                });
+            }
+        });
+
+    // Apply actions after scroll area
+    if let Some(path) = to_toggle {
+        state.toggle_external_dict(&path);
+    }
+    if let Some(path) = to_remove {
+        state.remove_external_dict(&path);
+    }
     if let Some((path, name)) = to_add {
         state.add_external_dict(path, name);
     }
 
-    if state.discovered_files.is_empty() {
-        ui.label("未扫描到词典文件");
-    }
-}
-
-/// 渲染添加新词的表单
-fn render_add_word_form(state: &mut ManagerState, ui: &mut egui::Ui) {
-    ui.add_space(4.0);
-
-    egui::Frame::new()
-        .fill(egui::Color32::from_rgb(245, 245, 250))
-        .corner_radius(6.0)
-        .inner_margin(egui::Margin::symmetric(10, 8))
-        .show(ui, |ui| {
-            ui.label("添加新词到小鹤音形词典:");
-
-            ui.horizontal(|ui| {
-                ui.allocate_ui_with_layout(
-                    egui::vec2(44.0, super::styles::INPUT_BOX_HEIGHT),
-                    egui::Layout::left_to_right(egui::Align::Center),
-                    |ui| {
-                        ui.label("文字:");
-                    },
-                );
-                let _text_input = ui
-                    .allocate_ui_with_layout(
-                        egui::vec2(120.0, super::styles::INPUT_BOX_HEIGHT),
-                        egui::Layout::left_to_right(egui::Align::Center),
-                        |ui| {
-                            ui.add(
-                                egui::TextEdit::singleline(&mut state.new_word_text)
-                                    .id("add_word_text".into())
-                                    .hint_text("输入文字或词组")
-                                    .desired_width(f32::INFINITY)
-                                    .frame(
-                                        egui::Frame::default()
-                                            .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
-                                    ),
-                            )
-                        },
-                    )
-                    .inner;
-
-                ui.allocate_ui_with_layout(
-                    egui::vec2(44.0, super::styles::INPUT_BOX_HEIGHT),
-                    egui::Layout::left_to_right(egui::Align::Center),
-                    |ui| {
-                        ui.label("编码:");
-                    },
-                );
-                let _code_input = ui
-                    .allocate_ui_with_layout(
-                        egui::vec2(160.0, super::styles::INPUT_BOX_HEIGHT),
-                        egui::Layout::left_to_right(egui::Align::Center),
-                        |ui| {
-                            ui.add(
-                                egui::TextEdit::singleline(&mut state.new_word_code)
-                                    .id("add_word_code".into())
-                                    .hint_text("小鹤编码（小写字母）")
-                                    .desired_width(f32::INFINITY)
-                                    .frame(
-                                        egui::Frame::default()
-                                            .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
-                                    ),
-                            )
-                        },
-                    )
-                    .inner;
-
-                // 按钮点击 或 有内容时按 Enter 即可提交
-                if ui.button("添加").clicked()
-                    || (ui.input(|i| i.key_pressed(egui::Key::Enter))
-                        && (!state.new_word_text.is_empty() || !state.new_word_code.is_empty()))
-                {
-                    state.add_new_word();
-                }
-            });
-
-            // 反馈消息（带手动关闭按钮，10 秒自动消失）
-            let mut dismiss_feedback = false;
-            if let Some((msg, success)) = state.add_word_feedback.clone() {
-                let (bg, text_color) = if success {
-                    (
-                        egui::Color32::from_rgb(230, 250, 235),
-                        egui::Color32::from_rgb(30, 120, 50),
-                    )
-                } else {
-                    (
-                        egui::Color32::from_rgb(255, 235, 235),
-                        egui::Color32::from_rgb(160, 20, 20),
-                    )
-                };
-                let bar_width = (state.add_word_timer / 10.0).clamp(0.0, 1.0);
-                egui::Frame::new()
-                    .fill(bg)
-                    .corner_radius(4.0)
-                    .inner_margin(egui::Margin::symmetric(8, 6))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.colored_label(text_color, &msg);
-                            if ui.button("×").on_hover_text("关闭").clicked() {
-                                dismiss_feedback = true;
-                            }
-                        });
-                        // 倒计时进度条（2px 高，与文字同色）
-                        let full_w = ui.available_width();
-                        let bar_rect = egui::Rect::from_min_size(
-                            ui.cursor().min,
-                            egui::vec2(full_w * bar_width, 2.0),
-                        );
-                        ui.painter()
-                            .rect_filled(bar_rect, egui::CornerRadius::ZERO, text_color);
-                        ui.allocate_space(egui::vec2(full_w, 2.0));
-                    });
-            }
-            if dismiss_feedback {
-                state.add_word_feedback = None;
-                state.add_word_timer = 0.0;
-            }
-        });
-
-    ui.add_space(4.0);
 }

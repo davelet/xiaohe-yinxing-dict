@@ -1,6 +1,7 @@
 use crate::DictApp;
 use eframe::egui;
 
+mod add_word_dialog;
 mod common;
 mod help;
 mod manager_view;

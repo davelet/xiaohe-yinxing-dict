@@ -19,11 +19,6 @@ impl DictViewStyle {
 pub struct ManagerViewStyle;
 
 impl ManagerViewStyle {
-    /// 获取卡片背景色
-    pub fn card_background() -> egui::Color32 {
-        egui::Color32::from_rgb(240, 240, 245)
-    }
-
     /// 获取成功色
     pub fn success_color() -> egui::Color32 {
         egui::Color32::from_rgb(34, 150, 80)
