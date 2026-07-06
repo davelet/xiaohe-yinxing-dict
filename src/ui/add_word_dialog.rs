@@ -12,17 +12,18 @@ pub fn show_add_word_dialog(state: &mut ManagerState, ctx: &egui::Context) {
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .fixed_size(egui::vec2(DIALOG_WIDTH, 0.0))
         .show(ctx, |ui| {
-            if state.add_word_dialog_auto_focus {
-                ui.memory_mut(|mem| mem.request_focus(egui::Id::new("dialog_add_word_text")));
-                state.add_word_dialog_auto_focus = false;
-            }
             ui.label("文字:");
-            ui.add(
+            let text_response = ui.add(
                 egui::TextEdit::singleline(&mut state.new_word_text)
                     .id("dialog_add_word_text".into())
                     .hint_text("输入文字或词组")
                     .desired_width(f32::INFINITY),
             );
+
+            if state.add_word_dialog_auto_focus {
+                text_response.request_focus();
+                state.add_word_dialog_auto_focus = false;
+            }
 
             ui.add_space(8.0);
 

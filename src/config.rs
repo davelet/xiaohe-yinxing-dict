@@ -88,6 +88,15 @@ impl AppConfig {
             .filter(|f| f.is_enabled)
             .collect()
     }
+
+    /// 移除不在默认扫描目录下的所有词典（手动添加的）
+    pub fn remove_manual_dicts(&mut self, rime_user_dir: &str) {
+        let rime_dir = std::path::Path::new(rime_user_dir);
+        self.external_dict_files.retain(|f| {
+            let path = std::path::Path::new(&f.path);
+            path.starts_with(rime_dir)
+        });
+    }
 }
 
 #[cfg(test)]

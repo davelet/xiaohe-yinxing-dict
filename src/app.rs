@@ -307,6 +307,31 @@ impl ManagerState {
         self.reload_external_dicts();
     }
 
+    /// 移除所有手动添加的词典（不在默认扫描目录下的）
+    pub fn remove_manual_dicts(&mut self) {
+        let rime_user_dir = self.config.rime_user_dir.clone();
+        let count = self
+            .config
+            .external_dict_files
+            .iter()
+            .filter(|f| {
+                let rime_dir = std::path::Path::new(&rime_user_dir);
+                !std::path::Path::new(&f.path).starts_with(rime_dir)
+            })
+            .count();
+        if count == 0 {
+            self.set_status("没有手动添加的词典");
+            return;
+        }
+        self.config.remove_manual_dicts(&rime_user_dir);
+        if let Err(e) = self.config.save() {
+            self.set_status(format!("保存配置失败: {}", e));
+            return;
+        }
+        self.reload_external_dicts();
+        self.set_status(format!("已移除 {} 个手动添加的词典", count));
+    }
+
     /// 重新加载所有外部词典
     pub fn reload_external_dicts(&mut self) {
         self.external_entries.clear();
@@ -537,13 +562,14 @@ impl ManagerState {
 fn load_external_entries(config: &AppConfig, rime_loader: &RimeLoader) -> ExternalLoadResult {
     // 辅助函数：从 entries 中过滤出已启用文件对应的条目
     let filter_enabled = |entries: &[ExternalDictEntry]| -> Vec<ExternalDictEntry> {
-        let enabled_sources: std::collections::HashSet<&str> = config
+        let enabled_sources: std::collections::HashSet<String> = config
             .enabled_external_dicts()
             .iter()
             .filter_map(|f| {
                 std::path::Path::new(&f.path)
-                    .file_stem()
-                    .and_then(|s| s.to_str())
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|s| s.replace(".dict.yaml", "").replace(".txt", ""))
             })
             .collect();
         entries
