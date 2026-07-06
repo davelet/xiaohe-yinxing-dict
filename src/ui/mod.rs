@@ -364,7 +364,8 @@ impl eframe::App for DictApp {
                         }
 
                         // 第三行：SHA256 校验 + 状态消息
-                        if !prog_msg.is_empty() {
+                        // 当 prog_total == 0 时，prog_msg 已在第二行显示，跳过重复
+                        if !(prog_msg.is_empty() || (in_progress && prog_total == 0)) {
                             ui.add_space(2.0);
                             ui.horizontal(|ui| {
                                 if let Some(ok) = sha256_ok {

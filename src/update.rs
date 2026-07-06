@@ -205,7 +205,8 @@ fn do_download(
 ) -> Result<PathBuf, String> {
     let client = reqwest::blocking::Client::builder()
         .user_agent("xiaohe-yinxing-dict")
-        .timeout(std::time::Duration::from_secs(120))
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
