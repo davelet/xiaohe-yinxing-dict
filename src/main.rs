@@ -206,4 +206,5 @@ fn setup_chinese_fonts(ctx: &egui::Context) {
         .or_default()
         .insert(0, "noto_sans_sc".to_owned());
     ctx.set_fonts(fonts);
+    ctx.options_mut(|o| o.zoom_with_keyboard = false);
 }

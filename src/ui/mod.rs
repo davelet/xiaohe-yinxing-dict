@@ -611,8 +611,6 @@ impl DictApp {
             }
         });
 
-        ui.separator();
-
         // Check if category changed
         let category_changed = self.last_category != self.selected_category;
         self.last_category = self.selected_category;

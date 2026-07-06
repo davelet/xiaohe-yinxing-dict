@@ -96,7 +96,6 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
                 ui.label("分类筛选");
             });
         });
-        ui.separator();
     });
 }
 

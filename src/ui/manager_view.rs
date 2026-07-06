@@ -76,9 +76,22 @@ pub fn render_manager_bottom_panel(state: &ManagerState, ui: &mut egui::Ui) {
                         .iter()
                         .filter_map(|f| f.entry_count)
                         .sum();
+                    let added_paths: std::collections::HashSet<&str> = state
+                        .config
+                        .external_dict_files
+                        .iter()
+                        .map(|f| f.path.as_str())
+                        .collect();
+                    let undiscovered = state
+                        .discovered_files
+                        .iter()
+                        .filter(|f| !added_paths.contains(f.path.as_str()))
+                        .count();
+                    let total_dicts = state.config.external_dict_files.len() + undiscovered;
+                    let enabled_count = state.config.enabled_external_dicts().len();
                     ui.label(format!(
-                        "外部词典 {} 条 | 扫描文件共 {} 条",
-                        total_external, total_entries
+                        "扫描 {} 个词典 | 启用 {} 个 | 外部词典 {} 条 | 扫描文件共 {} 条",
+                        total_dicts, enabled_count, total_external, total_entries
                     ));
                 }
 
@@ -494,7 +507,7 @@ fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
         score(a).cmp(&score(b))
     });
 
-    let col_widths = [150.0, 40.0, 70.0, 90.0, 70.0];
+    let col_widths = [40.0, 150.0, 40.0, 70.0, 90.0, 70.0];
     let row_height = 24.0;
 
     // Title row + scan button (always visible)
@@ -603,19 +616,22 @@ fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
 
     // Table header — outside ScrollArea, always visible
     ui.horizontal(|ui| {
-        render_cell(ui, col_widths[0], row_height, false, None, |ui| {
+        render_cell(ui, col_widths[0], row_height, true, None, |ui| {
+            ui.strong("序号");
+        });
+        render_cell(ui, col_widths[1], row_height, false, None, |ui| {
             ui.strong("文件名");
         });
-        render_cell(ui, col_widths[1], row_height, true, None, |ui| {
+        render_cell(ui, col_widths[2], row_height, true, None, |ui| {
             ui.strong("条目");
         });
-        render_cell(ui, col_widths[2], row_height, true, None, |ui| {
+        render_cell(ui, col_widths[3], row_height, true, None, |ui| {
             ui.strong("状态");
         });
-        render_cell(ui, col_widths[3], row_height, true, None, |ui| {
+        render_cell(ui, col_widths[4], row_height, true, None, |ui| {
             ui.strong("操作");
         });
-        render_cell(ui, col_widths[4], row_height, true, None, |ui| {
+        render_cell(ui, col_widths[5], row_height, true, None, |ui| {
             ui.strong("来源");
         });
         ui.strong("路径");
@@ -630,7 +646,7 @@ fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
         .id_salt("manager_file_scroll")
         .max_height(ui.available_height())
         .show(ui, |ui| {
-            for item in &all_items {
+            for (row_num, item) in all_items.iter().enumerate() {
                 let (row_bg, status_label, status_color) = match item.status {
                     FileStatus::Enabled => (
                         egui::Color32::from_rgb(240, 250, 240),
@@ -650,11 +666,15 @@ fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
                 };
 
                 ui.horizontal(|ui| {
-                    render_cell(ui, col_widths[0], row_height, false, Some(row_bg), |ui| {
+                    render_cell(ui, col_widths[0], row_height, true, Some(row_bg), |ui| {
+                        ui.label(format!("{}", row_num + 1));
+                    });
+
+                    render_cell(ui, col_widths[1], row_height, false, Some(row_bg), |ui| {
                         ui.label(&item.name);
                     });
 
-                    render_cell(ui, col_widths[1], row_height, true, Some(row_bg), |ui| {
+                    render_cell(ui, col_widths[2], row_height, true, Some(row_bg), |ui| {
                         if let Some(count) = item.entry_count {
                             ui.label(format!("{}", count));
                         } else {
@@ -662,7 +682,7 @@ fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
                         }
                     });
 
-                    render_cell(ui, col_widths[2], row_height, true, Some(row_bg), |ui| {
+                    render_cell(ui, col_widths[3], row_height, true, Some(row_bg), |ui| {
                         ui.colored_label(status_color, status_label);
                     });
 
@@ -673,7 +693,7 @@ fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
                     };
                     {
                         let (rect, _) = ui.allocate_exact_size(
-                            egui::vec2(col_widths[3], row_height),
+                            egui::vec2(col_widths[4], row_height),
                             egui::Sense::hover(),
                         );
                         let mut child_ui = ui.new_child(
@@ -710,7 +730,7 @@ fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
                         }
                     }
 
-                    render_cell(ui, col_widths[4], row_height, true, Some(row_bg), |ui| {
+                    render_cell(ui, col_widths[5], row_height, true, Some(row_bg), |ui| {
                         let source = if item.is_manual {
                             "自定义"
                         } else {
