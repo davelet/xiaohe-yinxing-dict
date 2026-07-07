@@ -84,6 +84,7 @@ impl DictApp {
             update_retry_info: None,
             update_cancelled: Arc::new(AtomicBool::new(false)),
             update_toast_background: false,
+            update_toast_background_auto: false,
             show_md_preview: std::cell::Cell::new(true),
         }
     }
@@ -158,6 +159,8 @@ struct DictApp {
     update_toast_dismissed: bool,
     /// 后台更新模式：隐藏toast但继续下载
     update_toast_background: bool,
+    /// 弹窗首次出现时的静默下载，彻底隐藏toast（包括完成/失败）
+    update_toast_background_auto: bool,
     /// 更新弹窗中 release notes 是否以 Markdown 渲染
     show_md_preview: std::cell::Cell<bool>,
 }

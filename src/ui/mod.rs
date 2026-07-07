@@ -36,6 +36,7 @@ impl eframe::App for DictApp {
                     self.update_info_for_dialog = Some(info.clone());
                     // 发现新版本后立即后台下载+安装，toast 先隐藏
                     self.update_toast_background = true;
+                    self.update_toast_background_auto = true;
                     self.start_update_thread(
                         self.update_state.clone(),
                         self.update_progress.clone(),
@@ -65,13 +66,12 @@ impl eframe::App for DictApp {
                     ui.separator();
                     ui.horizontal(|ui| {
                         ui.label("更新内容:");
-                        if ui
-                            .selectable_label(!show_md.get(), "纯文本")
-                            .clicked()
-                        {
+                        ui.add_space(4.0);
+                        let md = show_md.get();
+                        if ui.add(egui::Button::new("纯文本").selected(!md)).clicked() {
                             show_md.set(false);
                         }
-                        if ui.selectable_label(show_md.get(), "Markdown").clicked() {
+                        if ui.add(egui::Button::new("Markdown").selected(md)).clicked() {
                             show_md.set(true);
                         }
                     });
@@ -79,50 +79,26 @@ impl eframe::App for DictApp {
                         .max_height(300.0)
                         .show(ui, |ui| {
                             if show_md.get() {
-                                egui_commonmark::CommonMarkViewer::new()
-                                    .show(ui, &mut md_cache, &info_clone.release_notes);
+                                egui_commonmark::CommonMarkViewer::new().show(
+                                    ui,
+                                    &mut md_cache,
+                                    &info_clone.release_notes,
+                                );
                             } else {
                                 ui.label(&info_clone.release_notes);
                             }
                         });
                     ui.separator();
                     ui.horizontal(|ui| {
-                        let current_state = {
-                            let guard =
-                                update_state_clone.lock().unwrap_or_else(|e| e.into_inner());
-                            guard.clone()
-                        };
-                        let is_disabled =
-                            matches!(current_state, crate::update::UpdateState::Installing);
-                        let btn_label =
-                            if matches!(current_state, crate::update::UpdateState::Done(_)) {
-                                " 立即重启 "
-                            } else if matches!(
-                                current_state,
-                                crate::update::UpdateState::Downloading
-                            ) {
-                                " 查看进度 "
-                            } else {
-                                "立即更新"
+                        if ui.button("立即更新").clicked() {
+                            self.update_toast_background_auto = false;
+                            let current_state = {
+                                let guard =
+                                    update_state_clone.lock().unwrap_or_else(|e| e.into_inner());
+                                guard.clone()
                             };
-                        if ui
-                            .add_enabled(!is_disabled, egui::Button::new(btn_label))
-                            .clicked()
-                        {
+                            self.update_toast_background = false;
                             match current_state {
-                                crate::update::UpdateState::Done(path) => {
-                                    #[cfg(target_os = "macos")]
-                                    std::process::Command::new("open").arg(&path).spawn().ok();
-                                    #[cfg(target_os = "windows")]
-                                    std::process::Command::new(&path).spawn().ok();
-                                    std::process::exit(0);
-                                }
-                                crate::update::UpdateState::Downloading => {
-                                    self.update_toast_background = false;
-                                }
-                                crate::update::UpdateState::Installing => {
-                                    // 按钮已禁用，不会触发
-                                }
                                 crate::update::UpdateState::Failed(_)
                                 | crate::update::UpdateState::Idle => {
                                     let ctx = ui.ctx().clone();
@@ -134,6 +110,7 @@ impl eframe::App for DictApp {
                                         ctx,
                                     );
                                 }
+                                _ => {}
                             }
                             close_dialog = true;
                         }
@@ -275,13 +252,15 @@ impl eframe::App for DictApp {
             }
         }
 
-        // 后台模式下隐藏下载中的toast，完成/失败时重新显示
-        let show_toast = if self.update_toast_background {
-            // 后台模式：只显示完成/失败，隐藏下载中
+        // 后台静默下载
+        let show_toast = if self.update_toast_background_auto {
+            // 弹窗首次自动下载：彻底静默，不显示任何 toast
+            false
+        } else if self.update_toast_background {
+            // 用户主动转入后台：隐藏下载中，完成/失败时显示
             if in_progress {
                 false
             } else {
-                // 完成或失败时重置后台标志并显示
                 if is_done || is_failed {
                     self.update_toast_background = false;
                 }
@@ -484,7 +463,7 @@ impl eframe::App for DictApp {
                                 // 下载/安装中：后台 + 取消按钮
                                 if ui
                                     .add(
-                                        egui::Button::new(" ⤵️后台下载 ")
+                                        egui::Button::new(" 后台下载 ")
                                             .min_size(egui::vec2(80.0, 24.0)),
                                     )
                                     .clicked()
@@ -633,6 +612,9 @@ impl DictApp {
                 Ok(new_exe) => {
                     *state.lock().unwrap_or_else(|e| e.into_inner()) =
                         crate::update::UpdateState::Done(new_exe);
+                    if let Ok(mut p) = progress.lock() {
+                        p.message = "安装完成".to_string();
+                    }
                 }
                 Err(e) => {
                     *state.lock().unwrap_or_else(|e| e.into_inner()) =
