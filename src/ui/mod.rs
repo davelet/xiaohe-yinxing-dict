@@ -24,14 +24,26 @@ impl eframe::App for DictApp {
         }
 
         // Check for update info from background thread
-        if let Ok(guard) = self.update_info.lock()
-            && let Some(info) = guard.as_ref()
-            && !self.show_update_dialog
-            && *self.update_state.lock().unwrap_or_else(|e| e.into_inner())
-                == crate::update::UpdateState::Idle
-        {
-            self.show_update_dialog = true;
-            self.update_info_for_dialog = Some(info.clone());
+        if !self.show_update_dialog {
+            let info_to_show = self.update_info.lock().ok().and_then(|guard| guard.clone());
+            if let Some(info) = info_to_show {
+                let is_idle = {
+                    let state = self.update_state.lock().unwrap_or_else(|e| e.into_inner());
+                    *state == crate::update::UpdateState::Idle
+                };
+                if is_idle {
+                    self.show_update_dialog = true;
+                    self.update_info_for_dialog = Some(info.clone());
+                    // 发现新版本后立即后台下载+安装，toast 先隐藏
+                    self.update_toast_background = true;
+                    self.start_update_thread(
+                        self.update_state.clone(),
+                        self.update_progress.clone(),
+                        info,
+                        ui.ctx().clone(),
+                    );
+                }
+            }
         }
 
         // Show update dialog
@@ -57,25 +69,61 @@ impl eframe::App for DictApp {
                         });
                     ui.separator();
                     ui.horizontal(|ui| {
-                        let is_downloading = {
+                        let current_state = {
                             let guard =
                                 update_state_clone.lock().unwrap_or_else(|e| e.into_inner());
-                            *guard == crate::update::UpdateState::Downloading
-                                || *guard == crate::update::UpdateState::Installing
+                            guard.clone()
                         };
+                        let is_disabled =
+                            matches!(current_state, crate::update::UpdateState::Installing);
+                        let btn_label =
+                            if matches!(current_state, crate::update::UpdateState::Done(_)) {
+                                " 立即重启 "
+                            } else if matches!(
+                                current_state,
+                                crate::update::UpdateState::Downloading
+                            ) {
+                                " 查看进度 "
+                            } else {
+                                "立即更新"
+                            };
                         if ui
-                            .add_enabled(!is_downloading, egui::Button::new("立即更新"))
+                            .add_enabled(!is_disabled, egui::Button::new(btn_label))
                             .clicked()
                         {
-                            let state = update_state.clone();
-                            let progress = self.update_progress.clone();
-                            let info = info_clone.clone();
-                            let ctx = ui.ctx().clone();
-                            self.update_retry_info = Some(info.clone());
-                            self.start_update_thread(state, progress, info, ctx);
+                            match current_state {
+                                crate::update::UpdateState::Done(path) => {
+                                    #[cfg(target_os = "macos")]
+                                    std::process::Command::new("open").arg(&path).spawn().ok();
+                                    #[cfg(target_os = "windows")]
+                                    std::process::Command::new(&path).spawn().ok();
+                                    std::process::exit(0);
+                                }
+                                crate::update::UpdateState::Downloading => {
+                                    self.update_toast_background = false;
+                                }
+                                crate::update::UpdateState::Installing => {
+                                    // 按钮已禁用，不会触发
+                                }
+                                crate::update::UpdateState::Failed(_)
+                                | crate::update::UpdateState::Idle => {
+                                    let ctx = ui.ctx().clone();
+                                    self.update_retry_info = Some(info_clone.clone());
+                                    self.start_update_thread(
+                                        update_state.clone(),
+                                        self.update_progress.clone(),
+                                        info_clone.clone(),
+                                        ctx,
+                                    );
+                                }
+                            }
                             close_dialog = true;
                         }
                         if ui.button("稍后再说").clicked() {
+                            self.update_cancelled
+                                .store(true, std::sync::atomic::Ordering::Relaxed);
+                            *self.update_state.lock().unwrap_or_else(|e| e.into_inner()) =
+                                crate::update::UpdateState::Idle;
                             close_dialog = true;
                         }
                     });
@@ -209,7 +257,21 @@ impl eframe::App for DictApp {
             }
         }
 
-        let show_toast = in_progress || is_done || is_failed;
+        // 后台模式下隐藏下载中的toast，完成/失败时重新显示
+        let show_toast = if self.update_toast_background {
+            // 后台模式：只显示完成/失败，隐藏下载中
+            if in_progress {
+                false
+            } else {
+                // 完成或失败时重置后台标志并显示
+                if is_done || is_failed {
+                    self.update_toast_background = false;
+                }
+                is_done || is_failed
+            }
+        } else {
+            in_progress || is_done || is_failed
+        };
 
         // 渲染富文本 toast
         if show_toast {
@@ -401,7 +463,16 @@ impl eframe::App for DictApp {
                         ui.add_space(6.0);
                         ui.horizontal(|ui| {
                             if in_progress {
-                                // 下载/安装中：取消按钮
+                                // 下载/安装中：后台 + 取消按钮
+                                if ui
+                                    .add(
+                                        egui::Button::new(" ⤵️后台下载 ")
+                                            .min_size(egui::vec2(80.0, 24.0)),
+                                    )
+                                    .clicked()
+                                {
+                                    self.update_toast_background = true;
+                                }
                                 if ui
                                     .add(
                                         egui::Button::new("x 取消")
@@ -427,6 +498,10 @@ impl eframe::App for DictApp {
                                     #[cfg(target_os = "macos")]
                                     if let Some(ref p) = exe_path {
                                         let _ = std::process::Command::new("open").arg(p).spawn();
+                                    }
+                                    #[cfg(target_os = "windows")]
+                                    if let Some(ref p) = exe_path {
+                                        let _ = std::process::Command::new(p).spawn();
                                     }
                                     std::process::exit(0);
                                 }
@@ -531,8 +606,9 @@ impl DictApp {
                 let new_exe = crate::update::apply_update(&zip_path)?;
                 Ok(new_exe)
             })();
-            // 如果已取消，不更新状态（状态已在取消时被设为 Idle）
+            // 如果已取消，回退到 Idle（防止 Installing 被设置后取消导致状态卡住）
             if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+                *state.lock().unwrap_or_else(|e| e.into_inner()) = crate::update::UpdateState::Idle;
                 return;
             }
             match result {

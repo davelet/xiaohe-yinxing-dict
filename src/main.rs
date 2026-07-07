@@ -83,6 +83,7 @@ impl DictApp {
             update_toast_dismissed: true,
             update_retry_info: None,
             update_cancelled: Arc::new(AtomicBool::new(false)),
+            update_toast_background: false,
         }
     }
 
@@ -154,6 +155,8 @@ struct DictApp {
     update_toast_shown_done_or_failed: bool,
     /// 标记Idle是否出现过，用来重置 shown_done_or_failed
     update_toast_dismissed: bool,
+    /// 后台更新模式：隐藏toast但继续下载
+    update_toast_background: bool,
 }
 
 fn create_app_icon() -> egui::IconData {
