@@ -59,13 +59,31 @@ impl eframe::App for DictApp {
                 .resizable(false)
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(&ctx, |ui| {
+                    let mut md_cache = egui_commonmark::CommonMarkCache::default();
+                    let show_md = &self.show_md_preview;
                     ui.label(format!("发现新版本: v{}", info_clone.latest_version));
                     ui.separator();
-                    ui.label("更新内容:");
+                    ui.horizontal(|ui| {
+                        ui.label("更新内容:");
+                        if ui
+                            .selectable_label(!show_md.get(), "纯文本")
+                            .clicked()
+                        {
+                            show_md.set(false);
+                        }
+                        if ui.selectable_label(show_md.get(), "Markdown").clicked() {
+                            show_md.set(true);
+                        }
+                    });
                     egui::ScrollArea::vertical()
                         .max_height(300.0)
                         .show(ui, |ui| {
-                            ui.label(&info_clone.release_notes);
+                            if show_md.get() {
+                                egui_commonmark::CommonMarkViewer::new()
+                                    .show(ui, &mut md_cache, &info_clone.release_notes);
+                            } else {
+                                ui.label(&info_clone.release_notes);
+                            }
                         });
                     ui.separator();
                     ui.horizontal(|ui| {
