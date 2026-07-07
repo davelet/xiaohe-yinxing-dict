@@ -1,6 +1,6 @@
 [package]
 name = "xiaohe-yinxing-dict"
-version = "0.9.1"
+version = "0.9.2"
 edition = "2024"
 
 [[bin]]
@@ -21,6 +21,7 @@ dirs = "5"
 open = "5"
 zip = "2"
 sha2 = "0.10"
+sysproxy = "0.3"
 
 [build-dependencies]
 winres = "0.1"

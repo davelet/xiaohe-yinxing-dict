@@ -6,6 +6,29 @@ use std::sync::{Arc, Mutex};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
+fn get_proxy_url() -> Option<String> {
+    for var in &[
+        "HTTPS_PROXY",
+        "https_proxy",
+        "HTTP_PROXY",
+        "http_proxy",
+        "ALL_PROXY",
+        "all_proxy",
+    ] {
+        if let Ok(val) = std::env::var(var)
+            && !val.is_empty()
+        {
+            return Some(val);
+        }
+    }
+    if let Ok(proxy) = sysproxy::Sysproxy::get_system_proxy()
+        && proxy.enable
+    {
+        return Some(format!("http://{}:{}", proxy.host, proxy.port));
+    }
+    None
+}
+
 const REPO_OWNER: &str = "davelet";
 const REPO_NAME: &str = "xiaohe-yinxing-dict";
 
@@ -56,11 +79,15 @@ pub fn check_for_update(current_version: &str) -> Option<UpdateInfo> {
         REPO_OWNER, REPO_NAME
     );
 
-    let client = reqwest::blocking::Client::builder()
+    let mut builder = reqwest::blocking::Client::builder()
         .user_agent("xiaohe-yinxing-dict")
-        .timeout(std::time::Duration::from_secs(5))
-        .build()
-        .ok()?;
+        .timeout(std::time::Duration::from_secs(5));
+    if let Some(proxy_url) = get_proxy_url()
+        && let Ok(proxy) = reqwest::Proxy::all(&proxy_url)
+    {
+        builder = builder.proxy(proxy);
+    }
+    let client = builder.build().ok()?;
 
     let response = client.get(&url).send().ok()?;
     if !response.status().is_success() {
@@ -203,10 +230,16 @@ fn do_download(
     progress: &Arc<Mutex<UpdateProgress>>,
     cancelled: &AtomicBool,
 ) -> Result<PathBuf, String> {
-    let client = reqwest::blocking::Client::builder()
+    let mut builder = reqwest::blocking::Client::builder()
         .user_agent("xiaohe-yinxing-dict")
         .connect_timeout(std::time::Duration::from_secs(5))
-        .timeout(std::time::Duration::from_secs(30))
+        .timeout(std::time::Duration::from_secs(30));
+    if let Some(proxy_url) = get_proxy_url()
+        && let Ok(proxy) = reqwest::Proxy::all(&proxy_url)
+    {
+        builder = builder.proxy(proxy);
+    }
+    let client = builder
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
