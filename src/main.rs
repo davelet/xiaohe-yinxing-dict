@@ -86,6 +86,7 @@ impl DictApp {
             update_toast_background: false,
             update_toast_background_auto: false,
             show_md_preview: std::cell::Cell::new(true),
+            show_about_dialog: false,
         }
     }
 
@@ -163,6 +164,8 @@ struct DictApp {
     update_toast_background_auto: bool,
     /// 更新弹窗中 release notes 是否以 Markdown 渲染
     show_md_preview: std::cell::Cell<bool>,
+    /// 关于本软件的介绍弹窗
+    show_about_dialog: bool,
 }
 
 fn create_app_icon() -> egui::IconData {

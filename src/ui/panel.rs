@@ -9,7 +9,7 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
             ui.heading("小鹤音形词典");
 
             // Help button with image tooltip
-            let help_btn = ui.button("❓ 部件字根键位图");
+            let help_btn = ui.button("⌨键位图");
             if help_btn.clicked() {
                 app.show_help_image = !app.show_help_image;
             }
@@ -38,12 +38,17 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
             }
 
             // Help documentation button
-            let help_doc_btn = ui.button("📖 帮助文档");
+            let help_doc_btn = ui.button("📖 帮助文档[F1]");
             if help_doc_btn.clicked() {
                 app.show_help_panel = !app.show_help_panel;
                 if app.show_help_panel && app.selected_help_chapter.is_none() {
                     app.selected_help_chapter = Some("readme".to_string());
                 }
+            }
+
+            // About this software button
+            if ui.button("❓关于").on_hover_text("关于本软件").clicked() {
+                app.show_about_dialog = true;
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -81,7 +86,7 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
                             .map(|c| c.display_name())
                             .unwrap_or("全部"),
                     )
-                    .width(350.0)
+                    .width(200.0)
                     .height(550.0)
                     .show_ui(ui, |ui| {
                         ui.selectable_value(&mut app.selected_category, None::<Category>, "全部");

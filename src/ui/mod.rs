@@ -132,12 +132,58 @@ impl eframe::App for DictApp {
             }
         }
 
+        // About dialog
+        if self.show_about_dialog {
+            let window_response = egui::Window::new("关于小鹤音形词典")
+                .collapsible(false)
+                .resizable(false)
+                .min_width(420.0)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(&ctx, |ui| {
+                    ui.label("本软件是《小鹤音形》输入法的离线词典查询工具。");
+                    ui.add_space(8.0);
+                    ui.label("使用方法：");
+                    ui.label("  • 搜索框输入汉字或编码可查询内置数据");
+                    ui.label("  • 点击分类筛选下拉菜单可按分类过滤结果");
+                    ui.label("  • 操作按钮可复制文字或编码到剪贴板");
+                    ui.label("  • 按 → （方向右键）切换到输入法管理视图");
+                    ui.label("  • 输入法管理视图可添加自定义新词，自动部署Rime立即生效");
+                    ui.add_space(12.0);
+                    let version = env!("CARGO_PKG_VERSION");
+                    ui.label(format!("版本：v{}", version));
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        ui.label("有问题或建议？欢迎到 GitHub 提");
+                        ui.hyperlink_to(
+                            "Issue",
+                            "https://github.com/davelet/xiaohe-yinxing-dict/issues/new",
+                        );
+                        ui.label("。");
+                    });
+                    ui.add_space(8.0);
+                    if ui.button("关闭[Esc]").clicked() {
+                        self.show_about_dialog = false;
+                    }
+                });
+
+            if let Some(inner) = window_response
+                && inner.response.clicked_elsewhere()
+            {
+                self.show_about_dialog = false;
+            }
+        }
+
         // F1 切换帮助文档
         if ui.input(|i| i.key_pressed(egui::Key::F1)) {
             self.show_help_panel = !self.show_help_panel;
             if self.show_help_panel && self.selected_help_chapter.is_none() {
                 self.selected_help_chapter = Some("readme".to_string());
             }
+        }
+
+        // Esc 关闭关于弹窗
+        if self.show_about_dialog && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.show_about_dialog = false;
         }
 
         // 记录当前视图，用于检测视图切换
