@@ -8,33 +8,44 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
         ui.horizontal(|ui| {
             ui.heading("小鹤音形词典");
 
-            // Help button with image tooltip
+            // Help button with image (click to toggle; shown in a Window so it
+            // has no fragile manual hover detection / flicker)
             let help_btn = ui.button("⌨键位图");
             if help_btn.clicked() {
                 app.show_help_image = !app.show_help_image;
             }
 
-            if app.show_help_image
-                && let Some(texture) = &app.help_image
-            {
-                let tooltip_pos = help_btn.rect.left_bottom() + egui::vec2(0.0, 4.0);
-                let area_response = egui::Area::new("help_tooltip".into())
-                    .fixed_pos(tooltip_pos)
-                    .order(egui::Order::Tooltip)
+            if app.show_help_image {
+                if app.help_image_shown_at.is_none() {
+                    app.help_image_shown_at = Some(std::time::Instant::now());
+                }
+                let resp = egui::Window::new("键位图")
+                    .resizable(false)
+                    .collapsible(false)
+                    .title_bar(false)
+                    .fixed_pos(help_btn.rect.left_bottom())
                     .show(ui.ctx(), |ui| {
-                        egui::Frame::popup(ui.style()).show(ui, |ui| {
-                            let max_w = 750.0;
-                            let max_h = 600.0;
+                        if let Some(texture) = &app.help_image {
+                            let max_w = 700.0;
+                            let max_h = 550.0;
                             let [iw, ih] = texture.size();
                             let img_size = egui::vec2(iw as f32, ih as f32);
                             let scale = (max_w / img_size.x).min(max_h / img_size.y).min(1.0);
                             ui.image((texture.id(), img_size * scale));
-                        });
+                        }
                     });
-
-                if !help_btn.hovered() && !area_response.response.hovered() {
-                    app.show_help_image = false;
+                if let Some(inner) = resp {
+                    let elapsed = app
+                        .help_image_shown_at
+                        .map(|t| t.elapsed())
+                        .unwrap_or_default();
+                    if inner.response.clicked_elsewhere() && elapsed.as_millis() >= 200 {
+                        app.show_help_image = false;
+                        app.help_image_shown_at = None;
+                    }
                 }
+            } else {
+                app.help_image_shown_at = None;
             }
 
             // Help documentation button
@@ -104,7 +115,7 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
     });
 }
 
-pub(crate) fn render_bottom_panel(app: &DictApp, ui: &mut egui::Ui) {
+pub(crate) fn render_bottom_panel(app: &mut DictApp, ui: &mut egui::Ui) {
     egui::Panel::bottom("status_panel").show_inside(ui, |ui| {
         ui.horizontal(|ui| {
             let total = DICT_ENTRIES.len();
@@ -114,7 +125,14 @@ pub(crate) fn render_bottom_panel(app: &DictApp, ui: &mut egui::Ui) {
                 .unwrap_or("全部");
 
             let (display_count, max_note) = if app.query.trim().is_empty() {
-                let count = app.engine.count_by_category(app.selected_category);
+                let count = match app.cached_category_count {
+                    Some((cat, n)) if cat == app.selected_category => n,
+                    _ => {
+                        let n = app.engine.count_by_category(app.selected_category);
+                        app.cached_category_count = Some((app.selected_category, n));
+                        n
+                    }
+                };
                 let note = if count > 100 {
                     " (最多显示100条)"
                 } else {

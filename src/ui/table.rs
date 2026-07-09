@@ -31,8 +31,9 @@ pub(crate) fn render_table(app: &mut DictApp, ui: &mut egui::Ui, ctx: &egui::Con
         .max_height(ui.available_height())
         .show(ui, |ui| {
             if !app.search_results.is_empty() {
-                let results = app.search_results.clone();
-                for (row_num, (idx, match_kind)) in results.iter().enumerate() {
+                let result_count = app.search_results.len();
+                for row_num in 0..result_count {
+                    let (idx, match_kind) = &app.search_results[row_num];
                     let entry = &app.engine.entries()[*idx];
 
                     ui.horizontal(|ui| {
@@ -51,7 +52,7 @@ pub(crate) fn render_table(app: &mut DictApp, ui: &mut egui::Ui, ctx: &egui::Con
                         // Text column (with highlight)
                         render_cell(ui, COL_WIDTHS[1], ROW_HEIGHT, false, Some(TEXT_BG), |ui| {
                             egui::ScrollArea::horizontal()
-                                .id_salt(format!("text_scroll_{}", idx))
+                                .id_salt(format!("text_scroll_{}", *idx))
                                 .show(ui, |ui| {
                                     ui.set_min_height(ROW_HEIGHT);
                                     if let search::MatchKind::Text(matched_range) = match_kind {

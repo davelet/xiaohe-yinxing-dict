@@ -181,9 +181,12 @@ impl eframe::App for DictApp {
             }
         }
 
-        // Esc 关闭关于弹窗
+        // Esc 关闭关于弹窗（消费该 Esc 事件，避免同帧内搜索框也响应清空）
         if self.show_about_dialog && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.show_about_dialog = false;
+            ctx.input_mut(|input| {
+                input.consume_key(egui::Modifiers::NONE, egui::Key::Escape);
+            });
         }
 
         // 记录当前视图，用于检测视图切换
@@ -722,8 +725,8 @@ impl DictApp {
                 },
             );
 
-            // ESC 清空
-            if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            // ESC 清空（关于弹窗打开时，Esc 仅用于关闭弹窗，不清空搜索框）
+            if !self.show_about_dialog && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                 self.query.clear();
             }
 
@@ -738,20 +741,29 @@ impl DictApp {
         let category_changed = self.last_category != self.selected_category;
         self.last_category = self.selected_category;
 
-        // Check if query was just cleared (non-empty -> empty)
-        let query_cleared = !self.last_query.is_empty() && self.query.is_empty();
+        // Check if query changed
+        let query_changed = self.last_query != self.query;
         self.last_query = self.query.clone();
 
-        // Perform search or show category content
-        if !self.query.is_empty() {
-            let (results, total) = self
-                .engine
-                .search(self.query.trim(), self.selected_category);
-            self.search_results = results;
-            self.total_results = total;
-        } else if query_cleared || category_changed || self.search_results.is_empty() {
-            self.search_results = self.engine.get_by_category(self.selected_category);
-            self.total_results = self.search_results.len();
+        // Mark search as dirty when query or category changes
+        if query_changed || category_changed {
+            self.search_dirty = true;
+            self.cached_category_count = None;
+        }
+
+        // Perform search only when dirty (optimization: avoid per-frame full scan)
+        if self.search_dirty {
+            self.search_dirty = false;
+            if !self.query.is_empty() {
+                let (results, total) = self
+                    .engine
+                    .search(self.query.trim(), self.selected_category);
+                self.search_results = results;
+                self.total_results = total;
+            } else {
+                self.search_results = self.engine.get_by_category(self.selected_category);
+                self.total_results = self.search_results.len();
+            }
         }
 
         // Results header

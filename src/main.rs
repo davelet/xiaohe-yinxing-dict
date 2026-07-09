@@ -57,6 +57,7 @@ impl DictApp {
             feedback_timer: 0.0,
             help_image,
             show_help_image: false,
+            help_image_shown_at: None,
             help_manager,
             show_help_panel: false,
             selected_help_chapter: None,
@@ -87,6 +88,8 @@ impl DictApp {
             update_toast_background_auto: false,
             show_md_preview: std::cell::Cell::new(true),
             show_about_dialog: false,
+            search_dirty: true,
+            cached_category_count: None,
         }
     }
 
@@ -128,7 +131,9 @@ struct DictApp {
     copied_feedback: Option<(usize, CopyKind)>,
     feedback_timer: f32,
     help_image: Option<egui::TextureHandle>,
+    /// 是否显示键位图（点击“键位图”按钮切换）
     show_help_image: bool,
+    help_image_shown_at: Option<std::time::Instant>,
     help_manager: HelpManager,
     show_help_panel: bool,
     selected_help_chapter: Option<String>,
@@ -166,6 +171,10 @@ struct DictApp {
     show_md_preview: std::cell::Cell<bool>,
     /// 关于本软件的介绍弹窗
     show_about_dialog: bool,
+    /// 标记搜索是否需要重新执行（避免每帧重复搜索）
+    search_dirty: bool,
+    /// 分类条目数缓存：(分类, 数量)；仅在 selected_category 变化时失效
+    cached_category_count: Option<(Option<crate::dict::Category>, usize)>,
 }
 
 fn create_app_icon() -> egui::IconData {
