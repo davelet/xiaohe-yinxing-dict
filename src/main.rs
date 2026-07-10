@@ -15,6 +15,7 @@ pub mod search;
 mod trie;
 mod ui;
 pub mod update;
+pub mod ai;
 
 use dict::Category;
 use help::HelpManager;
@@ -45,7 +46,7 @@ impl DictApp {
         });
 
         Self {
-            engine,
+            engine: Arc::new(engine),
             categories,
             query: String::new(),
             last_query: String::new(),
@@ -90,6 +91,19 @@ impl DictApp {
             show_about_dialog: false,
             search_dirty: true,
             cached_category_count: None,
+            // AI 对话子窗口
+            show_chat_viewport: false,
+            chat_viewport_id: egui::ViewportId::from_hash_of("ai_chat_viewport"),
+            chat_tab: app::ChatTab::Conversation,
+            last_main_window_pos: None,
+            show_screen_width_warning: false,
+            chat_input: String::new(),
+            chat_state: ai::chat::ChatState::default(),
+            tokio_runtime: tokio::runtime::Runtime::new().ok(),
+            chat_test_response: String::new(),
+            chat_settings_draft: ai::config::AiConfig::default(),
+            chat_settings_init: false,
+            chat_api_key_draft: String::new(),
         }
     }
 
@@ -120,7 +134,7 @@ impl DictApp {
 }
 
 struct DictApp {
-    engine: SearchEngine<DictEntry>,
+    engine: Arc<SearchEngine<DictEntry>>,
     categories: Vec<Category>,
     query: String,
     last_query: String,
@@ -175,6 +189,31 @@ struct DictApp {
     search_dirty: bool,
     /// 分类条目数缓存：(分类, 数量)；仅在 selected_category 变化时失效
     cached_category_count: Option<(Option<crate::dict::Category>, usize)>,
+    // ===== AI 对话子窗口 =====
+    /// 是否显示 AI 对话子窗口
+    show_chat_viewport: bool,
+    /// 子窗口 viewport ID
+    chat_viewport_id: egui::ViewportId,
+    /// AI 对话标签页（对话/设置）
+    chat_tab: app::ChatTab,
+    /// 上一帧主窗口位置（用于检测移动）
+    last_main_window_pos: Option<egui::Pos2>,
+    /// 屏幕宽度不足时显示提示
+    show_screen_width_warning: bool,
+    /// AI 对话输入框内容
+    chat_input: String,
+    /// AI 对话状态
+    chat_state: ai::chat::ChatState,
+    /// Tokio 运行时（用于执行异步 AI 请求）
+    tokio_runtime: Option<tokio::runtime::Runtime>,
+    /// “测试连接”结果提示（持久保存，避免每帧重建丢失）
+    chat_test_response: String,
+    /// AI 设置表单草稿（持久保存，避免每帧从配置重载导致修改丢失）
+    chat_settings_draft: ai::config::AiConfig,
+    /// 设置草稿是否已从配置初始化
+    chat_settings_init: bool,
+    /// API Key 输入框草稿（来自钥匙串，单独持久保存）
+    chat_api_key_draft: String,
 }
 
 fn create_app_icon() -> egui::IconData {

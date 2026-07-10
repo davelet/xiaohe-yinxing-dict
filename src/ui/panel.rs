@@ -62,6 +62,22 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
                 app.show_about_dialog = true;
             }
 
+            // AI 对话 toggle button
+            let ai_btn_label = if app.show_chat_viewport {
+                "✨ AI 助手 ✓"
+            } else {
+                "✨ AI 助手"
+            };
+            let ai_btn = ui.selectable_label(app.show_chat_viewport, ai_btn_label);
+            if ai_btn.clicked() {
+                app.show_chat_viewport = !app.show_chat_viewport;
+                app.current_view = if app.show_chat_viewport {
+                    crate::app::ViewMode::Chat
+                } else {
+                    crate::app::ViewMode::Dict
+                };
+            }
+
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Keyboard nav for category cycling
                 let k_down = ui.input(|i| i.key_pressed(egui::Key::ArrowDown));

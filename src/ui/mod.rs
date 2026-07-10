@@ -2,6 +2,7 @@ use crate::DictApp;
 use eframe::egui;
 
 mod add_word_dialog;
+mod chat_viewport;
 mod common;
 mod help;
 mod manager_view;
@@ -181,6 +182,17 @@ impl eframe::App for DictApp {
             }
         }
 
+        // Cmd/Ctrl + , 切换 AI 助手
+        if ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Comma)) {
+            self.show_chat_viewport = !self.show_chat_viewport;
+            self.current_view = if self.show_chat_viewport {
+                crate::app::ViewMode::Chat
+            } else {
+                crate::app::ViewMode::Dict
+            };
+            ctx.request_repaint();
+        }
+
         // Esc 关闭关于弹窗（消费该 Esc 事件，避免同帧内搜索框也响应清空）
         if self.show_about_dialog && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.show_about_dialog = false;
@@ -207,6 +219,7 @@ impl eframe::App for DictApp {
             match self.current_view {
                 crate::app::ViewMode::Dict => styles::DictViewStyle::apply(ui.style_mut()),
                 crate::app::ViewMode::Manager => styles::ManagerViewStyle::apply(ui.style_mut()),
+                crate::app::ViewMode::Chat => styles::DictViewStyle::apply(ui.style_mut()),
             }
         }
 
@@ -221,6 +234,7 @@ impl eframe::App for DictApp {
                         &mut self.current_view,
                     );
                 }
+                crate::app::ViewMode::Chat => panel::render_top_panel(self, ui, &ctx),
             }
         }
 
@@ -231,6 +245,7 @@ impl eframe::App for DictApp {
                 crate::app::ViewMode::Manager => {
                     manager_view::render_manager_bottom_panel(&self.manager, ui);
                 }
+                crate::app::ViewMode::Chat => panel::render_bottom_panel(self, ui),
             }
         }
 
@@ -242,6 +257,55 @@ impl eframe::App for DictApp {
                 self.render_main_content(ui, &ctx);
             }
         });
+
+        // ========== AI 对话子窗口 ==========
+        if self.show_chat_viewport {
+            let main_rect = ctx.input(|i| i.viewport().outer_rect);
+            if let Some(rect) = main_rect {
+                let screen_width = ctx.input(|i| i.viewport_rect().width());
+                // 如果屏幕宽度不足，显示提示
+                if screen_width < 950.0 {
+                    self.show_screen_width_warning = true;
+                } else {
+                    self.show_screen_width_warning = false;
+                    let chat_width = (500.0_f32).min(screen_width - 950.0).max(300.0);
+                    let new_pos = egui::pos2(rect.max.x, rect.min.y);
+
+                    // 每帧通过 builder 直接同步子窗口位置/尺寸到主窗口右侧，
+                    // 避免依赖延迟的 ViewportCommand，从而让跟随更连贯
+                    ctx.show_viewport_immediate(
+                        self.chat_viewport_id,
+                        egui::ViewportBuilder::default()
+                            .with_title("小鹤音形 - AI 助手")
+                            .with_inner_size([chat_width, 650.0])
+                            .with_position(new_pos)
+                            .with_resizable(false)
+                            .with_maximize_button(false)
+                            .with_minimize_button(false),
+                        |ui, _class| {
+                            chat_viewport::render_chat_viewport(ui, self);
+                        },
+                    );
+                    self.last_main_window_pos = Some(new_pos);
+                }
+            }
+        }
+
+        // 屏幕宽度不足提示
+        if self.show_screen_width_warning && self.show_chat_viewport {
+            egui::Window::new("屏幕宽度不足")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(&ctx, |ui| {
+                    ui.label("屏幕宽度不足，无法显示 AI 对话窗口。");
+                    ui.label("请调整主窗口位置或缩小其他窗口。");
+                    ui.add_space(8.0);
+                    if ui.button("知道了").clicked() {
+                        self.show_screen_width_warning = false;
+                    }
+                });
+        }
 
         // 检查是否切换到了词典视图，如果是则设置自动聚焦标志
         self.check_view_changed_to_dict(previous_view);
@@ -691,6 +755,9 @@ impl DictApp {
             }
             crate::app::ViewMode::Manager => {
                 self.render_manager_content(ui, ctx);
+            }
+            crate::app::ViewMode::Chat => {
+                self.render_dict_content(ui, ctx);
             }
         }
     }
