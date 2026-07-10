@@ -206,18 +206,23 @@ impl ChatState {
     }
 
     /// 按 token 预算裁剪历史（工具结果超长时截断）
+    /// 保留至少最近 2 轮对话，避免裁剪过度
     pub fn trim_by_token_budget(&mut self, budget: usize) {
         let mut current_tokens = self.estimate_tokens();
+        const MIN_ROUNDS: usize = 2;
 
-        // 从最早的消息开始删除，直到预算内
-        while current_tokens > budget && self.messages.len() > 2 {
+        while current_tokens > budget {
+            let user_count = self.messages.iter().filter(|m| m.role == Role::User).count();
+            if user_count <= MIN_ROUNDS {
+                break;
+            }
             if let Some(oldest) = self.messages.first() {
                 let msg_tokens = {
                     let chinese_chars = oldest.content.chars().filter(|c| (*c as u32) >= 0x4e00).count();
                     let other_chars = oldest.content.chars().filter(|c| (*c as u32) < 0x4e00).count();
                     chinese_chars * 2 + (other_chars as f64 * 1.5) as usize
                 };
-                current_tokens -= msg_tokens;
+                current_tokens = current_tokens.saturating_sub(msg_tokens);
                 self.messages.remove(0);
             } else {
                 break;

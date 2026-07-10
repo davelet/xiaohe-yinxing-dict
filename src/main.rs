@@ -99,7 +99,8 @@ impl DictApp {
             show_screen_width_warning: false,
             chat_input: String::new(),
             chat_state: ai::chat::ChatState::default(),
-            tokio_runtime: tokio::runtime::Runtime::new().ok(),
+            tokio_runtime: Some(tokio::runtime::Runtime::new()
+                .expect("无法初始化 Tokio 运行时，AI 对话功能将不可用")),
             chat_test_response: String::new(),
             chat_settings_draft: ai::config::AiConfig::default(),
             chat_settings_init: false,
