@@ -7,8 +7,8 @@ use tokio::sync::mpsc;
 
 use crate::ai::config::{AiConfig, Provider};
 use crate::ai::tools;
-use crate::search::SearchEngine;
 use crate::dict::DictEntry;
+use crate::search::SearchEngine;
 
 const SYSTEM_PROMPT: &str = r#"你是小鹤音形输入法的专业助手。请遵守以下规则：
 
@@ -95,7 +95,9 @@ pub async fn send_message_stream(
 
 /// 发送非流式请求（用于测试连接等场景）
 pub async fn send_message(agent: &ChatAgent, message: &str) -> Result<String, String> {
-    agent.prompt(message).await
+    agent
+        .prompt(message)
+        .await
         .map(|r| r.to_string())
         .map_err(|e| format!("请求失败: {e}"))
 }

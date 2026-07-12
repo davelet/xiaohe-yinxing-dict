@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use eframe::egui;
 
+pub mod ai;
 pub mod app;
 pub mod config;
 pub mod dict;
@@ -15,7 +16,6 @@ pub mod search;
 mod trie;
 mod ui;
 pub mod update;
-pub mod ai;
 
 use dict::Category;
 use help::HelpManager;
@@ -99,8 +99,10 @@ impl DictApp {
             show_screen_width_warning: false,
             chat_input: String::new(),
             chat_state: ai::chat::ChatState::default(),
-            tokio_runtime: Some(tokio::runtime::Runtime::new()
-                .expect("无法初始化 Tokio 运行时，AI 对话功能将不可用")),
+            tokio_runtime: Some(
+                tokio::runtime::Runtime::new()
+                    .expect("无法初始化 Tokio 运行时，AI 对话功能将不可用"),
+            ),
             chat_test_response: String::new(),
             chat_settings_draft: ai::config::AiConfig::default(),
             chat_settings_init: false,

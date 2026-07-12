@@ -33,8 +33,10 @@ pub fn render_chat_viewport(ui: &mut egui::Ui, app: &mut DictApp) {
     egui::CentralPanel::default().show_inside(ui, |ui| {
         // 顶部 tab 栏
         ui.horizontal(|ui| {
-            let conv_btn = ui.selectable_label(app.chat_tab == crate::app::ChatTab::Conversation, "AI 对话");
-            let settings_btn = ui.selectable_label(app.chat_tab == crate::app::ChatTab::Settings, "AI 设置");
+            let conv_btn =
+                ui.selectable_label(app.chat_tab == crate::app::ChatTab::Conversation, "AI 对话");
+            let settings_btn =
+                ui.selectable_label(app.chat_tab == crate::app::ChatTab::Settings, "AI 设置");
 
             if conv_btn.clicked() {
                 app.chat_tab = crate::app::ChatTab::Conversation;
@@ -79,7 +81,9 @@ fn render_privacy_dialog(ui: &mut egui::Ui, app: &mut DictApp) {
                 .corner_radius(4.0)
                 .inner_margin(12.0)
                 .show(ui, |ui| {
-                    ui.label("1. 您的对话内容将发送至所选的 AI 服务提供商（如 OpenAI、DeepSeek 等）");
+                    ui.label(
+                        "1. 您的对话内容将发送至所选的 AI 服务提供商（如 OpenAI、DeepSeek 等）",
+                    );
                     ui.add_space(4.0);
                     ui.label("2. API Key 存储在您的操作系统钥匙串中，不会被本应用上传");
                     ui.add_space(4.0);
@@ -155,7 +159,9 @@ fn render_conversation_tab(ui: &mut egui::Ui, app: &mut DictApp) {
                         .show(ui, |ui| {
                             ui.set_max_width(350.0);
                             ui.spinner();
-                            if let crate::ai::chat::StreamState::Generating(content) = &app.chat_state.stream_state {
+                            if let crate::ai::chat::StreamState::Generating(content) =
+                                &app.chat_state.stream_state
+                            {
                                 if !content.is_empty() {
                                     ui.label(content);
                                 } else {
@@ -282,7 +288,8 @@ fn send_message(app: &mut DictApp) {
         chat_state.trim_history(ai_config.history_rounds as usize);
 
         // 创建 channel 接收流式响应
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<crate::ai::client::StreamMessage>();
+        let (tx, mut rx) =
+            tokio::sync::mpsc::unbounded_channel::<crate::ai::client::StreamMessage>();
 
         // 在 tokio runtime 中执行异步请求
         let result = runtime.block_on(async {
@@ -337,7 +344,8 @@ fn send_message(app: &mut DictApp) {
         }
     } else {
         // 没有 API Key 或 runtime，显示错误
-        app.chat_state.add_ai_message("无法发送消息：请先配置 API Key".to_string());
+        app.chat_state
+            .add_ai_message("无法发送消息：请先配置 API Key".to_string());
         app.chat_state.is_generating = false;
     }
 }
@@ -382,14 +390,28 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
                             Provider::Custom,
                         ];
                         for p in &providers {
-                            if ui.selectable_value(&mut config.provider, p.clone(), p.to_string()).clicked() {
+                            if ui
+                                .selectable_value(&mut config.provider, p.clone(), p.to_string())
+                                .clicked()
+                            {
                                 // 根据提供商设置默认 API URL
                                 match p {
-                                    Provider::OpenAI => config.api_url = "https://api.openai.com/v1".to_string(),
-                                    Provider::DeepSeek => config.api_url = "https://api.deepseek.com".to_string(),
-                                    Provider::Ollama => config.api_url = "http://localhost:11434".to_string(),
-                                    Provider::Anthropic => config.api_url = "https://api.anthropic.com".to_string(),
-                                    Provider::Gemini => config.api_url = "https://generativelanguage.googleapis.com".to_string(),
+                                    Provider::OpenAI => {
+                                        config.api_url = "https://api.openai.com/v1".to_string()
+                                    }
+                                    Provider::DeepSeek => {
+                                        config.api_url = "https://api.deepseek.com".to_string()
+                                    }
+                                    Provider::Ollama => {
+                                        config.api_url = "http://localhost:11434".to_string()
+                                    }
+                                    Provider::Anthropic => {
+                                        config.api_url = "https://api.anthropic.com".to_string()
+                                    }
+                                    Provider::Gemini => {
+                                        config.api_url =
+                                            "https://generativelanguage.googleapis.com".to_string()
+                                    }
                                     _ => {}
                                 }
                             }
@@ -525,7 +547,10 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
                 let runtime = app.tokio_runtime.as_ref();
                 if let Some(runtime) = runtime {
                     let result = runtime.block_on(async {
-                        let client = crate::ai::client::create_client(&test_config, &app.chat_api_key_draft)?;
+                        let client = crate::ai::client::create_client(
+                            &test_config,
+                            &app.chat_api_key_draft,
+                        )?;
                         let engine = app.engine.clone();
                         let agent = crate::ai::client::build_agent(client, &test_config, engine);
                         crate::ai::client::send_message(&agent, "测试连接").await

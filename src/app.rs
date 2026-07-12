@@ -1,11 +1,10 @@
 use crate::config::AppConfig;
 use crate::dict::ExternalDictEntry;
-use crate::rime_loader::{DictFileInfo, RimeLoader};
+use crate::rime_loader::{self, DictFileInfo, RimeLoader};
 use crate::search;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::process::Command;
 use std::time::SystemTime;
 
 type ExternalLoadResult = (
@@ -484,40 +483,15 @@ impl ManagerState {
         } else {
             "词组"
         };
-        match crate::rime_loader::append_entry_to_custom_dict(
+
+        // 步骤 1：写 flypy_custom.dict.yaml
+        let dict_path = match rime_loader::append_entry_to_custom_dict(
             &self.config.rime_user_dir,
             &text,
             &code,
         ) {
-            Ok(path) => {
-                self.add_word_feedback = Some((
-                    format!(
-                        "已添加{}「{}」(编码: {})，已自动部署",
-                        type_label, text, code
-                    ),
-                    true,
-                ));
-                self.add_word_timer = 10.0;
-                self.new_word_text.clear();
-                self.new_word_code.clear();
-
-                // 如果自定义词典尚未加入配置，自动添加并加载
-                let already_added = self
-                    .config
-                    .external_dict_files
-                    .iter()
-                    .any(|f| f.path == path);
-                if !already_added {
-                    self.add_external_dict(path, "flypy_custom".to_string());
-                } else {
-                    self.reload_external_dicts();
-                }
-
-                // 自动触发鼠须管重新部署
-                trigger_squirrel_deploy();
-            }
+            Ok(p) => p,
             Err(e) => {
-                // 简化错误信息对外展示
                 let friendly_msg = if e.contains("创建") {
                     "创建自定义词典文件失败，请检查目录权限"
                 } else if e.contains("打开") || e.contains("写入") {
@@ -527,8 +501,92 @@ impl ManagerState {
                 };
                 self.add_word_feedback = Some((friendly_msg.to_string(), false));
                 self.add_word_timer = 10.0;
+                return;
             }
+        };
+
+        // 步骤 2：让自定义词典生效
+        // Windows: 用 import_tables 合并到主词典（避免 .custom.yaml 数组导致 table_translator 编译失败）
+        // macOS: 通过 .custom.yaml patch translator/dictionary 列表
+        let patch_result = if cfg!(target_os = "windows") {
+            let flypy_dict =
+                std::path::Path::new(&self.config.rime_user_dir).join("flypy.dict.yaml");
+            rime_loader::ensure_import_tables_in_dict(&flypy_dict.to_string_lossy())
+                .map(|_| flypy_dict.to_string_lossy().to_string())
+        } else {
+            self.patch_default_schema_for_flypy_custom()
+        };
+        let patch_msg = match &patch_result {
+            Ok(_) => None,
+            Err(e) => Some(format!("已写文件但 patch schema 失败: {}", e)),
+        };
+
+        // 步骤 3：触发 rime 重新部署
+        let deploy_result = rime_loader::trigger_rime_deploy();
+        let deploy_msg = match &deploy_result {
+            Ok(_) => None,
+            Err(e) => Some(format!("已写文件但 rime 重新部署失败: {}", e)),
+        };
+
+        // 步骤 4：加进 software 内部配置
+        let already_added = self
+            .config
+            .external_dict_files
+            .iter()
+            .any(|f| f.path == dict_path);
+        if !already_added {
+            self.add_external_dict(dict_path.clone(), "flypy_custom".to_string());
+        } else {
+            self.reload_external_dicts();
         }
+
+        // 反馈信息
+        let main_msg = format!("已添加{}「{}」(编码: {})", type_label, text, code);
+        let final_msg = match (patch_msg, deploy_msg) {
+            (None, None) => format!("{}，已自动部署", main_msg),
+            (None, Some(d)) => format!("{}，{}", main_msg, d),
+            (Some(p), None) => format!("{}，{}", main_msg, p),
+            (Some(p), Some(d)) => format!("{}，{}；{}", main_msg, p, d),
+        };
+        let success = patch_result.is_ok() && deploy_result.is_ok();
+        self.add_word_feedback = Some((final_msg, success));
+        self.add_word_timer = 10.0;
+        if success {
+            self.new_word_text.clear();
+            self.new_word_code.clear();
+        }
+    }
+
+    /// 把 flypy_custom 幂等 patch 到 default_schema 对应的 .custom.yaml。
+    /// 返回 patch 后的 .custom.yaml 路径。
+    fn patch_default_schema_for_flypy_custom(&mut self) -> Result<String, String> {
+        let schema_stem = self
+            .config
+            .default_schema
+            .clone()
+            .or_else(|| {
+                rime_loader::find_schema_files(&self.config.rime_user_dir)
+                    .first()
+                    .map(|(n, _)| n.clone())
+            })
+            .ok_or_else(|| "未找到任何 schema，请检查 rime_user_dir 路径".to_string())?;
+        let schema_path = std::path::Path::new(&self.config.rime_user_dir)
+            .join(format!("{}.schema.yaml", schema_stem))
+            .to_string_lossy()
+            .to_string();
+        if !std::path::Path::new(&schema_path).exists() {
+            return Err(format!("schema 文件不存在: {}", schema_path));
+        }
+        // 读取 schema 原始词典名（如 "flypy"），patch 时保留它
+        let original_dict = rime_loader::read_schema_dictionary(&schema_path)
+            .unwrap_or_else(|| "flypy".to_string());
+        let custom_path = rime_loader::ensure_flypy_custom_in_schema(&schema_path, &original_dict)?;
+        // 记住该 schema 为以后默认
+        if self.config.default_schema.is_none() {
+            self.config.default_schema = Some(schema_stem);
+            let _ = self.config.save();
+        }
+        Ok(custom_path)
     }
 
     /// 刷新扫描到的词典文件列表
@@ -621,11 +679,4 @@ fn load_external_entries(config: &AppConfig, rime_loader: &RimeLoader) -> Extern
     // 保存缓存供下次启动使用
     save_external_cache(&all_entries, &mtimes, &entry_counts);
     (entries, mtimes, load_errors, entry_counts)
-}
-
-/// 通过 Squirrel --reload 触发鼠须管重新部署（macOS）
-fn trigger_squirrel_deploy() {
-    let _ = Command::new("/Library/Input Methods/Squirrel.app/Contents/MacOS/Squirrel")
-        .arg("--reload")
-        .output();
 }

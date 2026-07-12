@@ -186,15 +186,27 @@ impl ChatState {
         let mut total = 0;
         for msg in &self.messages {
             // 中文字符
-            let chinese_chars = msg.content.chars().filter(|c| (*c as u32) >= 0x4e00).count();
+            let chinese_chars = msg
+                .content
+                .chars()
+                .filter(|c| (*c as u32) >= 0x4e00)
+                .count();
             // 英文和其他字符
             let other_chars = msg.content.chars().filter(|c| (*c as u32) < 0x4e00).count();
             total += chinese_chars * 2 + (other_chars as f64 * 1.5) as usize;
 
             // 工具调用
             for tc in &msg.tool_calls {
-                let tc_chinese = tc.arguments.chars().filter(|c| (*c as u32) >= 0x4e00).count();
-                let tc_other = tc.arguments.chars().filter(|c| (*c as u32) < 0x4e00).count();
+                let tc_chinese = tc
+                    .arguments
+                    .chars()
+                    .filter(|c| (*c as u32) >= 0x4e00)
+                    .count();
+                let tc_other = tc
+                    .arguments
+                    .chars()
+                    .filter(|c| (*c as u32) < 0x4e00)
+                    .count();
                 total += tc_chinese * 2 + (tc_other as f64 * 1.5) as usize;
 
                 let res_chinese = tc.result.chars().filter(|c| (*c as u32) >= 0x4e00).count();
@@ -212,14 +224,26 @@ impl ChatState {
         const MIN_ROUNDS: usize = 2;
 
         while current_tokens > budget {
-            let user_count = self.messages.iter().filter(|m| m.role == Role::User).count();
+            let user_count = self
+                .messages
+                .iter()
+                .filter(|m| m.role == Role::User)
+                .count();
             if user_count <= MIN_ROUNDS {
                 break;
             }
             if let Some(oldest) = self.messages.first() {
                 let msg_tokens = {
-                    let chinese_chars = oldest.content.chars().filter(|c| (*c as u32) >= 0x4e00).count();
-                    let other_chars = oldest.content.chars().filter(|c| (*c as u32) < 0x4e00).count();
+                    let chinese_chars = oldest
+                        .content
+                        .chars()
+                        .filter(|c| (*c as u32) >= 0x4e00)
+                        .count();
+                    let other_chars = oldest
+                        .content
+                        .chars()
+                        .filter(|c| (*c as u32) < 0x4e00)
+                        .count();
                     chinese_chars * 2 + (other_chars as f64 * 1.5) as usize
                 };
                 current_tokens = current_tokens.saturating_sub(msg_tokens);

@@ -2,9 +2,9 @@ use rig_core::tool::{Tool, ToolDyn};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::search::SearchEngine;
 use crate::dict::DictEntry;
 use crate::dict::SearchableEntry;
+use crate::search::SearchEngine;
 use std::sync::Arc;
 
 // ===== search_text 工具 =====
@@ -75,10 +75,7 @@ impl Tool for SearchTextTool {
             })
             .collect();
 
-        Ok(SearchResponse {
-            total,
-            results,
-        })
+        Ok(SearchResponse { total, results })
     }
 }
 
@@ -132,10 +129,7 @@ impl Tool for SearchCodeTool {
             })
             .collect();
 
-        Ok(SearchResponse {
-            total,
-            results,
-        })
+        Ok(SearchResponse { total, results })
     }
 }
 
@@ -143,7 +137,9 @@ impl Tool for SearchCodeTool {
 
 pub fn create_tools(engine: Arc<SearchEngine<DictEntry>>) -> Vec<Box<dyn ToolDyn>> {
     vec![
-        Box::new(SearchTextTool { engine: engine.clone() }),
+        Box::new(SearchTextTool {
+            engine: engine.clone(),
+        }),
         Box::new(SearchCodeTool { engine }),
     ]
 }
