@@ -260,16 +260,30 @@ impl eframe::App for DictApp {
 
         // ========== AI 对话子窗口 ==========
         if self.show_chat_viewport {
-            let main_rect = ctx.input(|i| i.viewport().outer_rect);
-            if let Some(rect) = main_rect {
-                let screen_width = ctx.input(|i| i.viewport_rect().width());
+            let (outer_rect, inner_rect, screen_width) = ctx.input(|i| (
+                i.viewport().outer_rect,
+                i.viewport().inner_rect,
+                i.viewport_rect().width(),
+            ));
+            if let Some(outer) = outer_rect {
                 // 如果屏幕宽度不足，显示提示
                 if screen_width < 950.0 {
                     self.show_screen_width_warning = true;
                 } else {
                     self.show_screen_width_warning = false;
                     let chat_width = (500.0_f32).min(screen_width - 950.0).max(300.0);
-                    let new_pos = egui::pos2(rect.max.x, rect.min.y);
+
+                    // 计算子窗口位置：
+                    // Windows 上 outer_rect 包含不可见的 DWM 边框（约 7px），
+                    // 直接用 outer.max.x 会导致两窗口间出现可见间隙。
+                    // 用 inner_rect 的右边缘减去边框宽度，使两窗口可见边缘紧贴。
+                    // macOS 上 inner/outer 的 x 范围一致（border_x=0），行为不变。
+                    let new_pos = if let Some(inner) = inner_rect {
+                        let border_x = outer.max.x - inner.max.x;
+                        egui::pos2(inner.max.x - border_x, outer.min.y)
+                    } else {
+                        egui::pos2(outer.max.x, outer.min.y)
+                    };
 
                     // 每帧通过 builder 直接同步子窗口位置/尺寸到主窗口右侧，
                     // 避免依赖延迟的 ViewportCommand，从而让跟随更连贯

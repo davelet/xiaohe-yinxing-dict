@@ -1,6 +1,6 @@
 use crate::dict::{Category, ExternalDictEntry};
 use std::fs;
-use std::io::{BufRead, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -438,12 +438,13 @@ pub fn ensure_import_tables_in_dict(dict_path: &str) -> Result<String, String> {
     let content =
         fs::read_to_string(dict_path).map_err(|e| format!("读取 {} 失败: {}", dict_path, e))?;
 
-    // 已存在则幂等跳过
-    if content.contains("import_tables:") && content.contains("flypy_custom") {
+    // 已存在则幂等跳过：只扫描 `import_tables:` 段，确认 flypy_custom 已在列表中。
+    // 不能全文 contains，否则主词典正文里出现 "flypy_custom" 字样会被误判为已处理。
+    if import_tables_already_has(&content, "flypy_custom") {
         return Ok(dict_path.to_string());
     }
 
-    // 在 `sort: original` 之后插入 `import_tables:`
+    // 在 `sort:` 之后插入 `import_tables:`
     let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
     let mut insert_at: Option<usize> = None;
     for (i, line) in lines.iter().enumerate() {
@@ -479,9 +480,138 @@ pub fn ensure_import_tables_in_dict(dict_path: &str) -> Result<String, String> {
     Ok(dict_path.to_string())
 }
 
-/// 检查 YAML 内容里是否已在某个 translator/dictionary 列表里引用了指定 dict。
+/// 清理旧版 macOS 写入的 .custom.yaml。
+/// 旧版把 translator/dictionary 写成列表（含 flypy_custom），会导致
+/// table_translator 编译失败，使对应方案无法输入。此函数把该列表从
+/// patch 段中移除（方案本身的 translator/dictionary 标量不受影响，
+/// flypy_custom 会通过主词典头部的 import_tables 合并）。
+/// 幂等：未写入则不改。返回是否修改了文件。
+pub fn cleanup_translator_dictionary_patch(schema_path: &str) -> Result<bool, String> {
+    let schema = Path::new(schema_path);
+    let Some(stem) = schema
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|s| s.trim_end_matches(".schema.yaml"))
+    else {
+        return Err(format!("无法解析 schema 文件名: {}", schema_path));
+    };
+    let Some(parent) = schema.parent() else {
+        return Err(format!("无法获取 schema 父目录: {}", schema_path));
+    };
+    let custom_path = parent.join(format!("{}.custom.yaml", stem));
+    if !custom_path.exists() {
+        return Ok(false);
+    }
+    let content = fs::read_to_string(&custom_path)
+        .map_err(|e| format!("读取 {} 失败: {}", custom_path.display(), e))?;
+
+    let cleaned = strip_translator_dictionary_from_patch(&content);
+    if cleaned == content {
+        return Ok(false);
+    }
+    fs::write(&custom_path, &cleaned)
+        .map_err(|e| format!("写入 {} 失败: {}", custom_path.display(), e))?;
+    Ok(true)
+}
+
+/// 从 .custom.yaml 内容的 patch 段中移除 translator/dictionary 行（及下属列表项）。
+/// 若 patch 段因此为空则一并移除 patch: 键。
+fn strip_translator_dictionary_from_patch(content: &str) -> String {
+    let lines: Vec<&str> = content.lines().collect();
+    let mut out: Vec<String> = Vec::with_capacity(lines.len());
+    let mut i = 0;
+    let mut patch_has_content = false;
+
+    while i < lines.len() {
+        let line = lines[i];
+        let trimmed = line.trim();
+        if !trimmed.is_empty()
+            && !trimmed.starts_with('#')
+            && (trimmed == "patch:" || trimmed == "__patch:")
+        {
+            // 先不输出 patch: 行，待确认段内是否有内容再决定
+            i += 1;
+            let mut patch_block: Vec<String> = Vec::new();
+            while i < lines.len() {
+                let l = lines[i];
+                let t = l.trim();
+                if !t.is_empty() && !t.starts_with('#') && l.len() - t.len() == 0 {
+                    // 同级顶层 key，patch 段结束
+                    break;
+                }
+                if t.starts_with("translator/dictionary:") {
+                    // 跳过 translator/dictionary 本身
+                    i += 1;
+                    // 跳过其下属列表项（- xxx）
+                    while i < lines.len() {
+                        let li = lines[i];
+                        let lt = li.trim();
+                        let indent = li.len() - lt.len();
+                        if lt.starts_with("- ")
+                            && indent > 0
+                            && !lt.starts_with("#")
+                        {
+                            i += 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    continue;
+                }
+                patch_block.push(l.to_string());
+                patch_has_content = true;
+                i += 1;
+            }
+            if patch_has_content {
+                out.push("patch:".to_string());
+                for b in patch_block {
+                    out.push(b);
+                }
+            }
+            // 若 patch 段为空则整体丢弃
+            continue;
+        }
+        out.push(line.to_string());
+        i += 1;
+    }
+
+    let mut result = out.join("\n");
+    if content.ends_with('\n') {
+        result.push('\n');
+    }
+    result
+}
+
+
+/// 只扫描 `import_tables:` 下的列表项，避免被正文里的同名词条误判。
+fn import_tables_already_has(content: &str, dict_name: &str) -> bool {
+    let mut in_import = false;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('#') {
+            continue;
+        }
+        if !in_import {
+            if trimmed == "import_tables:" {
+                in_import = true;
+            }
+            continue;
+        }
+        // 遇到同级或更外层 key，退出 import_tables 段
+        if !line.starts_with(' ') && !line.starts_with('\t') && !trimmed.is_empty() {
+            break;
+        }
+        if trimmed == format!("- {}", dict_name) {
+            return true;
+        }
+    }
+    false
+}
+
+/// 检查 YAML 内容里是否已在某个 translator/dictionary 段里引用了指定 dict。
 /// 用纯文本扫描，避免引入 serde_yaml 依赖。
-/// 同时支持 `patch:` 和 `__patch:` 两种 key。
+/// 同时支持 `patch:` 和 `__patch:` 两种 key，以及标量形式
+/// (`translator/dictionary: flypy`) 与列表形式 (`translator/dictionary:` + `- flypy`)。
 fn custom_already_references(content: &str, dict_name: &str) -> bool {
     let mut in_patch = false;
     let mut in_dict = false;
@@ -499,13 +629,28 @@ fn custom_already_references(content: &str, dict_name: &str) -> bool {
             in_patch = false;
             in_dict = false;
         }
-        if in_patch && trimmed == "translator/dictionary:" {
+        if !in_patch {
+            continue;
+        }
+        // translator/dictionary: 可能后跟标量值或列表
+        if let Some(rest) = trimmed.strip_prefix("translator/dictionary:") {
+            let val = rest.trim();
+            let val = val.split('#').next().unwrap_or(val).trim();
+            if !val.is_empty() {
+                // 标量形式: translator/dictionary: flypy
+                if val == dict_name {
+                    return true;
+                }
+                in_dict = false;
+                continue;
+            }
+            // 列表形式
             in_dict = true;
             continue;
         }
-        // 下一个同级列表项跳出 dictionary
         if in_dict {
-            if !line.starts_with(' ') && !line.starts_with('\t') && !trimmed.is_empty() {
+            // 同级 key 或更外层行 -> 离开 dictionary 段
+            if !line.starts_with(' ') && !line.starts_with('\t') {
                 in_dict = false;
             } else if trimmed == format!("- {}", dict_name) {
                 return true;
@@ -515,8 +660,10 @@ fn custom_already_references(content: &str, dict_name: &str) -> bool {
     false
 }
 
-/// 在 YAML 文本中把指定 dict 追加到 `patch:/translator/dictionary` 列表。
-/// 逻辑：找到 `patch:` 或 `__patch:` 段、找到 `translator/dictionary:` 子项、找到列表结束位置插入。
+/// 在 YAML 文本中把指定 dict 追加到 `patch:/translator/dictionary` 段。
+/// 逻辑：找到 `patch:` 或 `__patch:` 段、找到 `translator/dictionary:` 子项、找到段结束位置插入。
+/// 同时兼容标量形式 (`translator/dictionary: flypy`) 与列表形式
+/// (`translator/dictionary:` + `- flypy`)：标量形式会被改写为列表并保留原值。
 /// 如果没有 patch 段则追加在文件末尾。
 fn append_to_translator_dictionary(content: &str, dict_name: &str) -> Option<String> {
     let lines: Vec<&str> = content.lines().collect();
@@ -530,10 +677,7 @@ fn append_to_translator_dictionary(content: &str, dict_name: &str) -> Option<Str
     for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim_start();
         let indent = line.len() - trimmed.len();
-        if trimmed.starts_with('#') {
-            continue;
-        }
-        if trimmed.is_empty() {
+        if trimmed.starts_with('#') || trimmed.is_empty() {
             continue;
         }
         if patch_start.is_none() {
@@ -574,7 +718,7 @@ fn append_to_translator_dictionary(content: &str, dict_name: &str) -> Option<Str
                 patch_end = Some(i);
             }
         }
-        if dict_start.is_none() && trimmed == "translator/dictionary:" {
+        if dict_start.is_none() && trimmed.starts_with("translator/dictionary:") {
             dict_start = Some(i);
             dict_indent = indent;
             continue;
@@ -586,14 +730,36 @@ fn append_to_translator_dictionary(content: &str, dict_name: &str) -> Option<Str
         dict_end = Some(lines.len());
     }
 
+    let trailing_nl = content.ends_with('\n');
+
+    // 标量形式: translator/dictionary: flypy —— 改写为列表，保留原值并追加 dict_name
+    if let Some(ds) = dict_start {
+        let ds_trimmed = lines[ds].trim_start();
+        if let Some(rest) = ds_trimmed.strip_prefix("translator/dictionary:") {
+            let val = rest.trim();
+            let val = val.split('#').next().unwrap_or(val).trim();
+            if !val.is_empty() {
+                let mut new_lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
+                let key_indent = " ".repeat(dict_indent);
+                let item_indent = " ".repeat(dict_indent + 2);
+                new_lines[ds] = format!("{}translator/dictionary:", key_indent);
+                new_lines.insert(ds + 1, format!("{}- {}", item_indent, val));
+                new_lines.insert(ds + 2, format!("{}- {}", item_indent, dict_name));
+                let mut out = new_lines.join("\n");
+                if trailing_nl {
+                    out.push('\n');
+                }
+                return Some(out);
+            }
+        }
+    }
+
     if let (Some(_ds), Some(de)) = (dict_start, dict_end) {
         // 在 de 之前插入
         let indent_str = " ".repeat(dict_indent + 2);
-        let new_line = format!("{}{}- {}", indent_str, "", dict_name);
+        let new_line = format!("{}- {}", indent_str, dict_name);
         let mut new_lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
         new_lines.insert(de, new_line);
-        // 保留尾部换行
-        let trailing_nl = content.ends_with('\n');
         let mut out = new_lines.join("\n");
         if trailing_nl {
             out.push('\n');
@@ -604,7 +770,6 @@ fn append_to_translator_dictionary(content: &str, dict_name: &str) -> Option<Str
         let mut new_lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
         new_lines.insert(ps + 1, "  translator/dictionary:".to_string());
         new_lines.insert(ps + 2, format!("    - {}", dict_name));
-        let trailing_nl = content.ends_with('\n');
         let mut out = new_lines.join("\n");
         if trailing_nl {
             out.push('\n');
@@ -1048,5 +1213,93 @@ name: test
         // 保留原有设置
         assert!(body.contains("menu/page_size: 9"));
         fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn test_ensure_import_tables_in_dict_inserts_after_sort() {
+        let tmp = std::env::temp_dir().join("xhyxd_test_import_insert");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let dict = tmp.join("flypy.dict.yaml");
+        fs::write(
+            &dict,
+            "name: flypy\nversion: 1\nsort: original\n\n阿\tka\n",
+        )
+        .unwrap();
+        let p = dict.to_string_lossy().to_string();
+        let r = ensure_import_tables_in_dict(&p).unwrap();
+        let body = fs::read_to_string(&r).unwrap();
+        assert!(body.contains("import_tables:"));
+        assert!(body.contains("- flypy_custom"));
+        // import_tables 必须在 sort 之后
+        let sort_pos = body.find("sort:").unwrap();
+        let import_pos = body.find("import_tables:").unwrap();
+        assert!(sort_pos < import_pos);
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn test_ensure_import_tables_in_dict_idempotent() {
+        let tmp = std::env::temp_dir().join("xhyxd_test_import_idem");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let dict = tmp.join("flypy.dict.yaml");
+        fs::write(&dict, "name: flypy\nsort: original\n").unwrap();
+        let p = dict.to_string_lossy().to_string();
+        ensure_import_tables_in_dict(&p).unwrap();
+        let body1 = fs::read_to_string(&p).unwrap();
+        ensure_import_tables_in_dict(&p).unwrap();
+        let body2 = fs::read_to_string(&p).unwrap();
+        // 重复调用必须幂等
+        assert_eq!(body1, body2);
+        assert_eq!(body2.matches("- flypy_custom").count(), 1);
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn test_ensure_import_tables_in_dict_ignores_body_word() {
+        // 正文里出现 "flypy_custom" 字样不应被误判为已插入 import_tables
+        let tmp = std::env::temp_dir().join("xhyxd_test_import_body");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let dict = tmp.join("flypy.dict.yaml");
+        // 注意：正文条目 "flypy_custom" 出现在 sort: 之后
+        fs::write(
+            &dict,
+            "name: flypy\nsort: original\n\nflypy_custom\txx\n",
+        )
+        .unwrap();
+        let p = dict.to_string_lossy().to_string();
+        let r = ensure_import_tables_in_dict(&p).unwrap();
+        let body = fs::read_to_string(&r).unwrap();
+        assert!(body.contains("import_tables:"));
+        assert_eq!(body.matches("- flypy_custom").count(), 1);
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn test_append_to_translator_dictionary_scalar_form() {
+        // 标量形式 translator/dictionary: flypy 应被改写为列表并追加
+        let content = "patch:\n  translator/dictionary: flypy\n  menu/page_size: 9\n";
+        let out = append_to_translator_dictionary(content, "flypy_custom").unwrap();
+        // 仍是合法列表：flypy 与 flypy_custom 都以 "- " 出现
+        assert!(out.contains("translator/dictionary:"));
+        assert!(out.contains("- flypy"));
+        assert!(out.contains("- flypy_custom"));
+        // flypy 必须在 flypy_custom 之前
+        let a = out.find("- flypy").unwrap();
+        let b = out.find("- flypy_custom").unwrap();
+        assert!(a < b);
+        // 保留原有设置
+        assert!(out.contains("menu/page_size: 9"));
+        // 不应出现裸标量行 translator/dictionary: flypy（已改写）
+        assert!(!out.contains("translator/dictionary: flypy\n"));
+    }
+
+    #[test]
+    fn test_custom_already_references_scalar_form() {
+        let content = "patch:\n  translator/dictionary: flypy\n";
+        assert!(custom_already_references(content, "flypy"));
+        assert!(!custom_already_references(content, "flypy_custom"));
     }
 }

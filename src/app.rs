@@ -506,15 +506,19 @@ impl ManagerState {
         };
 
         // 步骤 2：让自定义词典生效
-        // Windows: 用 import_tables 合并到主词典（避免 .custom.yaml 数组导致 table_translator 编译失败）
-        // macOS: 通过 .custom.yaml patch translator/dictionary 列表
-        let patch_result = if cfg!(target_os = "windows") {
-            let flypy_dict =
-                std::path::Path::new(&self.config.rime_user_dir).join("flypy.dict.yaml");
-            rime_loader::ensure_import_tables_in_dict(&flypy_dict.to_string_lossy())
-                .map(|_| flypy_dict.to_string_lossy().to_string())
-        } else {
-            self.patch_default_schema_for_flypy_custom()
+        // 本软件专用于小鹤音形，固定把 flypy_custom 合并进 flypy 主词典。
+        // 使用 import_tables（Rime 官方推荐的词典合并方式，跨平台通用）。
+        // 注意：旧版在 macOS 上用 .custom.yaml 把 translator/dictionary
+        // 写成列表形式，会导致 table_translator 编译失败（小鹤方案无法输入）。
+        let patch_result = match self.flypy_main_dict_path() {
+            Some(dict_path) => {
+                // 清理旧版写入的损坏 .custom.yaml（translator/dictionary 列表）
+                self.cleanup_legacy_custom_yaml_patch();
+                rime_loader::ensure_import_tables_in_dict(&dict_path).map(|_| dict_path)
+            }
+            None => Err(
+                "未找到小鹤主词典（flypy.dict.yaml），请检查 rime_user_dir 设置".to_string(),
+            ),
         };
         let patch_msg = match &patch_result {
             Ok(_) => None,
@@ -549,44 +553,47 @@ impl ManagerState {
             (Some(p), Some(d)) => format!("{}，{}；{}", main_msg, p, d),
         };
         let success = patch_result.is_ok() && deploy_result.is_ok();
-        self.add_word_feedback = Some((final_msg, success));
-        self.add_word_timer = 10.0;
         if success {
+            self.set_status(final_msg);
             self.new_word_text.clear();
             self.new_word_code.clear();
+        } else {
+            self.add_word_feedback = Some((final_msg, false));
+            self.add_word_timer = 10.0;
         }
     }
 
-    /// 把 flypy_custom 幂等 patch 到 default_schema 对应的 .custom.yaml。
-    /// 返回 patch 后的 .custom.yaml 路径。
-    fn patch_default_schema_for_flypy_custom(&mut self) -> Result<String, String> {
-        let schema_stem = self
-            .config
-            .default_schema
-            .clone()
-            .or_else(|| {
-                rime_loader::find_schema_files(&self.config.rime_user_dir)
-                    .first()
-                    .map(|(n, _)| n.clone())
-            })
-            .ok_or_else(|| "未找到任何 schema，请检查 rime_user_dir 路径".to_string())?;
+    /// 清理旧版 macOS 写入的 .custom.yaml（translator/dictionary 列表会导致
+    /// table_translator 编译失败，使小鹤方案无法输入）。新版改用主词典头部的
+    /// import_tables 合并 flypy_custom，因此这里移除旧的损坏 patch。
+    /// 本软件专用于小鹤音形，固定清理 flypy 的 .custom.yaml。
+    fn cleanup_legacy_custom_yaml_patch(&mut self) {
+        const FLYPY_SCHEMA: &str = "flypy";
         let schema_path = std::path::Path::new(&self.config.rime_user_dir)
-            .join(format!("{}.schema.yaml", schema_stem))
+            .join(format!("{}.schema.yaml", FLYPY_SCHEMA))
             .to_string_lossy()
             .to_string();
         if !std::path::Path::new(&schema_path).exists() {
-            return Err(format!("schema 文件不存在: {}", schema_path));
+            return;
         }
-        // 读取 schema 原始词典名（如 "flypy"），patch 时保留它
-        let original_dict = rime_loader::read_schema_dictionary(&schema_path)
+        let _ = rime_loader::cleanup_translator_dictionary_patch(&schema_path);
+    }
+
+    /// 解析小鹤（flypy）主词典文件路径（如 flypy.dict.yaml）。
+    /// 本软件专用于小鹤音形，固定使用 flypy schema：
+    /// 读取 flypy.schema.yaml 的 translator/dictionary 得到主词典名，
+    /// 拼出 <dict>.dict.yaml。找不到时返回 None。
+    fn flypy_main_dict_path(&self) -> Option<String> {
+        const FLYPY_SCHEMA: &str = "flypy";
+        let rime_dir = std::path::Path::new(&self.config.rime_user_dir);
+        let schema_path = rime_dir.join(format!("{}.schema.yaml", FLYPY_SCHEMA));
+        if !schema_path.exists() {
+            return None;
+        }
+        let dict_name = rime_loader::read_schema_dictionary(&schema_path.to_string_lossy())
             .unwrap_or_else(|| "flypy".to_string());
-        let custom_path = rime_loader::ensure_flypy_custom_in_schema(&schema_path, &original_dict)?;
-        // 记住该 schema 为以后默认
-        if self.config.default_schema.is_none() {
-            self.config.default_schema = Some(schema_stem);
-            let _ = self.config.save();
-        }
-        Ok(custom_path)
+        let dict_path = rime_dir.join(format!("{}.dict.yaml", dict_name));
+        Some(dict_path.to_string_lossy().to_string())
     }
 
     /// 刷新扫描到的词典文件列表

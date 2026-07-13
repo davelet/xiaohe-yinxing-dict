@@ -16,9 +16,6 @@ pub struct ExternalDictFile {
 pub struct AppConfig {
     pub rime_user_dir: String,
     pub external_dict_files: Vec<ExternalDictFile>,
-    /// 加载/添加新词时针对的默认 schema 名称（如 "flypy"），None 表示自动选择 flypy。
-    #[serde(default)]
-    pub default_schema: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -28,7 +25,6 @@ impl Default for AppConfig {
         Self {
             rime_user_dir,
             external_dict_files: Vec::new(),
-            default_schema: None,
         }
     }
 }
@@ -187,7 +183,6 @@ mod tests {
         let mut cfg = AppConfig {
             rime_user_dir: stale.clone(),
             external_dict_files: Vec::new(),
-            default_schema: None,
         };
         if !std::path::Path::new(&cfg.rime_user_dir).exists() {
             cfg.rime_user_dir = default_rime_user_dir();

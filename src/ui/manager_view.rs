@@ -1,7 +1,6 @@
 use crate::CopyKind;
 use crate::app::{ManagerState, SortField, SortOrder, ViewMode};
 use crate::dict::SearchableEntry;
-use crate::rime_loader;
 use crate::search;
 use eframe::egui;
 use egui::output::OutputCommand;
@@ -38,46 +37,6 @@ pub fn render_manager_top_panel(
             });
         });
 
-        // 默认 schema 下拉（添加新词时针对的目标 schema）
-        ui.horizontal(|ui| {
-            ui.label("默认 schema：");
-            let schemas = rime_loader::find_schema_files(&state.config.rime_user_dir);
-            let labels: Vec<String> = if schemas.is_empty() {
-                vec!["（未发现 schema）".to_string()]
-            } else {
-                schemas.iter().map(|(n, _)| n.clone()).collect()
-            };
-            let current = state
-                .config
-                .default_schema
-                .clone()
-                .unwrap_or_else(|| schemas.first().map(|(n, _)| n.clone()).unwrap_or_default());
-            egui::ComboBox::from_id_salt("default_schema_picker")
-                .selected_text(if current.is_empty() {
-                    "未选择"
-                } else {
-                    &current
-                })
-                .show_ui(ui, |ui| {
-                    for label in &labels {
-                        if ui.selectable_label(current == *label, label).clicked() {
-                            state.config.default_schema = if label == "（未发现 schema）" {
-                                None
-                            } else {
-                                Some(label.clone())
-                            };
-                            let _ = state.config.save();
-                        }
-                    }
-                });
-            if !schemas.is_empty() {
-                ui.label(format!(
-                    "（在 {} 目录下发现 {} 个）",
-                    state.config.rime_user_dir,
-                    schemas.len()
-                ));
-            }
-        });
 
         // 状态消息
         if let Some(msg) = &state.status_message {
