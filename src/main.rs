@@ -93,6 +93,8 @@ impl DictApp {
             cached_category_count: None,
             // AI 对话子窗口
             show_chat_viewport: false,
+            // 手动请求再次弹出“隐私声明”窗口（由设置页“见隐私说明”触发）
+            show_privacy_dialog: false,
             chat_viewport_id: egui::ViewportId::from_hash_of("ai_chat_viewport"),
             chat_tab: app::ChatTab::Conversation,
             last_main_window_pos: None,
@@ -217,6 +219,8 @@ struct DictApp {
     chat_settings_init: bool,
     /// API Key 输入框草稿（来自钥匙串，单独持久保存）
     chat_api_key_draft: String,
+    /// 手动请求再次弹出“隐私声明”窗口（由设置页“见隐私说明”触发）
+    show_privacy_dialog: bool,
 }
 
 fn create_app_icon() -> egui::IconData {

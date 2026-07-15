@@ -356,10 +356,10 @@ fn migrate_legacy_patch_key(content: &str, original_dict: &str) -> String {
     // 先把 __patch: 替换为 patch:
     let fixed = content.replace("__patch:", "patch:");
     // 再检查 original_dict 是否在列表中，不在则追加
-    if !custom_already_references(&fixed, original_dict) {
-        if let Some(patched) = append_to_translator_dictionary(&fixed, original_dict) {
-            return patched;
-        }
+    if !custom_already_references(&fixed, original_dict)
+        && let Some(patched) = append_to_translator_dictionary(&fixed, original_dict)
+    {
+        return patched;
     }
     fixed
 }
@@ -459,11 +459,11 @@ pub fn ensure_import_tables_in_dict(dict_path: &str) -> Result<String, String> {
         // 确保 sort 行后有空行分隔
         if pos < lines.len() && lines[pos].trim().is_empty() {
             // 空行后插入
-            lines.insert(pos + 1, format!("import_tables:\n  - flypy_custom"));
+            lines.insert(pos + 1, "import_tables:\n  - flypy_custom".to_string());
         } else {
             // 没有空行则补空行再插入
             lines.insert(pos, String::new());
-            lines.insert(pos + 1, format!("import_tables:\n  - flypy_custom"));
+            lines.insert(pos + 1, "import_tables:\n  - flypy_custom".to_string());
         }
     } else {
         return Err(format!("未在 {} 中找到 sort: 字段", dict_path));
@@ -547,10 +547,7 @@ fn strip_translator_dictionary_from_patch(content: &str) -> String {
                         let li = lines[i];
                         let lt = li.trim();
                         let indent = li.len() - lt.len();
-                        if lt.starts_with("- ")
-                            && indent > 0
-                            && !lt.starts_with("#")
-                        {
+                        if lt.starts_with("- ") && indent > 0 && !lt.starts_with("#") {
                             i += 1;
                         } else {
                             break;
@@ -581,7 +578,6 @@ fn strip_translator_dictionary_from_patch(content: &str) -> String {
     }
     result
 }
-
 
 /// 只扫描 `import_tables:` 下的列表项，避免被正文里的同名词条误判。
 fn import_tables_already_has(content: &str, dict_name: &str) -> bool {
@@ -1221,11 +1217,7 @@ name: test
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(&tmp).unwrap();
         let dict = tmp.join("flypy.dict.yaml");
-        fs::write(
-            &dict,
-            "name: flypy\nversion: 1\nsort: original\n\n阿\tka\n",
-        )
-        .unwrap();
+        fs::write(&dict, "name: flypy\nversion: 1\nsort: original\n\n阿\tka\n").unwrap();
         let p = dict.to_string_lossy().to_string();
         let r = ensure_import_tables_in_dict(&p).unwrap();
         let body = fs::read_to_string(&r).unwrap();
@@ -1264,11 +1256,7 @@ name: test
         fs::create_dir_all(&tmp).unwrap();
         let dict = tmp.join("flypy.dict.yaml");
         // 注意：正文条目 "flypy_custom" 出现在 sort: 之后
-        fs::write(
-            &dict,
-            "name: flypy\nsort: original\n\nflypy_custom\txx\n",
-        )
-        .unwrap();
+        fs::write(&dict, "name: flypy\nsort: original\n\nflypy_custom\txx\n").unwrap();
         let p = dict.to_string_lossy().to_string();
         let r = ensure_import_tables_in_dict(&p).unwrap();
         let body = fs::read_to_string(&r).unwrap();

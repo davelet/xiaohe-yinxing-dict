@@ -516,9 +516,9 @@ impl ManagerState {
                 self.cleanup_legacy_custom_yaml_patch();
                 rime_loader::ensure_import_tables_in_dict(&dict_path).map(|_| dict_path)
             }
-            None => Err(
-                "未找到小鹤主词典（flypy.dict.yaml），请检查 rime_user_dir 设置".to_string(),
-            ),
+            None => {
+                Err("未找到小鹤主词典（flypy.dict.yaml），请检查 rime_user_dir 设置".to_string())
+            }
         };
         let patch_msg = match &patch_result {
             Ok(_) => None,

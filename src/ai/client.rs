@@ -5,7 +5,7 @@ use rig_core::completion::Prompt;
 use rig_core::providers::openai;
 use tokio::sync::mpsc;
 
-use crate::ai::config::{AiConfig, Provider};
+use crate::ai::config::AiConfig;
 use crate::ai::tools;
 use crate::dict::DictEntry;
 use crate::search::SearchEngine;
@@ -26,20 +26,13 @@ const SYSTEM_PROMPT: &str = r#"你是小鹤音形输入法的专业助手。请�
 
 pub type ChatAgent = rig_core::agent::Agent<openai::responses_api::GenericResponsesCompletionModel>;
 
-/// 创建客户端，返回 OpenAI 兼容客户端（支持 OpenAI/DeepSeek/Ollama/Custom）
+/// 创建客户端，返回 OpenAI 兼容客户端（所有内置厂商都走 OpenAI 兼容协议）
 pub fn create_client(config: &AiConfig, api_key: &str) -> Result<openai::Client, String> {
-    match config.provider {
-        Provider::OpenAI | Provider::DeepSeek | Provider::Ollama | Provider::Custom => {
-            openai::Client::builder()
-                .api_key(api_key)
-                .base_url(&config.api_url)
-                .build()
-                .map_err(|e| format!("创建客户端失败: {e}"))
-        }
-        Provider::Anthropic | Provider::Gemini => {
-            Err("Anthropic 和 Gemini 提供商暂不支持，请使用 OpenAI 兼容的 API".to_string())
-        }
-    }
+    openai::Client::builder()
+        .api_key(api_key)
+        .base_url(&config.api_url)
+        .build()
+        .map_err(|e| format!("创建客户端失败: {e}"))
 }
 
 /// 创建 agent

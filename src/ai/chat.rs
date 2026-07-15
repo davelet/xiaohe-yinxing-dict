@@ -33,9 +33,10 @@ pub struct ChatMessage {
 }
 
 /// 流式生成状态
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum StreamState {
     /// 空闲
+    #[default]
     Idle,
     /// 正在生成（包含当前已接收的内容）
     Generating(String),
@@ -45,12 +46,6 @@ pub enum StreamState {
     Interrupted(String),
     /// 出错
     Error(String),
-}
-
-impl Default for StreamState {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 /// 对话状态
@@ -139,10 +134,10 @@ impl ChatState {
             handle.abort();
         }
         self.is_generating = false;
-        if let StreamState::Generating(content) = std::mem::take(&mut self.stream_state) {
-            if !content.is_empty() {
-                self.add_interrupted_ai_message(content);
-            }
+        if let StreamState::Generating(content) = std::mem::take(&mut self.stream_state)
+            && !content.is_empty()
+        {
+            self.add_interrupted_ai_message(content);
         }
     }
 

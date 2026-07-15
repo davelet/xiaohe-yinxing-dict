@@ -24,9 +24,15 @@ pub fn render_chat_viewport(ui: &mut egui::Ui, app: &mut DictApp) {
     let has_api_key = ai_config.get_api_key().is_ok();
 
     // 检查是否需要显示隐私提示弹窗
-    if !ai_config.privacy_acknowledged && app.chat_tab == crate::app::ChatTab::Conversation {
+    let mandatory_privacy =
+        !ai_config.privacy_acknowledged && app.chat_tab == crate::app::ChatTab::Conversation;
+    if mandatory_privacy || app.show_privacy_dialog {
         render_privacy_dialog(ui, app);
-        return;
+        // 仅“首次强制确认”时阻断底层内容；手动触发（设置页“见隐私说明”）
+        // 时作为浮层叠加在设置页之上，不拦截。
+        if mandatory_privacy {
+            return;
+        }
     }
 
     // 使用 CentralPanel 填充窗口背景，避免子窗口原生背景透出显示为黑色
@@ -81,9 +87,7 @@ fn render_privacy_dialog(ui: &mut egui::Ui, app: &mut DictApp) {
                 .corner_radius(4.0)
                 .inner_margin(12.0)
                 .show(ui, |ui| {
-                    ui.label(
-                        "1. 您的对话内容将发送至所选的 AI 服务提供商（如 OpenAI、DeepSeek 等）",
-                    );
+                    ui.label("1. 您的对话内容将发送至所选的 AI 服务提供商（如深度求索、智谱等）");
                     ui.add_space(4.0);
                     ui.label("2. API Key 存储在您的操作系统钥匙串中，不会被本应用上传");
                     ui.add_space(4.0);
@@ -99,12 +103,14 @@ fn render_privacy_dialog(ui: &mut egui::Ui, app: &mut DictApp) {
                     let mut config = AiConfig::load();
                     config.privacy_acknowledged = true;
                     config.save().ok();
+                    app.show_privacy_dialog = false;
                 }
 
                 ui.add_space(8.0);
 
                 if ui.button("返回设置").clicked() {
                     app.chat_tab = crate::app::ChatTab::Settings;
+                    app.show_privacy_dialog = false;
                 }
             });
         });
@@ -118,7 +124,7 @@ fn render_empty_state(ui: &mut egui::Ui, app: &mut DictApp) {
         ui.add_space(16.0);
         ui.label("使用 AI 对话功能前，请先配置 API Key。");
         ui.add_space(8.0);
-        ui.label("支持 OpenAI、DeepSeek、Ollama 等多种模型。");
+        ui.label("支持深度求索、智谱、通义千问等多种国内模型。");
         ui.add_space(24.0);
         if ui.button("前往设置").clicked() {
             app.chat_tab = crate::app::ChatTab::Settings;
@@ -364,29 +370,52 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
     let mut api_key_changed = false;
 
     egui::ScrollArea::vertical().show(ui, |ui| {
-        // 收紧行间距，避免字段之间距离过大
         ui.style_mut().spacing.item_spacing = egui::vec2(8.0, 4.0);
         ui.add_space(8.0);
+
+        // 输入框统一样式：灰色描边 + 圆角，与其它地方一致
+        let input_frame = egui::Frame::group(ui.style())
+            .stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(180)))
+            .corner_radius(4.0)
+            .inner_margin(egui::Margin::symmetric(4, 2));
+
+        // 字段名固定宽度并居右对齐
+        // API 配置区的标签较短，收窄列宽以消除左侧过多留白；
+        // 高级区的“上下文保留轮数:”较长，单独给一个能容纳的宽度。
+        let label_w_api = 66.0;
+        let label_w_adv = 116.0;
+        let field_label = |ui: &mut egui::Ui, text: &str, w: f32| {
+            ui.allocate_ui_with_layout(
+                egui::vec2(w, 0.0),
+                egui::Layout::right_to_left(egui::Align::Center),
+                |ui| {
+                    ui.label(text);
+                },
+            );
+        };
+
         ui.heading("AI 助手设置");
         ui.add_space(12.0);
 
         // API 配置区块
         ui.group(|ui| {
+            ui.set_min_width(ui.available_width());
             ui.label("API 配置");
             ui.add_space(4.0);
 
             // 提供商选择
             ui.horizontal(|ui| {
-                ui.label("提供商:");
+                field_label(ui, "提供商:", label_w_api);
                 egui::ComboBox::from_id_salt("provider_combo")
+                    .width(ui.available_width())
                     .selected_text(config.provider.to_string())
                     .show_ui(ui, |ui| {
                         let providers = [
-                            Provider::OpenAI,
                             Provider::DeepSeek,
-                            Provider::Ollama,
-                            Provider::Anthropic,
-                            Provider::Gemini,
+                            Provider::Zhipu,
+                            Provider::Moonshot,
+                            Provider::Qwen,
+                            Provider::Yi,
                             Provider::Custom,
                         ];
                         for p in &providers {
@@ -396,23 +425,29 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
                             {
                                 // 根据提供商设置默认 API URL
                                 match p {
-                                    Provider::OpenAI => {
-                                        config.api_url = "https://api.openai.com/v1".to_string()
-                                    }
                                     Provider::DeepSeek => {
                                         config.api_url = "https://api.deepseek.com".to_string()
                                     }
-                                    Provider::Ollama => {
-                                        config.api_url = "http://localhost:11434".to_string()
-                                    }
-                                    Provider::Anthropic => {
-                                        config.api_url = "https://api.anthropic.com".to_string()
-                                    }
-                                    Provider::Gemini => {
+                                    Provider::Zhipu => {
                                         config.api_url =
-                                            "https://generativelanguage.googleapis.com".to_string()
+                                            "https://open.bigmodel.cn/api/paas/v4".to_string()
                                     }
-                                    _ => {}
+                                    Provider::Moonshot => {
+                                        config.api_url = "https://api.moonshot.cn/v1".to_string()
+                                    }
+                                    Provider::Qwen => {
+                                        config.api_url =
+                                            "https://dashscope.aliyuncs.com/compatible-mode/v1"
+                                                .to_string()
+                                    }
+                                    Provider::Yi => {
+                                        config.api_url =
+                                            "https://api.lingyiwanwu.com/v1".to_string()
+                                    }
+                                    Provider::Custom => {
+                                        // 切到自定义时清空 URL，避免残留上一个提供商的地址
+                                        config.api_url.clear();
+                                    }
                                 }
                             }
                         }
@@ -423,16 +458,12 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
 
             // API Key 输入
             ui.horizontal(|ui| {
-                ui.label("API Key:");
-                let key_frame = egui::Frame::group(ui.style())
-                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(180)))
-                    .corner_radius(4.0)
-                    .inner_margin(egui::Margin::symmetric(4, 2));
+                field_label(ui, "API Key:", label_w_api);
                 let key_response = ui.add(
                     egui::TextEdit::singleline(&mut app.chat_api_key_draft)
                         .password(true)
-                        .desired_width(200.0)
-                        .frame(key_frame),
+                        .desired_width(ui.available_width())
+                        .frame(input_frame),
                 );
                 if key_response.changed() {
                     api_key_changed = true;
@@ -444,23 +475,31 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
             // API URL（仅 Custom 提供商显示）
             if config.provider == Provider::Custom {
                 ui.horizontal(|ui| {
-                    ui.label("API URL:");
-                    ui.text_edit_singleline(&mut config.api_url);
+                    field_label(ui, "API URL:", label_w_api);
+                    ui.add(
+                        egui::TextEdit::singleline(&mut config.api_url)
+                            .desired_width(ui.available_width())
+                            .frame(input_frame),
+                    );
                 });
                 ui.add_space(8.0);
             }
 
             // 模型选择
             ui.horizontal(|ui| {
-                ui.label("模型:");
-                ui.text_edit_singleline(&mut config.model);
+                field_label(ui, "模型:", label_w_api);
+                ui.add(
+                    egui::TextEdit::singleline(&mut config.model)
+                        .desired_width(ui.available_width())
+                        .frame(input_frame),
+                );
             });
 
             ui.add_space(4.0);
 
             // 温度
             ui.horizontal(|ui| {
-                ui.label("温度:");
+                field_label(ui, "温度:", label_w_api);
                 ui.add(egui::Slider::new(&mut config.temperature, 0.0..=2.0).step_by(0.1));
             });
 
@@ -468,8 +507,8 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
 
             // Max Tokens
             ui.horizontal(|ui| {
-                ui.label("Max Tokens:");
-                ui.add(egui::Slider::new(&mut config.max_tokens, 100..=8192).step_by(100.0));
+                field_label(ui, "词元上限:", label_w_api);
+                ui.add(egui::Slider::new(&mut config.max_tokens, 100..=100000).step_by(100.0));
             });
         });
 
@@ -477,55 +516,44 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
 
         // 高级选项
         ui.group(|ui| {
+            ui.set_min_width(ui.available_width());
             ui.label("高级选项");
             ui.add_space(4.0);
 
             ui.checkbox(&mut config.enable_external_dict_tool, "启用外部词典工具");
-            ui.small("（查询会上传本地词库片段，见隐私说明）");
+            ui.horizontal_wrapped(|ui| {
+                ui.small("（查询会上传本地词库片段，见");
+                if ui
+                    .link(egui::RichText::new("隐私说明").text_style(egui::TextStyle::Small))
+                    .clicked()
+                {
+                    app.show_privacy_dialog = true;
+                }
+                ui.small("）");
+            });
+            ui.add_space(2.0);
 
             ui.add_space(4.0);
 
             ui.horizontal(|ui| {
-                ui.label("上下文保留轮数:");
+                field_label(ui, "上下文保留轮数:", label_w_adv);
                 ui.add(egui::Slider::new(&mut config.history_rounds, 4..=30));
             });
         });
 
         ui.add_space(10.0);
 
-        // 快速配置
-        ui.group(|ui| {
-            ui.label("快速配置");
-            ui.add_space(4.0);
-
-            ui.horizontal(|ui| {
-                if ui.button("OpenAI").clicked() {
-                    config.provider = Provider::OpenAI;
-                    config.api_url = "https://api.openai.com/v1".to_string();
-                    config.model = "gpt-4o-mini".to_string();
-                }
-                if ui.button("DeepSeek").clicked() {
-                    config.provider = Provider::DeepSeek;
-                    config.api_url = "https://api.deepseek.com".to_string();
-                    config.model = "deepseek-chat".to_string();
-                }
-                if ui.button("Ollama 本地").clicked() {
-                    config.provider = Provider::Ollama;
-                    config.api_url = "http://localhost:11434".to_string();
-                    config.model = "qwen2.5:latest".to_string();
-                }
-            });
-        });
-
-        ui.add_space(10.0);
-
         // 保存按钮
-        if ui.button("保存设置").clicked() {
+        if ui
+            .add_sized([ui.available_width(), 0.0], egui::Button::new("保存设置"))
+            .clicked()
+        {
             // 保存 API Key 到钥匙串
-            if api_key_changed && !app.chat_api_key_draft.is_empty() {
-                if let Err(e) = config.set_api_key(&app.chat_api_key_draft) {
-                    eprintln!("保存 API Key 失败: {e}");
-                }
+            if api_key_changed
+                && !app.chat_api_key_draft.is_empty()
+                && let Err(e) = config.set_api_key(&app.chat_api_key_draft)
+            {
+                eprintln!("保存 API Key 失败: {e}");
             }
             // 保存配置
             if let Err(e) = config.save() {
@@ -536,7 +564,13 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
         ui.add_space(4.0);
 
         // 测试连接按钮
-        if ui.button("🔗 测试连接").clicked() {
+        if ui
+            .add_sized(
+                [ui.available_width(), 0.0],
+                egui::Button::new("🔗 测试连接"),
+            )
+            .clicked()
+        {
             if app.chat_api_key_draft.is_empty() {
                 app.chat_test_response = "❌ 请先输入 API Key".to_string();
             } else {

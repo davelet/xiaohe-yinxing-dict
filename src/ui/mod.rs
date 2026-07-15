@@ -260,18 +260,20 @@ impl eframe::App for DictApp {
 
         // ========== AI 对话子窗口 ==========
         if self.show_chat_viewport {
-            let (outer_rect, inner_rect, screen_width) = ctx.input(|i| (
-                i.viewport().outer_rect,
-                i.viewport().inner_rect,
-                i.viewport_rect().width(),
-            ));
+            let (outer_rect, inner_rect, screen_width) = ctx.input(|i| {
+                (
+                    i.viewport().outer_rect,
+                    i.viewport().inner_rect,
+                    i.viewport_rect().width(),
+                )
+            });
             if let Some(outer) = outer_rect {
                 // 如果屏幕宽度不足，显示提示
                 if screen_width < 950.0 {
                     self.show_screen_width_warning = true;
                 } else {
                     self.show_screen_width_warning = false;
-                    let chat_width = (500.0_f32).min(screen_width - 950.0).max(300.0);
+                    let chat_width = (440.0_f32).min(screen_width - 950.0).max(340.0);
 
                     // 计算子窗口位置：
                     // Windows 上 outer_rect 包含不可见的 DWM 边框（约 7px），

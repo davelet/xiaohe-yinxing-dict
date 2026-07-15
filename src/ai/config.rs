@@ -1,31 +1,32 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-/// 提供商类型
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+/// 提供商类型（仅内置国内厂商，OpenAI/Anthropic/Gemini 等境外服务不在内置列表）
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum Provider {
-    OpenAI,
+    /// 深度求索 (DeepSeek)
+    #[default]
     DeepSeek,
-    Ollama,
-    Anthropic,
-    Gemini,
+    /// 智谱 (GLM)
+    Zhipu,
+    /// 月之暗面 (Moonshot)
+    Moonshot,
+    /// 通义千问 (Qwen)
+    Qwen,
+    /// 零一万物 (Yi)
+    Yi,
+    /// 自定义 OpenAI 兼容端点
     Custom,
-}
-
-impl Default for Provider {
-    fn default() -> Self {
-        Self::OpenAI
-    }
 }
 
 impl std::fmt::Display for Provider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::OpenAI => write!(f, "OpenAI"),
-            Self::DeepSeek => write!(f, "DeepSeek"),
-            Self::Ollama => write!(f, "Ollama"),
-            Self::Anthropic => write!(f, "Anthropic"),
-            Self::Gemini => write!(f, "Gemini"),
+            Self::DeepSeek => write!(f, "深度求索 (DeepSeek)"),
+            Self::Zhipu => write!(f, "智谱 (GLM)"),
+            Self::Moonshot => write!(f, "月之暗面 (Moonshot)"),
+            Self::Qwen => write!(f, "通义千问 (Qwen)"),
+            Self::Yi => write!(f, "零一万物 (Yi)"),
             Self::Custom => write!(f, "自定义"),
         }
     }
@@ -61,11 +62,11 @@ impl Default for AiConfig {
         Self {
             keyring_service: "xiaohe-yinxing-dict".to_string(),
             keyring_user: "default".to_string(),
-            api_url: "https://api.openai.com/v1".to_string(),
-            model: "gpt-4o-mini".to_string(),
-            provider: Provider::OpenAI,
+            api_url: "https://api.deepseek.com".to_string(),
+            model: "deepseek-chat".to_string(),
+            provider: Provider::DeepSeek,
             temperature: 0.7,
-            max_tokens: 2048,
+            max_tokens: 10000,
             enable_external_dict_tool: false,
             privacy_acknowledged: false,
             history_rounds: 10,

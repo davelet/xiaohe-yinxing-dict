@@ -37,7 +37,6 @@ pub fn render_manager_top_panel(
             });
         });
 
-
         // 状态消息
         if let Some(msg) = &state.status_message {
             ui.colored_label(ManagerViewStyle::success_color(), msg);
