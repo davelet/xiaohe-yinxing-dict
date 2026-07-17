@@ -749,6 +749,15 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
                 field_label(ui, "上下文保留轮数:", label_w_adv, true);
                 ui.add(egui::Slider::new(&mut config.history_rounds, 4..=30));
             });
+
+            ui.add_space(4.0);
+
+            ui.horizontal(|ui| {
+                field_label(ui, "最大工具调用轮次:", label_w_adv, true);
+                ui.add(egui::Slider::new(&mut config.max_tool_turns, 1..=30));
+            })
+            .response
+            .on_hover_text("AI 在一次对话中最多连续调用工具的轮次，防止无限循环消耗额度");
         });
 
         ui.add_space(10.0);

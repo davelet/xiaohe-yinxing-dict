@@ -55,6 +55,8 @@ pub struct AiConfig {
     pub privacy_acknowledged: bool,
     /// 上下文保留轮数
     pub history_rounds: u32,
+    /// 最大工具调用轮次（防止 AI 无限循环调用工具）
+    pub max_tool_turns: u32,
 }
 
 impl Default for AiConfig {
@@ -70,6 +72,7 @@ impl Default for AiConfig {
             enable_external_dict_tool: false,
             privacy_acknowledged: false,
             history_rounds: 10,
+            max_tool_turns: 10,
         }
     }
 }

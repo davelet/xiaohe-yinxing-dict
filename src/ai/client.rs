@@ -56,6 +56,7 @@ pub fn build_agent(
         .preamble(SYSTEM_PROMPT)
         .tools(tools)
         .max_tokens(config.max_tokens as u64)
+        .default_max_turns(config.max_tool_turns as usize)
         .build()
 }
 
