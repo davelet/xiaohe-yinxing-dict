@@ -66,7 +66,7 @@ impl Default for AiConfig {
             model: "deepseek-chat".to_string(),
             provider: Provider::DeepSeek,
             temperature: 0.7,
-            max_tokens: 10000,
+            max_tokens: 2048,
             enable_external_dict_tool: false,
             privacy_acknowledged: false,
             history_rounds: 10,

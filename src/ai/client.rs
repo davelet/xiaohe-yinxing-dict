@@ -1,8 +1,12 @@
 use std::sync::Arc;
 
+use futures::StreamExt;
+use rig_core::agent::MultiTurnStreamItem;
 use rig_core::client::CompletionClient;
 use rig_core::completion::Prompt;
 use rig_core::providers::openai;
+use rig_core::streaming::StreamedAssistantContent;
+use rig_core::streaming::StreamingPrompt;
 use tokio::sync::mpsc;
 
 use crate::ai::config::AiConfig;
@@ -22,6 +26,9 @@ const SYSTEM_PROMPT: &str = r#"你是小鹤音形输入法的专业助手。请�
 可用工具：
 - search_text: 根据汉字/词组查询编码
 - search_code: 根据编码反查汉字/词组
+- get_help: 获取帮助文档内容（可用章节id: readme/xh/up/ux/gz/zg/yy/jm/fh/pc/sj/gj/wv/wt/vy/gy）
+- list_categories: 列出所有编码分类及条目数量
+- get_category_stats: 获取分类统计信息
 "#;
 
 pub type ChatAgent = rig_core::agent::Agent<openai::responses_api::GenericResponsesCompletionModel>;
@@ -40,8 +47,9 @@ pub fn build_agent(
     client: openai::Client,
     config: &AiConfig,
     engine: Arc<SearchEngine<DictEntry>>,
+    help_manager: Arc<crate::help::HelpManager>,
 ) -> ChatAgent {
-    let tools = tools::create_tools(engine);
+    let tools = tools::create_tools(engine, help_manager);
 
     client
         .agent(&config.model)
@@ -53,36 +61,38 @@ pub fn build_agent(
 
 /// 流式消息接收
 pub enum StreamMessage {
-    Text(String),
+    /// 文本增量（逐字流式）
+    TextDelta(String),
+    /// 流式完成
     Complete,
+    /// 出错
     Error(String),
 }
 
-/// 发送流式请求，通过 channel 返回文本块
+/// 发送流式请求，通过 channel 逐字返回响应
 pub async fn send_message_stream(
     agent: &ChatAgent,
     message: &str,
     tx: mpsc::UnboundedSender<StreamMessage>,
 ) -> Result<(), String> {
-    match agent.prompt(message).await {
-        Ok(response) => {
-            let chars: Vec<char> = response.to_string().chars().collect();
-            let mut current = String::new();
-            for (i, &ch) in chars.iter().enumerate() {
-                current.push(ch);
-                if tx.send(StreamMessage::Text(current.clone())).is_err() {
-                    return Ok(());
-                }
-                if i % 10 == 0 {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+    let mut stream = agent.stream_prompt(message).await;
+    while let Some(item_result) = stream.next().await {
+        match item_result {
+            Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(text))) => {
+                if !text.text.is_empty() {
+                    let _ = tx.send(StreamMessage::TextDelta(text.text));
                 }
             }
-            let _ = tx.send(StreamMessage::Complete);
-        }
-        Err(e) => {
-            let _ = tx.send(StreamMessage::Error(format!("请求失败: {e}")));
+            Ok(_) => {
+                // 工具调用、推理、完成调用等事件忽略
+            }
+            Err(e) => {
+                let _ = tx.send(StreamMessage::Error(format!("流式错误: {e}")));
+                return Ok(());
+            }
         }
     }
+    let _ = tx.send(StreamMessage::Complete);
     Ok(())
 }
 

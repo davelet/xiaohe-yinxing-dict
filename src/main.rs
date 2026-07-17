@@ -37,7 +37,7 @@ impl DictApp {
 
         let categories = dict::DictEntry::all_categories();
         let help_image = Self::load_help_image(ctx);
-        let help_manager = HelpManager::new();
+        let help_manager = Arc::new(HelpManager::new());
         let update_info = Arc::new(Mutex::new(None));
         let update_info_clone = update_info.clone();
         let ctx_clone = ctx.clone();
@@ -93,12 +93,13 @@ impl DictApp {
             cached_category_count: None,
             // AI 对话子窗口
             show_chat_viewport: false,
-            // 手动请求再次弹出“隐私声明”窗口（由设置页“见隐私说明”触发）
+            // 手动请求再次弹出“隐私声明”窗口（由设置页“见隐私声明”触发）
             show_privacy_dialog: false,
             chat_viewport_id: egui::ViewportId::from_hash_of("ai_chat_viewport"),
             chat_tab: app::ChatTab::Conversation,
             last_main_window_pos: None,
             show_screen_width_warning: false,
+            main_window_positioned: false,
             chat_input: String::new(),
             chat_state: ai::chat::ChatState::default(),
             tokio_runtime: Some(
@@ -109,6 +110,13 @@ impl DictApp {
             chat_settings_draft: ai::config::AiConfig::default(),
             chat_settings_init: false,
             chat_api_key_draft: String::new(),
+            chat_md_cache: egui_commonmark::CommonMarkCache::default(),
+            chat_rx: None,
+            chat_test_rx: None,
+            chat_test_in_progress: false,
+            chat_save_response: String::new(),
+            last_chat_send_time: None,
+            conversation_store: ai::history::ConversationStore::new(),
         }
     }
 
@@ -153,7 +161,7 @@ struct DictApp {
     /// 是否显示键位图（点击“键位图”按钮切换）
     show_help_image: bool,
     help_image_shown_at: Option<std::time::Instant>,
-    help_manager: HelpManager,
+    help_manager: Arc<HelpManager>,
     show_help_panel: bool,
     selected_help_chapter: Option<String>,
     help_search_query: String,
@@ -205,6 +213,8 @@ struct DictApp {
     last_main_window_pos: Option<egui::Pos2>,
     /// 屏幕宽度不足时显示提示
     show_screen_width_warning: bool,
+    /// 主窗口是否已在首帧完成靠左定位（避免每帧覆盖、影响拖拽）
+    main_window_positioned: bool,
     /// AI 对话输入框内容
     chat_input: String,
     /// AI 对话状态
@@ -219,8 +229,22 @@ struct DictApp {
     chat_settings_init: bool,
     /// API Key 输入框草稿（来自钥匙串，单独持久保存）
     chat_api_key_draft: String,
-    /// 手动请求再次弹出“隐私声明”窗口（由设置页“见隐私说明”触发）
+    /// 手动请求再次弹出"隐私声明"窗口（由设置页"见隐私声明"触发）
     show_privacy_dialog: bool,
+    /// AI 对话 Markdown 渲染缓存（跨帧持久化）
+    chat_md_cache: egui_commonmark::CommonMarkCache,
+    /// AI 对话流式响应接收端（后台任务发送，每帧 try_recv 轮询）
+    chat_rx: Option<tokio::sync::mpsc::UnboundedReceiver<ai::client::StreamMessage>>,
+    /// 测试连接结果接收端（oneshot，后台任务发送）
+    chat_test_rx: Option<tokio::sync::oneshot::Receiver<String>>,
+    /// 测试连接是否进行中（控制按钮 loading 状态）
+    chat_test_in_progress: bool,
+    /// 保存设置结果提示（独立于测试连接消息）
+    chat_save_response: String,
+    /// 上次发送消息时间（用于请求频率控制）
+    last_chat_send_time: Option<std::time::Instant>,
+    /// 对话存储管理器（持久化对话历史）
+    conversation_store: ai::history::ConversationStore,
 }
 
 fn create_app_icon() -> egui::IconData {

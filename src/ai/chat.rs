@@ -60,6 +60,8 @@ pub struct ChatState {
     pub abort_handle: Option<AbortHandle>,
     /// 屏幕宽度不足提示
     pub show_screen_width_warning: bool,
+    /// 当前对话 ID（None 表示未关联持久化对话）
+    pub current_conversation_id: Option<String>,
 }
 
 impl Default for ChatState {
@@ -70,6 +72,7 @@ impl Default for ChatState {
             stream_state: StreamState::Idle,
             abort_handle: None,
             show_screen_width_warning: false,
+            current_conversation_id: None,
         }
     }
 }
@@ -114,9 +117,11 @@ impl ChatState {
         self.stream_state = StreamState::Generating(String::new());
     }
 
-    /// 更新流式内容
-    pub fn update_stream(&mut self, content: String) {
-        self.stream_state = StreamState::Generating(content);
+    /// 追加流式内容（逐字累积）
+    pub fn append_stream(&mut self, delta: String) {
+        if let StreamState::Generating(ref mut content) = self.stream_state {
+            content.push_str(&delta);
+        }
     }
 
     /// 完成生成
