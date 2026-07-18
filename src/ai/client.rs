@@ -10,7 +10,7 @@ use rig_core::streaming::StreamingPrompt;
 use tokio::sync::mpsc;
 
 use crate::ai::config::AiConfig;
-use crate::ai::tools;
+use crate::ai::tools::{create_tools, ExternalDictData};
 use crate::dict::DictEntry;
 use crate::search::SearchEngine;
 
@@ -48,12 +48,35 @@ pub fn build_agent(
     config: &AiConfig,
     engine: Arc<SearchEngine<DictEntry>>,
     help_manager: Arc<crate::help::HelpManager>,
+    external_dict_data: Option<ExternalDictData>,
 ) -> ChatAgent {
-    let tools = tools::create_tools(engine, help_manager);
+    // 如果禁用了 Function Calling，不传 tools，而是在系统提示词中注入工具描述
+    let has_external_dict = external_dict_data.is_some();
+    let tools = if config.enable_function_calling {
+        create_tools(engine, help_manager, external_dict_data)
+    } else {
+        vec![]
+    };
+
+    let mut preamble = SYSTEM_PROMPT.to_string();
+    if !config.enable_function_calling {
+        // 注入工具描述作为备选方案
+        preamble.push_str("\n\n---\n可用工具（请在需要时按以下格式调用）：\n");
+        preamble.push_str("工具调用格式：\n```tool_call\n{\"name\": \"工具名\", \"arguments\": {\"参数名\": \"参数值\"}}\n```\n\n");
+        preamble.push_str("工具列表：\n");
+        preamble.push_str("- search_text(query): 根据汉字/词组查询编码\n");
+        preamble.push_str("- search_code(code): 根据编码反查汉字/词组\n");
+        preamble.push_str("- get_help(chapter?): 获取帮助文档（章节可选）\n");
+        preamble.push_str("- list_categories(): 列出所有分类\n");
+        preamble.push_str("- get_category_stats(category?): 获取分类统计\n");
+        if has_external_dict {
+            preamble.push_str("- search_external_dict(query): 搜索外部词典\n");
+        }
+    }
 
     client
         .agent(&config.model)
-        .preamble(SYSTEM_PROMPT)
+        .preamble(&preamble)
         .tools(tools)
         .max_tokens(config.max_tokens as u64)
         .default_max_turns(config.max_tool_turns as usize)

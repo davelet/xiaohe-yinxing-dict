@@ -51,6 +51,8 @@ pub struct AiConfig {
     pub max_tokens: u32,
     /// 是否启用外部词典工具
     pub enable_external_dict_tool: bool,
+    /// 是否启用 Function Calling（部分模型不支持，关闭时将工具描述注入 system prompt 降级）
+    pub enable_function_calling: bool,
     /// 是否已确认隐私提示
     pub privacy_acknowledged: bool,
     /// 上下文保留轮数
@@ -70,6 +72,7 @@ impl Default for AiConfig {
             temperature: 0.7,
             max_tokens: 2048,
             enable_external_dict_tool: false,
+            enable_function_calling: true,
             privacy_acknowledged: false,
             history_rounds: 10,
             max_tool_turns: 10,

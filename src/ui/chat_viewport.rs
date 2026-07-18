@@ -269,7 +269,7 @@ fn render_ai_message(ui: &mut egui::Ui, app: &mut DictApp, msg_idx: usize, is_la
                     });
                 }
 
-                // 快捷操作按钮（仅在非生成中的最后一条消息显示）
+// 快捷操作按钮（仅在非生成中的最后一条消息显示）
                 if is_last && !app.chat_state.is_generating {
                     ui.add_space(6.0);
                     ui.separator();
@@ -310,13 +310,26 @@ fn render_ai_message(ui: &mut egui::Ui, app: &mut DictApp, msg_idx: usize, is_la
                                             .get("query")
                                             .or_else(|| v.get("code"))
                                             .and_then(|s| s.as_str())
-                                        {
-                                            app.current_view = crate::app::ViewMode::Dict;
-                                            app.query = q.to_string();
-                                            app.search_dirty = true;
-                                            app.show_chat_viewport = false;
-                                        }
+                            {
+                                app.current_view = crate::app::ViewMode::Dict;
+                                app.query = q.to_string();
+                                app.search_dirty = true;
+                                app.show_chat_viewport = false;
+                            }
                         });
+
+                        // 复制完整回复
+                        if ui.small_button("📋 复制回复").clicked() {
+                            ui.ctx().copy_text(content.clone());
+                        }
+
+                        // 重新生成
+                        if ui.small_button("🔄 重新生成").clicked() {
+                            if let Some(user_msg) = app.chat_state.prepare_regenerate() {
+                                app.chat_input = user_msg;
+                                send_message(app, &ui.ctx().clone());
+                            }
+                        }
                     });
                 }
             });
@@ -365,6 +378,7 @@ fn poll_chat_stream(app: &mut DictApp, ctx: &egui::Context) {
                 need_repaint = true;
             }
             Ok(crate::ai::client::StreamMessage::Complete) => {
+                crate::ai_log!("[AI] 生成完成");
                 app.chat_state.finish_generation();
                 save_current_conversation(app);
                 app.chat_rx = None;
@@ -372,6 +386,7 @@ fn poll_chat_stream(app: &mut DictApp, ctx: &egui::Context) {
                 break;
             }
             Ok(crate::ai::client::StreamMessage::Error(e)) => {
+                crate::ai_log!("[AI] 请求失败: {}", e);
                 app.chat_state.add_ai_message(format!("请求失败: {e}"));
                 app.chat_state.is_generating = false;
                 app.chat_state.abort_handle = None;
@@ -511,39 +526,58 @@ fn send_message(app: &mut DictApp, ctx: &egui::Context) {
     let ai_config = crate::ai::config::AiConfig::load();
     let runtime = app.tokio_runtime.as_ref();
 
-    if let (Ok(api_key), Some(runtime)) = (ai_config.get_api_key(), runtime) {
-        let engine = app.engine.clone();
-        let help_mgr = app.help_manager.clone();
-
-        // 按配置的轮数裁剪历史
-        app.chat_state
-            .trim_history(ai_config.history_rounds as usize);
-
-        // 创建 channel 接收响应
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<crate::ai::client::StreamMessage>();
-        app.chat_rx = Some(rx);
-
-        // 在后台 tokio 任务中执行整个异步流程
-        let ctx_clone = ctx.clone();
-        let config_clone = ai_config.clone();
-        let message_clone = message.clone();
-
-        let handle = runtime.spawn(async move {
-            let client = match crate::ai::client::create_client(&config_clone, &api_key) {
-                Ok(c) => c,
-                Err(e) => {
-                    let _ = tx.send(crate::ai::client::StreamMessage::Error(e));
-                    ctx_clone.request_repaint();
-                    return;
-                }
-            };
-            let agent = crate::ai::client::build_agent(client, &config_clone, engine, help_mgr);
-            let _ = crate::ai::client::send_message_stream(&agent, &message_clone, tx).await;
-            ctx_clone.request_repaint();
-        });
-
-        app.chat_state.abort_handle = Some(handle.abort_handle());
+    // 准备外部词典数据（仅在有外部词典时）
+    let external_dict_data = if !app.manager.external_entries.is_empty() {
+        Some(crate::ai::tools::ExternalDictData::from_manager(&app.manager))
     } else {
+        None
+    };
+
+    if let (Ok(api_key), Some(runtime)) = (ai_config.get_api_key(), runtime) {
+            let engine = app.engine.clone();
+            let help_mgr = app.help_manager.clone();
+
+            // 按配置的轮数裁剪历史
+            app.chat_state
+                .trim_history(ai_config.history_rounds as usize);
+
+            // 创建 channel 接收响应
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<crate::ai::client::StreamMessage>();
+            app.chat_rx = Some(rx);
+
+            // 在后台 tokio 任务中执行整个异步流程
+            let ctx_clone = ctx.clone();
+            let config_clone = ai_config.clone();
+            let message_clone = message.clone();
+
+            crate::ai_log!("[AI] 发送消息: model={}, function_calling={}", 
+                ai_config.model, ai_config.enable_function_calling);
+
+            let handle = runtime.spawn(async move {
+                let client = match crate::ai::client::create_client(&config_clone, &api_key) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        crate::ai_log!("[AI] 创建客户端失败: {}", e);
+                        let _ = tx.send(crate::ai::client::StreamMessage::Error(e));
+                        ctx_clone.request_repaint();
+                        return;
+                    }
+                };
+                let agent = crate::ai::client::build_agent(
+                    client,
+                    &config_clone,
+                    engine,
+                    help_mgr,
+                    external_dict_data,
+                );
+                crate::ai_log!("[AI] Agent 创建成功，开始流式请求");
+                let _ = crate::ai::client::send_message_stream(&agent, &message_clone, tx).await;
+                crate::ai_log!("[AI] 流式请求完成");
+                ctx_clone.request_repaint();
+            });
+
+            app.chat_state.abort_handle = Some(handle.abort_handle());
+        } else {
         // 没有 API Key 或 runtime，显示错误
         app.chat_state
             .add_ai_message("无法发送消息：请先配置 API Key".to_string());
@@ -758,6 +792,33 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
             })
             .response
             .on_hover_text("AI 在一次对话中最多连续调用工具的轮次，防止无限循环消耗额度");
+
+            ui.add_space(4.0);
+
+            ui.horizontal(|ui| {
+                field_label(ui, "Function Calling:", label_w_adv, true);
+                ui.checkbox(&mut config.enable_function_calling, "启用")
+                    .on_hover_text(
+                        "部分模型不支持 Function Calling。关闭后将把后工具描述会注入系统提示词，由模型以文本形式决定是否调用工具",
+                    );
+            });
+
+            ui.add_space(4.0);
+
+            // 系统代理状态
+            ui.horizontal(|ui| {
+                field_label(ui, "系统代理:", label_w_adv, true);
+                let proxy = sysproxy::Sysproxy::get_system_proxy().ok().filter(|p| p.enable);
+                match proxy {
+                    Some(p) => {
+                        ui.colored_label(egui::Color32::from_rgb(34, 150, 80), format!("✅ 已检测到: http://{}:{}", p.host, p.port));
+                    }
+                    None => {
+                        ui.colored_label(egui::Color32::from_rgb(150, 150, 150), "未检测到系统代理");
+                    }
+                }
+            });
+
         });
 
         ui.add_space(10.0);
@@ -845,6 +906,11 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
 
                     let engine = app.engine.clone();
                     let help_mgr_test = app.help_manager.clone();
+                    let external_dict_data = if !app.manager.external_entries.is_empty() {
+                        Some(crate::ai::tools::ExternalDictData::from_manager(&app.manager))
+                    } else {
+                        None
+                    };
                     let ctx_clone = ui.ctx().clone();
 
                     runtime.spawn(async move {
@@ -855,6 +921,7 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
                                 &test_config,
                                 engine,
                                 help_mgr_test,
+                                external_dict_data,
                             );
                             crate::ai::client::send_message(&agent, "hi").await
                         }

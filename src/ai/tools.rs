@@ -396,13 +396,109 @@ impl Tool for GetCategoryStatsTool {
     }
 }
 
+// ===== search_external_dict 工具 =====
+
+#[derive(Deserialize)]
+pub struct SearchExternalDictArgs {
+    pub query: String,
+}
+
+#[derive(Serialize)]
+pub struct ExternalDictSearchResult {
+    pub text: String,
+    pub code: String,
+    pub category: String,
+    pub source: String,
+    pub is_secondary: bool,
+}
+
+#[derive(Serialize)]
+pub struct ExternalDictSearchResponse {
+    pub results: Vec<ExternalDictSearchResult>,
+    pub total: usize,
+}
+
+/// 用于外部词典搜索的轻量级数据（仅包含可 Clone 的字段）
+#[derive(Clone)]
+pub struct ExternalDictData {
+    pub entries: Vec<crate::dict::ExternalDictEntry>,
+}
+
+impl ExternalDictData {
+    pub fn from_manager(manager: &crate::app::ManagerState) -> Self {
+        Self {
+            entries: manager.external_entries.clone(),
+        }
+    }
+}
+
+pub struct SearchExternalDictTool {
+    pub data: ExternalDictData,
+}
+
+impl Tool for SearchExternalDictTool {
+    const NAME: &'static str = "search_external_dict";
+    type Error = SearchError;
+    type Args = SearchExternalDictArgs;
+    type Output = ExternalDictSearchResponse;
+
+    async fn definition(&self, _prompt: String) -> rig_core::completion::ToolDefinition {
+        rig_core::completion::ToolDefinition {
+            name: "search_external_dict".to_string(),
+            description: "搜索用户本地加载的外部 Rime 词典（.dict.yaml 文件）。支持按文字/词组查询编码，或按编码反查文字。".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "要查询的汉字、词组或编码"
+                    }
+                },
+                "required": ["query"]
+            }),
+        }
+    }
+
+    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        let query = args.query.to_lowercase();
+        let is_code_query = query.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '\'');
+
+        let mut results = Vec::new();
+        for entry in &self.data.entries {
+            let text_match = entry.text().to_lowercase().contains(&query);
+            let code_match = entry.code().to_lowercase().contains(&query);
+
+            // 如果是纯字母/数字查询，优先匹配编码；否则优先匹配文字
+            let matched = if is_code_query {
+                code_match || text_match
+            } else {
+                text_match || code_match
+            };
+
+            if matched {
+                results.push(ExternalDictSearchResult {
+                    text: entry.text().to_string(),
+                    code: entry.code().to_string(),
+                    category: entry.category().display_name().to_string(),
+                    source: entry.source().to_string(),
+                    is_secondary: entry.is_secondary(),
+                });
+            }
+        }
+
+        let total = results.len();
+        Ok(ExternalDictSearchResponse { total, results })
+    }
+}
+
 // ===== 工具注册 =====
 
 pub fn create_tools(
     engine: Arc<SearchEngine<DictEntry>>,
     help_manager: Arc<HelpManager>,
+    external_dict_data: Option<ExternalDictData>,
 ) -> Vec<Box<dyn ToolDyn>> {
-    vec![
+    let mut tools: Vec<Box<dyn ToolDyn>> = vec![
         Box::new(SearchTextTool {
             engine: engine.clone(),
         }),
@@ -414,5 +510,11 @@ pub fn create_tools(
             engine: engine.clone(),
         }),
         Box::new(GetCategoryStatsTool { engine }),
-    ]
+    ];
+
+    if let Some(data) = external_dict_data {
+        tools.push(Box::new(SearchExternalDictTool { data }));
+    }
+
+    tools
 }

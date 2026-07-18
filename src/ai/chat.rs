@@ -62,6 +62,8 @@ pub struct ChatState {
     pub show_screen_width_warning: bool,
     /// 当前对话 ID（None 表示未关联持久化对话）
     pub current_conversation_id: Option<String>,
+    /// 最后一条用户消息（用于重新生成）
+    pub last_user_message: Option<String>,
 }
 
 impl Default for ChatState {
@@ -73,6 +75,7 @@ impl Default for ChatState {
             abort_handle: None,
             show_screen_width_warning: false,
             current_conversation_id: None,
+            last_user_message: None,
         }
     }
 }
@@ -80,6 +83,7 @@ impl Default for ChatState {
 impl ChatState {
     /// 添加用户消息
     pub fn add_user_message(&mut self, content: String) {
+        self.last_user_message = Some(content.clone());
         self.messages.push(ChatMessage {
             role: Role::User,
             content,
@@ -152,6 +156,21 @@ impl ChatState {
         self.is_generating = false;
         self.stream_state = StreamState::Idle;
         self.abort_handle = None;
+    }
+
+    /// 准备重新生成：移除最后一条 AI 消息，返回最后一条用户消息内容（如果有）
+    /// 返回 None 表示无法重新生成（没有用户消息或正在生成中）
+    pub fn prepare_regenerate(&mut self) -> Option<String> {
+        if self.is_generating {
+            return None;
+        }
+        // 移除最后一条 AI 消息（如果是 AI 消息）
+        if let Some(last) = self.messages.last() {
+            if last.role == Role::AI {
+                self.messages.pop();
+            }
+        }
+        self.last_user_message.clone()
     }
 
     /// 按轮数裁剪历史消息，保留最近 N 轮对话
