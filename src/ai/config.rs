@@ -59,6 +59,9 @@ pub struct AiConfig {
     pub history_rounds: u32,
     /// 最大工具调用轮次（防止 AI 无限循环调用工具）
     pub max_tool_turns: u32,
+    /// 用户是否已完成初始配置（保存过设置即设为 true，用于启动时跳过未配置提示）
+    #[serde(default)]
+    pub configured: bool,
 }
 
 impl Default for AiConfig {
@@ -76,6 +79,7 @@ impl Default for AiConfig {
             privacy_acknowledged: false,
             history_rounds: 10,
             max_tool_turns: 10,
+            configured: false,
         }
     }
 }

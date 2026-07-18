@@ -24,11 +24,13 @@ pub fn render_chat_viewport(ui: &mut egui::Ui, app: &mut DictApp) {
     poll_chat_stream(app, &ctx);
     poll_chat_test(app);
 
-    // 加载 AI 配置检查是否已配置 API Key
+    // 加载 AI 配置检查是否已配置（优先使用草稿，否则检查磁盘的 configured 标志）
     let ai_config = AiConfig::load();
-    let has_api_key = ai_config.get_api_key().is_ok();
-
-    // 检查是否需要显示隐私提示弹窗
+    let has_api_key = if app.chat_settings_init {
+        !app.chat_api_key_draft.is_empty()
+    } else {
+        ai_config.configured
+    };
     let mandatory_privacy =
         !ai_config.privacy_acknowledged && app.chat_tab == crate::app::ChatTab::Conversation;
     if mandatory_privacy || app.show_privacy_dialog {
@@ -523,66 +525,84 @@ fn send_message(app: &mut DictApp, ctx: &egui::Context) {
     app.chat_input.clear();
     app.chat_state.start_generation();
 
-    let ai_config = crate::ai::config::AiConfig::load();
+    // 使用草稿配置（设置页已初始化时），否则从磁盘加载
+    let (ai_config, api_key) = if app.chat_settings_init {
+        let draft_key = app.chat_api_key_draft.clone();
+        if draft_key.is_empty() {
+            app.chat_state.is_generating = false;
+            app.chat_state.add_ai_message("无法发送消息：请先在设置中配置 API Key".to_string());
+            return;
+        }
+        (app.chat_settings_draft.clone(), draft_key)
+    } else {
+        let cfg = crate::ai::config::AiConfig::load();
+        let key = match cfg.get_api_key() {
+            Ok(k) => k,
+            Err(_) => {
+                app.chat_state.is_generating = false;
+                app.chat_state.add_ai_message("无法发送消息：请先配置 API Key".to_string());
+                return;
+            }
+        };
+        (cfg, key)
+    };
     let runtime = app.tokio_runtime.as_ref();
+    let Some(runtime) = runtime else {
+        app.chat_state.is_generating = false;
+        app.chat_state.add_ai_message("无法发送消息：后台运行时未初始化".to_string());
+        return
+    };
 
-    // 准备外部词典数据（仅在有外部词典时）
-    let external_dict_data = if !app.manager.external_entries.is_empty() {
+    // 准备外部词典数据（仅在有外部词典且用户启用时）
+    let external_dict_data = if !app.manager.external_entries.is_empty() && ai_config.enable_external_dict_tool {
         Some(crate::ai::tools::ExternalDictData::from_manager(&app.manager))
     } else {
         None
     };
 
-    if let (Ok(api_key), Some(runtime)) = (ai_config.get_api_key(), runtime) {
-            let engine = app.engine.clone();
-            let help_mgr = app.help_manager.clone();
+    let engine = app.engine.clone();
+    let help_mgr = app.help_manager.clone();
 
-            // 按配置的轮数裁剪历史
-            app.chat_state
-                .trim_history(ai_config.history_rounds as usize);
+    // 按配置的轮数裁剪历史
+    app.chat_state
+        .trim_history(ai_config.history_rounds as usize);
 
-            // 创建 channel 接收响应
-            let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<crate::ai::client::StreamMessage>();
-            app.chat_rx = Some(rx);
+    // 创建 channel 接收响应
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<crate::ai::client::StreamMessage>();
+    app.chat_rx = Some(rx);
 
-            // 在后台 tokio 任务中执行整个异步流程
-            let ctx_clone = ctx.clone();
-            let config_clone = ai_config.clone();
-            let message_clone = message.clone();
+    // 在后台 tokio 任务中执行整个异步流程
+    let ctx_clone = ctx.clone();
+    let config_clone = ai_config.clone();
+    let message_clone = message.clone();
 
-            crate::ai_log!("[AI] 发送消息: model={}, function_calling={}", 
-                ai_config.model, ai_config.enable_function_calling);
+    crate::ai_log!("[AI] 发送消息: model={}, function_calling={}",
+        ai_config.model, ai_config.enable_function_calling);
 
-            let handle = runtime.spawn(async move {
-                let client = match crate::ai::client::create_client(&config_clone, &api_key) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        crate::ai_log!("[AI] 创建客户端失败: {}", e);
-                        let _ = tx.send(crate::ai::client::StreamMessage::Error(e));
-                        ctx_clone.request_repaint();
-                        return;
-                    }
-                };
-                let agent = crate::ai::client::build_agent(
-                    client,
-                    &config_clone,
-                    engine,
-                    help_mgr,
-                    external_dict_data,
-                );
-                crate::ai_log!("[AI] Agent 创建成功，开始流式请求");
-                let _ = crate::ai::client::send_message_stream(&agent, &message_clone, tx).await;
-                crate::ai_log!("[AI] 流式请求完成");
+    let handle = runtime.spawn(async move {
+        let client = match crate::ai::client::create_client(&config_clone, &api_key) {
+            Ok(c) => c,
+            Err(e) => {
+                crate::ai_log!("[AI] 创建客户端失败: {}", e);
+                let _ = tx.send(crate::ai::client::StreamMessage::Error(e));
                 ctx_clone.request_repaint();
-            });
+                return;
+            }
+        };
+        let agent = crate::ai::client::build_agent(
+            client,
+            &config_clone,
+            engine,
+            help_mgr,
+            external_dict_data,
+        );
+        crate::ai_log!("[AI] Agent 创建成功，开始流式请求");
+        let _ = crate::ai::client::send_message_stream(&agent, &message_clone, tx).await;
+        crate::ai_log!("[AI] 流式请求完成");
+        ctx_clone.request_repaint();
+    });
 
-            app.chat_state.abort_handle = Some(handle.abort_handle());
-        } else {
-        // 没有 API Key 或 runtime，显示错误
-        app.chat_state
-            .add_ai_message("无法发送消息：请先配置 API Key".to_string());
-        app.chat_state.is_generating = false;
-    }
+    app.chat_state.abort_handle = Some(handle.abort_handle());
 }
 
 /// 渲染设置标签页
@@ -694,6 +714,18 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
 
             ui.add_space(4.0);
 
+            // API URL（内置与自定义都显示，方便手动修正）
+            ui.horizontal(|ui| {
+                field_label(ui, "API URL:", label_w_api, false);
+                ui.add(
+                    egui::TextEdit::singleline(&mut config.api_url)
+                        .desired_width(ui.available_width())
+                        .frame(input_frame),
+                );
+            });
+
+            ui.add_space(4.0);
+
             // API Key 输入
             ui.horizontal(|ui| {
                 field_label(ui, "API Key:", label_w_api, false);
@@ -706,18 +738,6 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
             });
 
             ui.add_space(4.0);
-
-            // API URL（仅 Custom 提供商显示）
-            // API URL：内置与自定义提供商都显示，方便在内置默认值有误时手动修正
-            ui.horizontal(|ui| {
-                field_label(ui, "API URL:", label_w_api, false);
-                ui.add(
-                    egui::TextEdit::singleline(&mut config.api_url)
-                        .desired_width(ui.available_width())
-                        .frame(input_frame),
-                );
-            });
-            ui.add_space(8.0);
 
             // 模型选择
             ui.horizontal(|ui| {
@@ -757,15 +777,14 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
             ui.label("高级选项");
             ui.add_space(4.0);
 
-            // 外部词典工具尚未实现，暂时禁用
-            ui.add_enabled(
-                false,
+            // 外部词典工具开关（控制 AI 是否可查询本地 Rime 词典）
+            ui.add(
                 egui::Checkbox::new(
                     &mut config.enable_external_dict_tool,
-                    "启用外部词典工具（即将推出）",
+                    "启用外部词典工具",
                 ),
             )
-            .on_hover_text("该工具尚未实现，敬请期待后续版本");
+            .on_hover_text("启用后 AI 可以搜索您加载的外部 Rime 词典内容。查询时会发送本地词库片段到 AI 服务商");
             ui.horizontal_wrapped(|ui| {
                 ui.small("（查询会上传本地词库片段，见");
                 if ui
@@ -848,6 +867,7 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
                     }
                     // 保存配置（仅当 Key 保存未失败时继续）
                     if msg.is_empty() {
+                        config.configured = !app.chat_api_key_draft.is_empty();
                         match config.save() {
                             Ok(()) => msg = "✅ 设置已保存".to_string(),
                             Err(e) => msg = format!("❌ 保存配置失败: {e}"),
@@ -865,6 +885,8 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
                     app.chat_save_response = format!("❌ 清除失败: {e}");
                 } else {
                     app.chat_api_key_draft.clear();
+                    config.configured = false;
+                    let _ = config.save();
                     app.chat_save_response = "✅ API Key 已清除".to_string();
                 }
             }
@@ -883,70 +905,75 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp) {
         ui.add_space(4.0);
 
         // 测试连接按钮（非阻塞，后台执行，进行中视觉禁用）
-        let test_label = if app.chat_test_in_progress {
-            "🔗 测试中..."
-        } else {
-            "🔗 测试连接"
-        };
-        if ui
-            .add_enabled(!app.chat_test_in_progress, egui::Button::new(test_label))
-            .clicked()
-        {
-            if app.chat_api_key_draft.is_empty() {
-                app.chat_test_response = "❌ 请先输入 API Key".to_string();
+        ui.horizontal(|ui| {
+            let test_label = if app.chat_test_in_progress {
+                "🔗 测试中..."
             } else {
-                let test_config = config.clone();
-                let api_key = app.chat_api_key_draft.clone();
-                let runtime = app.tokio_runtime.as_ref();
-                if let Some(runtime) = runtime {
-                    let (tx, rx) = tokio::sync::oneshot::channel::<String>();
-                    app.chat_test_rx = Some(rx);
-                    app.chat_test_in_progress = true;
-                    app.chat_test_response.clear();
-
-                    let engine = app.engine.clone();
-                    let help_mgr_test = app.help_manager.clone();
-                    let external_dict_data = if !app.manager.external_entries.is_empty() {
-                        Some(crate::ai::tools::ExternalDictData::from_manager(&app.manager))
-                    } else {
-                        None
-                    };
-                    let ctx_clone = ui.ctx().clone();
-
-                    runtime.spawn(async move {
-                        let result = async {
-                            let client = crate::ai::client::create_client(&test_config, &api_key)?;
-                            let agent = crate::ai::client::build_agent(
-                                client,
-                                &test_config,
-                                engine,
-                                help_mgr_test,
-                                external_dict_data,
-                            );
-                            crate::ai::client::send_message(&agent, "hi").await
-                        }
-                        .await;
-                        let msg = match result {
-                            Ok(_) => "✅ 连接成功".to_string(),
-                            Err(e) => format!("❌ {e}"),
-                        };
-                        let _ = tx.send(msg);
-                        ctx_clone.request_repaint();
-                    });
+                "🔗 测试连接"
+            };
+            if ui
+                .add_enabled(!app.chat_test_in_progress, egui::Button::new(test_label))
+                .clicked()
+            {
+                if app.chat_api_key_draft.is_empty() {
+                    app.chat_test_response = "❌ 请先输入 API Key".to_string();
                 } else {
-                    app.chat_test_response = "❌ Tokio 运行时未初始化".to_string();
+                    let test_config = config.clone();
+                    let api_key = app.chat_api_key_draft.clone();
+                    let runtime = app.tokio_runtime.as_ref();
+                    if let Some(runtime) = runtime {
+                        let (tx, rx) = tokio::sync::oneshot::channel::<String>();
+                        app.chat_test_rx = Some(rx);
+                        app.chat_test_in_progress = true;
+                        app.chat_test_response.clear();
+
+                        let engine = app.engine.clone();
+                        let help_mgr_test = app.help_manager.clone();
+                        let external_dict_data = if !app.manager.external_entries.is_empty() {
+                            Some(crate::ai::tools::ExternalDictData::from_manager(
+                                &app.manager,
+                            ))
+                        } else {
+                            None
+                        };
+                        let ctx_clone = ui.ctx().clone();
+
+                        runtime.spawn(async move {
+                            let result = async {
+                                let client =
+                                    crate::ai::client::create_client(&test_config, &api_key)?;
+                                let agent = crate::ai::client::build_agent(
+                                    client,
+                                    &test_config,
+                                    engine,
+                                    help_mgr_test,
+                                    external_dict_data,
+                                );
+                                crate::ai::client::send_message(&agent, "hi").await
+                            }
+                            .await;
+                            let msg = match result {
+                                Ok(_) => "✅ 连接成功".to_string(),
+                                Err(e) => format!("❌ {e}"),
+                            };
+                            let _ = tx.send(msg);
+                            ctx_clone.request_repaint();
+                        });
+                    } else {
+                        app.chat_test_response = "❌ Tokio 运行时未初始化".to_string();
+                    }
                 }
             }
-        }
 
-        // 显示测试连接结果
-        if !app.chat_test_response.is_empty() {
-            let color = if app.chat_test_response.starts_with("❌") {
-                egui::Color32::from_rgb(220, 50, 50)
-            } else {
-                egui::Color32::from_rgb(34, 150, 80)
-            };
-            ui.label(egui::RichText::new(&app.chat_test_response).color(color));
-        }
+            // 显示测试连接结果（与按钮同行）
+            if !app.chat_test_response.is_empty() {
+                let color = if app.chat_test_response.starts_with("❌") {
+                    egui::Color32::from_rgb(220, 50, 50)
+                } else {
+                    egui::Color32::from_rgb(34, 150, 80)
+                };
+                ui.label(egui::RichText::new(&app.chat_test_response).color(color));
+            }
+        });
     });
 }
