@@ -79,26 +79,35 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                // Keyboard nav for category cycling
-                let k_down = ui.input(|i| i.key_pressed(egui::Key::ArrowDown));
-                let k_up = ui.input(|i| i.key_pressed(egui::Key::ArrowUp));
-                if k_down || k_up {
-                    let all_cats: Vec<Option<Category>> = std::iter::once(None)
-                        .chain(app.categories.iter().copied().map(Some))
-                        .collect();
-                    let curr = all_cats
-                        .iter()
-                        .position(|&c| c == app.selected_category)
-                        .unwrap_or(0);
-                    let next = if k_down {
-                        (curr + 1) % all_cats.len()
-                    } else {
-                        (curr + all_cats.len() - 1) % all_cats.len()
-                    };
-                    app.selected_category = all_cats[next];
+                // Keyboard nav for category cycling (仅词典视图，AI 对话时不监听方向键)
+                if !app.show_chat_viewport {
+                    let k_down = ui.input(|i| i.key_pressed(egui::Key::ArrowDown));
+                    let k_up = ui.input(|i| i.key_pressed(egui::Key::ArrowUp));
+                    if k_down || k_up {
+                        let all_cats: Vec<Option<Category>> = std::iter::once(None)
+                            .chain(app.categories.iter().copied().map(Some))
+                            .collect();
+                        let curr = all_cats
+                            .iter()
+                            .position(|&c| c == app.selected_category)
+                            .unwrap_or(0);
+                        let next = if k_down {
+                            (curr + 1) % all_cats.len()
+                        } else {
+                            (curr + all_cats.len() - 1) % all_cats.len()
+                        };
+                        app.selected_category = all_cats[next];
+                    }
                 }
 
-                if ui.button("→ 输入法数据").clicked() {
+                let rime_label = if cfg!(target_os = "macos") {
+                    "→ Rime数据 (Squirrel)"
+                } else if cfg!(target_os = "windows") {
+                    "→ Rime数据 (小狼毫)"
+                } else {
+                    "→ Rime数据"
+                };
+                if ui.button(rime_label).clicked() {
                     app.current_view = crate::app::ViewMode::Manager;
                     app.manager.search_auto_focus = true;
                     // 检查文件变更并自动重载

@@ -67,14 +67,15 @@ impl ConversationStore {
                 let path = entry.path();
                 if path.extension().and_then(|s| s.to_str()) == Some("json")
                     && let Ok(content) = std::fs::read_to_string(&path)
-                        && let Ok(conv) = serde_json::from_str::<Conversation>(&content) {
-                            metas.push(ConversationMeta {
-                                id: conv.id,
-                                title: conv.title,
-                                created_at: conv.created_at,
-                                updated_at: conv.updated_at,
-                            });
-                        }
+                    && let Ok(conv) = serde_json::from_str::<Conversation>(&content)
+                {
+                    metas.push(ConversationMeta {
+                        id: conv.id,
+                        title: conv.title,
+                        created_at: conv.created_at,
+                        updated_at: conv.updated_at,
+                    });
+                }
             }
         }
         metas.sort_by_key(|m| std::cmp::Reverse(m.updated_at));

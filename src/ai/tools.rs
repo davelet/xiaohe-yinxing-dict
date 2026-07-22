@@ -418,16 +418,53 @@ pub struct ExternalDictSearchResponse {
     pub total: usize,
 }
 
+use std::collections::{BTreeMap, HashSet};
+
+/// 索引 n-gram 的最大长度（同时也是查询用于缩小候选范围的前缀长度）
+const NGRAM_MAX_LEN: usize = 4;
+
 /// 用于外部词典搜索的轻量级数据（仅包含可 Clone 的字段）
 #[derive(Clone)]
 pub struct ExternalDictData {
     pub entries: Vec<crate::dict::ExternalDictEntry>,
+    /// n-gram 倒排索引：子串（长度 1..=NGRAM_MAX_LEN） -> 条目索引列表
+    /// 索引所有位置的子串（而非仅前缀），以支持任意位置的子串匹配
+    ngram_index: BTreeMap<String, Vec<usize>>,
+}
+
+/// 生成字符串中长度为 1..=NGRAM_MAX_LEN 的所有子串（按字符计）
+fn collect_ngrams(s: &str, out: &mut HashSet<String>) {
+    let chars: Vec<char> = s.chars().collect();
+    let n = chars.len();
+    for start in 0..n {
+        let max_len = std::cmp::min(NGRAM_MAX_LEN, n - start);
+        for len in 1..=max_len {
+            let gram: String = chars[start..start + len].iter().collect();
+            out.insert(gram);
+        }
+    }
 }
 
 impl ExternalDictData {
     pub fn from_manager(manager: &crate::app::ManagerState) -> Self {
+        let entries = manager.external_entries.clone();
+        let mut ngram_index: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+
+        // 为每个条目构建 n-gram 索引（对文字和编码都生成所有位置的子串）
+        for (idx, entry) in entries.iter().enumerate() {
+            // 用 HashSet 去重，避免同一条目在相同 key 下被重复加入
+            let mut grams = HashSet::new();
+            collect_ngrams(&entry.text().to_lowercase(), &mut grams);
+            collect_ngrams(&entry.code().to_lowercase(), &mut grams);
+
+            for gram in grams {
+                ngram_index.entry(gram).or_default().push(idx);
+            }
+        }
+
         Self {
-            entries: manager.external_entries.clone(),
+            entries,
+            ngram_index,
         }
     }
 }
@@ -461,10 +498,26 @@ impl Tool for SearchExternalDictTool {
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let query = args.query.to_lowercase();
-        let is_code_query = query.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '\'');
+        let is_code_query = query
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '\'');
+
+        // 使用 n-gram 索引缩小候选范围：取查询前 NGRAM_MAX_LEN 个字符作为探针。
+        // 任何包含完整 query 的条目，必然也包含该探针子串，因此不会漏掉子串匹配。
+        let query_gram: String = query.chars().take(NGRAM_MAX_LEN).collect();
+        let candidates: Vec<usize> = if let Some(indices) = self.data.ngram_index.get(&query_gram) {
+            indices.clone()
+        } else {
+            // 探针子串不存在于任何条目中，直接返回空结果
+            return Ok(ExternalDictSearchResponse {
+                total: 0,
+                results: Vec::new(),
+            });
+        };
 
         let mut results = Vec::new();
-        for entry in &self.data.entries {
+        for &idx in &candidates {
+            let entry = &self.data.entries[idx];
             let text_match = entry.text().to_lowercase().contains(&query);
             let code_match = entry.code().to_lowercase().contains(&query);
 

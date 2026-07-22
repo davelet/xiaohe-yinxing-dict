@@ -26,10 +26,11 @@ impl eframe::App for DictApp {
                 } else {
                     None
                 }
-            }) {
-                ctx.send_viewport_cmd(cmd);
-                self.main_window_positioned = true;
-            }
+            })
+        {
+            ctx.send_viewport_cmd(cmd);
+            self.main_window_positioned = true;
+        }
 
         // Handle feedback timer
         if self.feedback_timer > 0.0 {
@@ -240,8 +241,8 @@ impl eframe::App for DictApp {
             }
         }
 
-        // Top panel (hidden in help mode)
-        if !self.show_help_panel {
+        // Top panel (hidden in help mode and chat mode)
+        if !self.show_help_panel && !self.show_chat_viewport {
             match self.current_view {
                 crate::app::ViewMode::Dict => panel::render_top_panel(self, ui, &ctx),
                 crate::app::ViewMode::Manager => {
@@ -255,8 +256,8 @@ impl eframe::App for DictApp {
             }
         }
 
-        // Bottom panel (hidden in help mode)
-        if !self.show_help_panel {
+        // Bottom panel (hidden in help mode and chat mode)
+        if !self.show_help_panel && !self.show_chat_viewport {
             match self.current_view {
                 crate::app::ViewMode::Dict => panel::render_bottom_panel(self, ui),
                 crate::app::ViewMode::Manager => {
@@ -274,71 +275,6 @@ impl eframe::App for DictApp {
                 self.render_main_content(ui, &ctx);
             }
         });
-
-        // ========== AI 对话子窗口 ==========
-        if self.show_chat_viewport {
-            let (outer_rect, inner_rect, screen_width) = ctx.input(|i| {
-                (
-                    i.viewport().outer_rect,
-                    i.viewport().inner_rect,
-                    i.viewport_rect().width(),
-                )
-            });
-            if let Some(outer) = outer_rect {
-                // 如果屏幕宽度不足，显示提示
-                if screen_width < 950.0 {
-                    self.show_screen_width_warning = true;
-                } else {
-                    self.show_screen_width_warning = false;
-                    let chat_width = (440.0_f32).min(screen_width - 950.0).max(340.0);
-
-                    // 计算子窗口位置：
-                    // Windows 上 outer_rect 包含不可见的 DWM 边框（约 7px），
-                    // 直接用 outer.max.x 会导致两窗口间出现可见间隙。
-                    // 用 inner_rect 的右边缘减去边框宽度，使两窗口可见边缘紧贴。
-                    // macOS 上 inner/outer 的 x 范围一致（border_x=0），行为不变。
-                    let new_pos = if let Some(inner) = inner_rect {
-                        let border_x = outer.max.x - inner.max.x;
-                        egui::pos2(inner.max.x - border_x, outer.min.y)
-                    } else {
-                        egui::pos2(outer.max.x, outer.min.y)
-                    };
-
-                    // 每帧通过 builder 直接同步子窗口位置/尺寸到主窗口右侧，
-                    // 避免依赖延迟的 ViewportCommand，从而让跟随更连贯
-                    ctx.show_viewport_immediate(
-                        self.chat_viewport_id,
-                        egui::ViewportBuilder::default()
-                            .with_title("小鹤音形 - AI 助手")
-                            .with_inner_size([chat_width, 650.0])
-                            .with_position(new_pos)
-                            .with_resizable(false)
-                            .with_maximize_button(false)
-                            .with_minimize_button(false),
-                        |ui, _class| {
-                            chat_viewport::render_chat_viewport(ui, self);
-                        },
-                    );
-                    self.last_main_window_pos = Some(new_pos);
-                }
-            }
-        }
-
-        // 屏幕宽度不足提示
-        if self.show_screen_width_warning && self.show_chat_viewport {
-            egui::Window::new("屏幕宽度不足")
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-                .show(&ctx, |ui| {
-                    ui.label("屏幕宽度不足，无法显示 AI 对话窗口。");
-                    ui.label("请调整主窗口位置或缩小其他窗口。");
-                    ui.add_space(8.0);
-                    if ui.button("知道了").clicked() {
-                        self.show_screen_width_warning = false;
-                    }
-                });
-        }
 
         // 检查是否切换到了词典视图，如果是则设置自动聚焦标志
         self.check_view_changed_to_dict(previous_view);
@@ -781,16 +717,21 @@ impl DictApp {
     }
 
     fn render_main_content(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        // 根据当前视图渲染不同内容
-        match self.current_view {
-            crate::app::ViewMode::Dict => {
-                self.render_dict_content(ui, ctx);
-            }
-            crate::app::ViewMode::Manager => {
-                self.render_manager_content(ui, ctx);
-            }
-            crate::app::ViewMode::Chat => {
-                self.render_dict_content(ui, ctx);
+        // 如果显示 AI 聊天，直接全屏渲染
+        if self.show_chat_viewport {
+            chat_viewport::render_chat_viewport(ui, self);
+        } else {
+            // 不显示 AI 时根据当前视图渲染主内容
+            match self.current_view {
+                crate::app::ViewMode::Dict => {
+                    self.render_dict_content(ui, ctx);
+                }
+                crate::app::ViewMode::Manager => {
+                    self.render_manager_content(ui, ctx);
+                }
+                crate::app::ViewMode::Chat => {
+                    self.render_dict_content(ui, ctx);
+                }
             }
         }
     }

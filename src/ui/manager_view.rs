@@ -18,7 +18,7 @@ pub fn render_manager_top_panel(
 ) {
     egui::Panel::top("manager_top_panel").show_inside(ui, |ui| {
         ui.horizontal(|ui| {
-            ui.heading("输入法数据");
+            ui.heading("Rime数据");
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Keyboard nav: left arrow to go back（添加新词输入框聚焦时不触发）

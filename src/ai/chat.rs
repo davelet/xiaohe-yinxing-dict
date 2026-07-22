@@ -64,6 +64,8 @@ pub struct ChatState {
     pub current_conversation_id: Option<String>,
     /// 最后一条用户消息（用于重新生成）
     pub last_user_message: Option<String>,
+    /// 流式过程中到达的工具调用，在 finish_generation 时附加到新建的 AI 消息上
+    pub pending_tool_calls: Vec<ToolCallRecord>,
 }
 
 impl Default for ChatState {
@@ -76,6 +78,7 @@ impl Default for ChatState {
             show_screen_width_warning: false,
             current_conversation_id: None,
             last_user_message: None,
+            pending_tool_calls: Vec::new(),
         }
     }
 }
@@ -119,6 +122,7 @@ impl ChatState {
     pub fn start_generation(&mut self) {
         self.is_generating = true;
         self.stream_state = StreamState::Generating(String::new());
+        self.pending_tool_calls.clear();
     }
 
     /// 追加流式内容（逐字累积）
@@ -128,11 +132,27 @@ impl ChatState {
         }
     }
 
+    /// 记录一次流式过程中到达的工具调用（在生成完成时附加到 AI 消息）
+    pub fn record_tool_call(&mut self, tool_name: String, arguments: String, result: String) {
+        self.pending_tool_calls.push(ToolCallRecord {
+            tool_name,
+            arguments,
+            result,
+        });
+    }
+
     /// 完成生成
     pub fn finish_generation(&mut self) {
         self.is_generating = false;
         if let StreamState::Generating(content) = std::mem::take(&mut self.stream_state) {
-            self.add_ai_message(content);
+            let tool_calls = std::mem::take(&mut self.pending_tool_calls);
+            self.messages.push(ChatMessage {
+                role: Role::AI,
+                content,
+                timestamp: now_unix(),
+                tool_calls,
+                is_interrupted: false,
+            });
         }
         self.abort_handle = None;
     }
@@ -143,6 +163,7 @@ impl ChatState {
             handle.abort();
         }
         self.is_generating = false;
+        self.pending_tool_calls.clear();
         if let StreamState::Generating(content) = std::mem::take(&mut self.stream_state)
             && !content.is_empty()
         {
@@ -165,11 +186,10 @@ impl ChatState {
             return None;
         }
         // 移除最后一条 AI 消息（如果是 AI 消息）
-        if let Some(last) = self.messages.last() {
-            if last.role == Role::AI {
+        if let Some(last) = self.messages.last()
+            && last.role == Role::AI {
                 self.messages.pop();
             }
-        }
         self.last_user_message.clone()
     }
 
@@ -198,6 +218,36 @@ impl ChatState {
         if split_index > 0 {
             self.messages.drain(..split_index);
         }
+    }
+
+    /// 将历史消息（不含最后一条用户消息，因为它是当前 prompt）转换为 rig-core Message 格式
+    /// 用于 stream_chat 的 chat_history 参数
+    pub fn to_rig_history(&self) -> Vec<rig_core::completion::Message> {
+        use rig_core::OneOrMany;
+        use rig_core::completion::{AssistantContent, Message};
+
+        // 排除最后一条消息（它是当前要发送的用户消息，由 stream_chat 的 prompt 参数传入）
+        let msgs = if self
+            .messages
+            .last()
+            .map(|m| m.role == Role::User)
+            .unwrap_or(false)
+        {
+            &self.messages[..self.messages.len() - 1]
+        } else {
+            &self.messages[..]
+        };
+
+        msgs.iter()
+            .filter_map(|msg| match msg.role {
+                Role::User => Some(Message::from(msg.content.clone())),
+                Role::AI => Some(Message::Assistant {
+                    id: None,
+                    content: OneOrMany::one(AssistantContent::text(msg.content.clone())),
+                }),
+                _ => None,
+            })
+            .collect()
     }
 
     /// 获取估算的 token 数量（粗略估计：1 个汉字约 2 个 token，1 个英文单词约 1.5 个 token）

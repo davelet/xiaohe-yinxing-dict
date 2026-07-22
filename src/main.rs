@@ -91,14 +91,11 @@ impl DictApp {
             show_about_dialog: false,
             search_dirty: true,
             cached_category_count: None,
-            // AI 对话子窗口
+            // AI 对话
             show_chat_viewport: false,
             // 手动请求再次弹出“隐私声明”窗口（由设置页“见隐私声明”触发）
             show_privacy_dialog: false,
-            chat_viewport_id: egui::ViewportId::from_hash_of("ai_chat_viewport"),
             chat_tab: app::ChatTab::Conversation,
-            last_main_window_pos: None,
-            show_screen_width_warning: false,
             main_window_positioned: false,
             chat_input: String::new(),
             chat_state: ai::chat::ChatState::default(),
@@ -107,16 +104,25 @@ impl DictApp {
                     .expect("无法初始化 Tokio 运行时，AI 对话功能将不可用"),
             ),
             chat_test_response: String::new(),
-            chat_settings_draft: ai::config::AiConfig::default(),
-            chat_settings_init: false,
-            chat_api_key_draft: String::new(),
             chat_md_cache: egui_commonmark::CommonMarkCache::default(),
             chat_rx: None,
             chat_test_rx: None,
             chat_test_in_progress: false,
             chat_save_response: String::new(),
+            chat_global_save_response: String::new(),
             last_chat_send_time: None,
             conversation_store: ai::history::ConversationStore::new(),
+            editing_model_id: None,
+            show_model_edit_dialog: false,
+            editing_model_name: String::new(),
+            editing_model_provider: ai::config::Provider::default(),
+            editing_model_api_url: String::new(),
+            editing_model_model: String::new(),
+            editing_model_api_key: String::new(),
+            editing_model_temperature: 0.7,
+            editing_model_max_tokens: 2048,
+            confirm_delete_model_id: None,
+            confirm_delete_model_name: String::new(),
         }
     }
 
@@ -202,17 +208,11 @@ struct DictApp {
     search_dirty: bool,
     /// 分类条目数缓存：(分类, 数量)；仅在 selected_category 变化时失效
     cached_category_count: Option<(Option<crate::dict::Category>, usize)>,
-    // ===== AI 对话子窗口 =====
-    /// 是否显示 AI 对话子窗口
+    // ===== AI 对话 =====
+    /// 是否显示 AI 聊天（全屏占据主内容区）
     show_chat_viewport: bool,
-    /// 子窗口 viewport ID
-    chat_viewport_id: egui::ViewportId,
     /// AI 对话标签页（对话/设置）
     chat_tab: app::ChatTab,
-    /// 上一帧主窗口位置（用于检测移动）
-    last_main_window_pos: Option<egui::Pos2>,
-    /// 屏幕宽度不足时显示提示
-    show_screen_width_warning: bool,
     /// 主窗口是否已在首帧完成靠左定位（避免每帧覆盖、影响拖拽）
     main_window_positioned: bool,
     /// AI 对话输入框内容
@@ -223,12 +223,6 @@ struct DictApp {
     tokio_runtime: Option<tokio::runtime::Runtime>,
     /// “测试连接”结果提示（持久保存，避免每帧重建丢失）
     chat_test_response: String,
-    /// AI 设置表单草稿（持久保存，避免每帧从配置重载导致修改丢失）
-    chat_settings_draft: ai::config::AiConfig,
-    /// 设置草稿是否已从配置初始化
-    chat_settings_init: bool,
-    /// API Key 输入框草稿（来自钥匙串，单独持久保存）
-    chat_api_key_draft: String,
     /// 手动请求再次弹出"隐私声明"窗口（由设置页"见隐私声明"触发）
     show_privacy_dialog: bool,
     /// AI 对话 Markdown 渲染缓存（跨帧持久化）
@@ -241,10 +235,34 @@ struct DictApp {
     chat_test_in_progress: bool,
     /// 保存设置结果提示（独立于测试连接消息）
     chat_save_response: String,
+    /// 全局设置保存结果提示
+    chat_global_save_response: String,
     /// 上次发送消息时间（用于请求频率控制）
     last_chat_send_time: Option<std::time::Instant>,
     /// 对话存储管理器（持久化对话历史）
     conversation_store: ai::history::ConversationStore,
+    /// 当前正在编辑的模型ID（None表示新增）
+    editing_model_id: Option<String>,
+    /// 是否显示模型编辑弹窗
+    show_model_edit_dialog: bool,
+    /// 编辑弹窗中的名称草稿
+    editing_model_name: String,
+    /// 编辑弹窗中的提供商草稿
+    editing_model_provider: ai::config::Provider,
+    /// 编辑弹窗中的API URL草稿
+    editing_model_api_url: String,
+    /// 编辑弹窗中的模型名草稿
+    editing_model_model: String,
+    /// 编辑弹窗中的API Key草稿
+    editing_model_api_key: String,
+    /// 编辑弹窗中的温度草稿
+    editing_model_temperature: f32,
+    /// 编辑弹窗中的词元上限草稿
+    editing_model_max_tokens: u32,
+    /// 待确认删除的模型ID
+    confirm_delete_model_id: Option<String>,
+    /// 待确认删除的模型名称
+    confirm_delete_model_name: String,
 }
 
 fn create_app_icon() -> egui::IconData {

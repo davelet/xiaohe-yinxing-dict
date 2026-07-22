@@ -2553,16 +2553,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "keyring"
-version = "3.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eebcc3aff044e5944a8fbaf69eb277d11986064cba30c468730e8b9909fb551c"
-dependencies = [
- "log 0.4.32",
- "zeroize",
-]
-
-[[package]]
 name = "khronos-egl"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5438,6 +5428,7 @@ version = "1.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "144d6b123cef80b301b8f72a9e2ca4370ddec21950d0a103dd22c437006d2db7"
 dependencies = [
+ "getrandom 0.4.2",
  "js-sys",
  "serde_core",
  "wasm-bindgen",
@@ -6631,7 +6622,6 @@ dependencies = [
  "egui_commonmark",
  "futures",
  "image",
- "keyring",
  "open",
  "reqwest 0.12.28",
  "rig-core",
@@ -6641,6 +6631,7 @@ dependencies = [
  "sysproxy",
  "thiserror 1.0.69",
  "tokio",
+ "uuid",
  "winres",
  "zip",
 ]
