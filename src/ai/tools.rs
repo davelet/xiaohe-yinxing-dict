@@ -498,9 +498,6 @@ impl Tool for SearchExternalDictTool {
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let query = args.query.to_lowercase();
-        let is_code_query = query
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '\'');
 
         // 使用 n-gram 索引缩小候选范围：取查询前 NGRAM_MAX_LEN 个字符作为探针。
         // 任何包含完整 query 的条目，必然也包含该探针子串，因此不会漏掉子串匹配。
@@ -521,12 +518,8 @@ impl Tool for SearchExternalDictTool {
             let text_match = entry.text().to_lowercase().contains(&query);
             let code_match = entry.code().to_lowercase().contains(&query);
 
-            // 如果是纯字母/数字查询，优先匹配编码；否则优先匹配文字
-            let matched = if is_code_query {
-                code_match || text_match
-            } else {
-                text_match || code_match
-            };
+            // 命中文字或编码任一即视为匹配
+            let matched = text_match || code_match;
 
             if matched {
                 results.push(ExternalDictSearchResult {

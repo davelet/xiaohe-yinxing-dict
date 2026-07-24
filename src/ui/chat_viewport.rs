@@ -306,10 +306,11 @@ fn render_ai_message(ui: &mut egui::Ui, app: &mut DictApp, msg_idx: usize, is_la
 
                         // 重新生成
                         if ui.small_button("🔄 重新生成").clicked()
-                            && let Some(user_msg) = app.chat_state.prepare_regenerate() {
-                                app.chat_input = user_msg;
-                                send_message(app, &ui.ctx().clone());
-                            }
+                            && let Some(user_msg) = app.chat_state.prepare_regenerate()
+                        {
+                            app.chat_input = user_msg;
+                            send_message(app, &ui.ctx().clone());
+                        }
                     });
                 }
             });
@@ -584,18 +585,18 @@ fn render_conversation_toolbar(ui: &mut egui::Ui, app: &mut DictApp, ai_config: 
             // 删除当前对话记录
             if app.chat_state.current_conversation_id.is_some()
                 && ui.small_button("🗑 删除此记录").clicked()
-                    && let Some(id) = app.chat_state.current_conversation_id.take() {
-                        let _ = app.conversation_store.delete_conversation(&id);
-                        app.chat_state.clear();
-                    }
+                && let Some(id) = app.chat_state.current_conversation_id.take()
+            {
+                let _ = app.conversation_store.delete_conversation(&id);
+                app.chat_state.clear();
+            }
 
             // 删除所有记录
-            if !conversations.is_empty()
-                && ui.small_button("⚠ 删除所有记录").clicked() {
-                    let _ = app.conversation_store.clear_all();
-                    app.chat_state.clear();
-                    app.chat_state.current_conversation_id = None;
-                }
+            if !conversations.is_empty() && ui.small_button("⚠ 删除所有记录").clicked() {
+                let _ = app.conversation_store.clear_all();
+                app.chat_state.clear();
+                app.chat_state.current_conversation_id = None;
+            }
         }
     });
     ui.separator();

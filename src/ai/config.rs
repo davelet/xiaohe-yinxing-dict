@@ -274,30 +274,31 @@ impl AiConfig {
 
         // 旧配置迁移（keyring 时代 -> 明文文件）
         if config.models.is_empty()
-            && let Some(provider) = config.provider.take() {
-                let name = provider.to_string();
-                let api_url = config.api_url.take().unwrap_or_else(|| match provider {
-                    Provider::DeepSeek => "https://api.deepseek.com".to_string(),
-                    Provider::Zhipu => "https://open.bigmodel.cn".to_string(),
-                    Provider::Moonshot => "https://api.moonshot.cn".to_string(),
-                    Provider::Qwen => "https://dashscope.aliyuncs.com".to_string(),
-                    Provider::Yi => "https://api.lingyiwanwu.com".to_string(),
-                    Provider::Custom => String::new(),
-                });
-                let model = config.model.take().unwrap_or_default();
-                let temperature = config.temperature.take().unwrap_or(0.7);
-                let max_tokens = config.max_tokens.take().unwrap_or(2048);
+            && let Some(provider) = config.provider.take()
+        {
+            let name = provider.to_string();
+            let api_url = config.api_url.take().unwrap_or_else(|| match provider {
+                Provider::DeepSeek => "https://api.deepseek.com".to_string(),
+                Provider::Zhipu => "https://open.bigmodel.cn".to_string(),
+                Provider::Moonshot => "https://api.moonshot.cn".to_string(),
+                Provider::Qwen => "https://dashscope.aliyuncs.com".to_string(),
+                Provider::Yi => "https://api.lingyiwanwu.com".to_string(),
+                Provider::Custom => String::new(),
+            });
+            let model = config.model.take().unwrap_or_default();
+            let temperature = config.temperature.take().unwrap_or(0.7);
+            let max_tokens = config.max_tokens.take().unwrap_or(2048);
 
-                let mut migrated =
-                    ModelConfig::new(name, provider, api_url, model, temperature, max_tokens);
-                // 固定 id 为 migrated（与历史逻辑一致）
-                migrated.id = "migrated".to_string();
-                // 旧 key 存在钥匙串里无法读取（keyring v3 在 macOS 15 有 bug），api_key 留空让用户重填
+            let mut migrated =
+                ModelConfig::new(name, provider, api_url, model, temperature, max_tokens);
+            // 固定 id 为 migrated（与历史逻辑一致）
+            migrated.id = "migrated".to_string();
+            // 旧 key 存在钥匙串里无法读取（keyring v3 在 macOS 15 有 bug），api_key 留空让用户重填
 
-                config.models.push(migrated);
-                config.active_model_id = Some("migrated".to_string());
-                config.configured = true;
-            }
+            config.models.push(migrated);
+            config.active_model_id = Some("migrated".to_string());
+            config.configured = true;
+        }
 
         // 校验修复
         config.validate_and_fix();

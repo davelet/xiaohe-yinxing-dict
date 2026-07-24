@@ -187,9 +187,10 @@ impl ChatState {
         }
         // 移除最后一条 AI 消息（如果是 AI 消息）
         if let Some(last) = self.messages.last()
-            && last.role == Role::AI {
-                self.messages.pop();
-            }
+            && last.role == Role::AI
+        {
+            self.messages.pop();
+        }
         self.last_user_message.clone()
     }
 
