@@ -6,7 +6,6 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum Provider {
     /// 深度求索 (DeepSeek)
-    #[default]
     DeepSeek,
     /// 智谱 (GLM)
     Zhipu,
@@ -17,6 +16,7 @@ pub enum Provider {
     /// 零一万物 (Yi)
     Yi,
     /// 自定义 OpenAI 兼容端点
+    #[default]
     Custom,
 }
 
@@ -105,8 +105,8 @@ impl Default for ModelConfig {
         Self::new(
             "默认配置".to_string(),
             Provider::default(),
-            "https://api.deepseek.com".to_string(),
-            "deepseek-chat".to_string(),
+            String::new(),
+            String::new(),
             0.7,
             2048,
         )
@@ -253,15 +253,16 @@ impl AiConfig {
 
         if let Some(active_id) = &self.active_model_id {
             if !self.models.iter().any(|m| m.id == *active_id) {
-                // 激活的ID不存在，回退到第一个模型
                 self.active_model_id = Some(self.models[0].id.clone());
             }
         } else {
-            // 没有激活ID，默认选第一个
             self.active_model_id = Some(self.models[0].id.clone());
         }
 
-        self.configured = !self.models.is_empty();
+        self.configured = self
+            .models
+            .iter()
+            .any(|m| !m.api_url.trim().is_empty() && !m.model.trim().is_empty());
     }
 
     /// 加载配置，文件不存在时返回默认配置

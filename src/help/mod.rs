@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
-use eframe::egui::{self, Color32, RichText, ScrollArea, Ui};
+use eframe::egui::{Color32, RichText, Ui};
 
 // 主题色
 const ORANGE: Color32 = Color32::from_rgb(200, 160, 80);
@@ -22,7 +22,7 @@ pub fn reset_table_counter() {
     TABLE_COUNTER.with(|c| c.set(0));
 }
 
-fn next_table_idx() -> usize {
+pub(in crate::help) fn next_table_idx() -> usize {
     TABLE_COUNTER.with(|c| {
         let v = c.get();
         c.set(v + 1);
@@ -387,7 +387,7 @@ const HIGHLIGHT_BG: Color32 = Color32::from_rgb(255, 250, 150);
 const HIGHLIGHT_FG: Color32 = Color32::BLACK;
 
 /// 在已有的 horizontal_wrapped 上下文中渲染文本及高亮
-fn render_hl_inline(ui: &mut Ui, text: &str, mk: impl Fn(&str) -> RichText) {
+pub(in crate::help) fn render_hl_inline(ui: &mut Ui, text: &str, mk: impl Fn(&str) -> RichText) {
     let query = get_search_query();
     let query = match query.as_ref() {
         Some(q) if !q.is_empty() => q.as_str(),
@@ -441,7 +441,7 @@ pub(crate) fn label_hl_mk(ui: &mut Ui, text: &str, mk: impl Fn(&str) -> RichText
 }
 
 /// 在垂直布局中渲染带高亮的文本
-fn render_hl(ui: &mut Ui, text: &str, mk: impl Fn(&str) -> RichText) {
+pub(in crate::help) fn render_hl(ui: &mut Ui, text: &str, mk: impl Fn(&str) -> RichText) {
     let query = get_search_query();
     let query = match query.as_ref() {
         Some(q) if !q.is_empty() => q.as_str(),
@@ -462,192 +462,14 @@ fn render_hl(ui: &mut Ui, text: &str, mk: impl Fn(&str) -> RichText) {
     });
 }
 
-// ──────────────────────────── 渲染辅助函数 ────────────────────────────
+pub(in crate::help) use widgets::*;
+mod widgets;
 
-fn h1(ui: &mut Ui, t: &str) {
-    ui.add_space(8.0);
-    render_hl(ui, t, |s| RichText::new(s).size(18.0).strong());
-    ui.add_space(2.0);
-}
-fn h2(ui: &mut Ui, t: &str) {
-    ui.add_space(6.0);
-    render_hl(ui, t, |s| RichText::new(s).size(15.0).strong());
-    ui.add_space(2.0);
-}
-fn h3(ui: &mut Ui, t: &str) {
-    ui.add_space(4.0);
-    render_hl(ui, t, |s| RichText::new(s).size(13.0).strong());
-}
-fn h4(ui: &mut Ui, t: &str) {
-    ui.add_space(3.0);
-    render_hl(ui, t, |s| RichText::new(s).size(12.0).strong());
-}
+pub(in crate::help) use data::*;
+mod data;
 
-fn p(ui: &mut Ui, t: &str) {
-    render_hl(ui, t, |s| RichText::new(s));
-}
-fn sp(ui: &mut Ui) {
-    ui.add_space(4.0);
-}
-fn hr(ui: &mut Ui) {
-    ui.separator();
-    ui.add_space(4.0);
-}
-
-fn bul(ui: &mut Ui, t: &str) {
-    ui.horizontal_wrapped(|ui| {
-        ui.label("  •");
-        render_hl_inline(ui, t, |s| RichText::new(s));
-    });
-}
-
-fn num(ui: &mut Ui, n: &str, t: &str) {
-    ui.horizontal_wrapped(|ui| {
-        ui.label(format!("  {}.", n));
-        render_hl_inline(ui, t, |s| RichText::new(s));
-    });
-}
-
-fn qt(ui: &mut Ui, t: &str) {
-    render_hl(ui, &format!("  {}", t), |s| {
-        RichText::new(s).italics().color(GRAY)
-    });
-}
-
-fn red(ui: &mut Ui, t: &str) {
-    render_hl(ui, t, |s| RichText::new(s).color(RED));
-}
-fn blue(ui: &mut Ui, t: &str) {
-    render_hl(ui, t, |s| RichText::new(s).color(BLUE));
-}
-
-fn code(ui: &mut Ui, t: &str) {
-    render_hl(ui, t, |s| {
-        RichText::new(s)
-            .monospace()
-            .background_color(CODE_BG)
-            .color(CODE_FG)
-    });
-}
-
-fn lnk(ui: &mut Ui, nav: &mut HelpNav, text: &str, target: &'static str) {
-    if ui.link(text).clicked() {
-        nav.goto = Some(target);
-    }
-}
-
-fn ext_link(ui: &mut Ui, text: &str, url: &str) {
-    let label = ui.add(
-        egui::Label::new(
-            RichText::new(text)
-                .color(ui.visuals().hyperlink_color)
-                .underline(),
-        )
-        .sense(egui::Sense::click()),
-    );
-    if label.clicked() {
-        let _ = open::that(url);
-    }
-}
-
-/// 上一篇 / 下一篇 导航行
-fn navrow(
-    ui: &mut Ui,
-    nav: &mut HelpNav,
-    prev: Option<(&str, &'static str)>,
-    next: Option<(&str, &'static str)>,
-) {
-    ui.add_space(6.0);
-    ui.horizontal(|ui| {
-        if let Some((t, id)) = prev {
-            label_hl(ui, "上一篇：");
-            lnk(ui, nav, t, id);
-        }
-        ui.separator();
-        if let Some((t, id)) = next {
-            label_hl(ui, "下一篇：");
-            lnk(ui, nav, t, id);
-        }
-    });
-}
-
-/// 四列元组表格（用于拆分例字等静态数据，避免每帧分配）
-fn tbl4(ui: &mut Ui, col_width: f32, headers: &[&str; 4], rows: &[(&str, &str, &str, &str)]) {
-    let idx = next_table_idx();
-    ScrollArea::horizontal()
-        .id_salt(("help_tbl4", idx))
-        .show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    for hd in headers {
-                        ui.add_sized(
-                            [col_width, 18.0],
-                            egui::Label::new(
-                                RichText::new(*hd)
-                                    .monospace()
-                                    .size(11.0)
-                                    .strong()
-                                    .color(ORANGE),
-                            ),
-                        );
-                    }
-                });
-                for (a, b, c, d) in rows {
-                    ui.horizontal(|ui| {
-                        for cell in [a, b, c, d] {
-                            ui.add_sized(
-                                [col_width, 18.0],
-                                egui::Label::new(RichText::new(*cell).monospace().size(11.0)),
-                            );
-                        }
-                    });
-                }
-            });
-        });
-    ui.add_space(4.0);
-}
-
-/// 短数据表格（固定列宽，单元格不换行）
-fn tbl(ui: &mut Ui, col_width: f32, headers: &[&str], rows: &[&[&str]]) {
-    if headers.is_empty() {
-        return;
-    }
-    let idx = next_table_idx();
-    ScrollArea::horizontal()
-        .id_salt(("help_tbl", idx))
-        .show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    for hd in headers {
-                        ui.add_sized(
-                            [col_width, 18.0],
-                            egui::Label::new(
-                                RichText::new(*hd)
-                                    .monospace()
-                                    .size(11.0)
-                                    .strong()
-                                    .color(ORANGE),
-                            ),
-                        );
-                    }
-                });
-                for row in rows {
-                    ui.horizontal(|ui| {
-                        for cell in row.iter() {
-                            ui.add_sized(
-                                [col_width, 18.0],
-                                egui::Label::new(RichText::new(*cell).monospace().size(11.0)),
-                            );
-                        }
-                    });
-                }
-            });
-        });
-    ui.add_space(4.0);
-}
-
-mod renderers;
-use renderers::*;
+pub(crate) mod chapters;
+use chapters::*;
 mod search_text;
 use search_text::*;
 
@@ -772,7 +594,9 @@ mod tests {
             let t = raw_line.trim();
 
             // 函数边界
-            if t.starts_with("pub(super) fn render_") {
+            if t.starts_with("pub(crate) fn render_")
+                || t.starts_with("pub(in crate::help) fn render_")
+            {
                 if let Some(id) = cur_id.take() {
                     result.push((id.to_string(), std::mem::take(&mut texts)));
                 }
@@ -893,16 +717,33 @@ mod tests {
     // #[test]
     // fn search_text_matches_renderers() { ... }
 
-    // ── 反向测试：renderers.rs 中新增的文本内容应被 search_text 覆盖 ──
+    // ── 反向测试：chapters/ 目录下各章节中新增的文本内容应被 search_text 覆盖 ──
     // 用基线方式运行：记录当前已知的不匹配数量，只在数量增加时失败。
     // 新增渲染内容后请同步更新 search_text.rs，并下调 BASELINE。
     #[test]
     fn renderers_content_in_search_text() {
-        const BASELINE: usize = 237; // 当前已知的不匹配数（2026-06-23 基线）
+        const BASELINE: usize = 237; // 当前已知的不匹配数（2026-07-27 基线，拆分后保持不变）
 
         let root = env!("CARGO_MANIFEST_DIR");
-        let renderers_src = std::fs::read_to_string(format!("{root}/src/help/renderers.rs"))
-            .expect("cannot read renderers.rs");
+        let chapters_dir = format!("{root}/src/help/chapters/");
+        let chapter_files = [
+            "readme.rs",
+            "xh.rs",
+            "up.rs",
+            "ux.rs",
+            "gz.rs",
+            "zg.rs",
+            "yy.rs",
+            "jm.rs",
+            "fh.rs",
+            "pc.rs",
+            "sj.rs",
+            "gj.rs",
+            "wv.rs",
+            "wt.rs",
+            "vy.rs",
+            "gy.rs",
+        ];
         let search_src = std::fs::read_to_string(format!("{root}/src/help/search_text.rs"))
             .expect("cannot read search_text.rs");
 
@@ -912,7 +753,17 @@ mod tests {
             .map(|(id, texts)| (id.as_str(), texts.as_slice()))
             .collect();
 
-        let renderer_entries = extract_renderer_texts(&renderers_src);
+        let mut renderer_entries = Vec::new();
+        for filename in chapter_files {
+            let path = format!("{chapters_dir}{filename}");
+            let src =
+                std::fs::read_to_string(&path).unwrap_or_else(|_| panic!("cannot read {path}"));
+            let chapter_id = filename.strip_suffix(".rs").unwrap().to_string();
+            for (_id, texts) in extract_renderer_texts(&src) {
+                renderer_entries.push((chapter_id.clone(), texts));
+            }
+        }
+
         let mut missing: Vec<String> = Vec::new();
 
         for (chapter_id, texts) in &renderer_entries {
@@ -942,7 +793,7 @@ mod tests {
 
         assert!(
             missing.len() <= BASELINE,
-            "renderers.rs 中有 {} 条文本未被 search_text 覆盖（基线 {}），\
+            "chapters/ 中有 {} 条文本未被 search_text 覆盖（基线 {}），\
              新增渲染内容后请同步更新 search_text.rs 并下调 BASELINE。\n\
              新增的不匹配项：\n{}",
             missing.len(),

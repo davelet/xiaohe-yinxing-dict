@@ -1,9 +1,25 @@
-use crate::DictApp;
 use crate::ai::config::{AiConfig, Provider};
+use crate::dict::DictEntry;
+use crate::help::HelpManager;
+use crate::manager::ManagerState;
+use crate::search::SearchEngine;
+use crate::types::ChatTab;
+use crate::ui::chat_state::{ChatAction, ChatUiState};
 use eframe::egui;
+use std::sync::Arc;
 
 /// 渲染 AI 对话内容（在主窗口内全屏显示）
-pub fn render_chat_viewport(ui: &mut egui::Ui, app: &mut DictApp) {
+///
+/// 返回 `ChatAction` 让 `ui/mod.rs` 统一处理跨模块副作用（关闭 AI 子窗口、
+/// 跳转到词典等），chat 模块自身只持有自己的状态，不直接写 DictApp。
+#[allow(clippy::too_many_arguments)]
+pub fn render_chat_viewport(
+    ui: &mut egui::Ui,
+    chat: &mut ChatUiState,
+    engine: &Arc<SearchEngine<DictEntry>>,
+    help_manager: &Arc<HelpManager>,
+    manager: &ManagerState,
+) -> Option<ChatAction> {
     // 确保样式正确
     {
         let style = ui.style_mut();
@@ -13,56 +29,60 @@ pub fn render_chat_viewport(ui: &mut egui::Ui, app: &mut DictApp) {
 
     // 轮询后台 AI 响应（非阻塞）
     let ctx = ui.ctx().clone();
-    poll_chat_stream(app, &ctx);
-    poll_chat_test(app);
+    poll_chat_stream(chat, &ctx);
+    poll_chat_test(chat);
 
     // 加载 AI 配置一次，全程使用同一实例
     let ai_config = AiConfig::load();
-    let mandatory_privacy =
-        !ai_config.privacy_acknowledged && app.chat_tab == crate::app::ChatTab::Conversation;
-    if mandatory_privacy || app.show_privacy_dialog {
-        render_privacy_dialog(ui, app);
+    let mandatory_privacy = !ai_config.privacy_acknowledged && chat.tab == ChatTab::Conversation;
+    if mandatory_privacy || chat.show_privacy_dialog {
+        render_privacy_dialog(ui, chat);
     }
+
+    let mut action: Option<ChatAction> = None;
 
     egui::CentralPanel::default().show_inside(ui, |ui| {
         // 顶部 tab 栏
         ui.horizontal(|ui| {
-            let conv_btn =
-                ui.selectable_label(app.chat_tab == crate::app::ChatTab::Conversation, "AI 对话");
-            let settings_btn =
-                ui.selectable_label(app.chat_tab == crate::app::ChatTab::Settings, "AI 设置");
+            let conv_btn = ui.selectable_label(chat.tab == ChatTab::Conversation, "AI 对话");
+            let settings_btn = ui.selectable_label(chat.tab == ChatTab::Settings, "AI 设置");
 
             if conv_btn.clicked() {
-                app.chat_tab = crate::app::ChatTab::Conversation;
+                chat.tab = ChatTab::Conversation;
             }
             if settings_btn.clicked() {
-                app.chat_tab = crate::app::ChatTab::Settings;
+                chat.tab = ChatTab::Settings;
             }
 
             // 添加关闭按钮
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button("✖ 关闭").clicked() {
-                    app.show_chat_viewport = false;
-                    app.current_view = crate::app::ViewMode::Dict;
+                    action = Some(ChatAction::Close);
                 }
             });
         });
         ui.separator();
 
         // 根据当前 tab 渲染内容
-        match app.chat_tab {
-            crate::app::ChatTab::Conversation => {
-                render_conversation_tab(ui, app, &ai_config);
+        let tab_action = match chat.tab {
+            ChatTab::Conversation => {
+                render_conversation_tab(ui, chat, &ai_config, engine, help_manager, manager)
             }
-            crate::app::ChatTab::Settings => {
-                render_settings_tab(ui, app, ai_config);
+            ChatTab::Settings => {
+                render_settings_tab(ui, chat, ai_config);
+                None
             }
+        };
+        if let Some(a) = tab_action {
+            action = Some(a);
         }
     });
+
+    action
 }
 
 /// 渲染隐私提示弹窗
-fn render_privacy_dialog(ui: &mut egui::Ui, app: &mut DictApp) {
+fn render_privacy_dialog(ui: &mut egui::Ui, chat: &mut ChatUiState) {
     egui::Window::new("隐私声明")
         .collapsible(false)
         .resizable(false)
@@ -95,16 +115,24 @@ fn render_privacy_dialog(ui: &mut egui::Ui, app: &mut DictApp) {
                     let mut config = AiConfig::load();
                     config.privacy_acknowledged = true;
                     config.save().ok();
-                    app.show_privacy_dialog = false;
+                    chat.show_privacy_dialog = false;
                 }
             });
         });
 }
 
 /// 渲染对话标签页
-fn render_conversation_tab(ui: &mut egui::Ui, app: &mut DictApp, ai_config: &AiConfig) {
+#[allow(clippy::too_many_arguments)]
+fn render_conversation_tab(
+    ui: &mut egui::Ui,
+    chat: &mut ChatUiState,
+    ai_config: &AiConfig,
+    engine: &Arc<SearchEngine<DictEntry>>,
+    help_manager: &Arc<HelpManager>,
+    manager: &ManagerState,
+) -> Option<ChatAction> {
     // 对话工具栏
-    render_conversation_toolbar(ui, app, ai_config);
+    render_conversation_toolbar(ui, chat, ai_config);
 
     // 未配置模型时显示提示条
     if !ai_config.configured || ai_config.active_model().is_none() {
@@ -117,7 +145,7 @@ fn render_conversation_tab(ui: &mut egui::Ui, app: &mut DictApp, ai_config: &AiC
                 ui.horizontal(|ui| {
                     ui.label("⚠ 请先在");
                     if ui.link("AI 设置").clicked() {
-                        app.chat_tab = crate::app::ChatTab::Settings;
+                        chat.tab = ChatTab::Settings;
                     }
                     ui.label("中添加模型并配置 API Key 后开始对话");
                 });
@@ -128,6 +156,8 @@ fn render_conversation_tab(ui: &mut egui::Ui, app: &mut DictApp, ai_config: &AiC
     // 消息列表区域：预留输入框高度（分隔线 + 间距 + 边框输入区）
     let input_reserved = 100.0;
     let scroll_height = (ui.available_height() - input_reserved).max(0.0);
+
+    let mut action: Option<ChatAction> = None;
     egui::ScrollArea::vertical()
         .max_height(scroll_height)
         .auto_shrink([false, false])
@@ -136,21 +166,25 @@ fn render_conversation_tab(ui: &mut egui::Ui, app: &mut DictApp, ai_config: &AiC
             ui.add_space(8.0);
 
             // 渲染消息（按时间顺序交替渲染）
-            let msg_count = app.chat_state.messages.len();
+            let msg_count = chat.state.messages.len();
             for idx in 0..msg_count {
                 let is_last = idx == msg_count - 1;
-                if app.chat_state.messages[idx].role == crate::ai::chat::Role::User {
-                    let content = app.chat_state.messages[idx].content.clone();
+                if chat.state.messages[idx].role == crate::ai::chat::Role::User {
+                    let content = chat.state.messages[idx].content.clone();
                     render_user_message(ui, &content);
                     ui.add_space(4.0);
                 } else {
-                    render_ai_message(ui, app, idx, is_last);
+                    let ai_act =
+                        render_ai_message(ui, chat, idx, is_last, engine, help_manager, manager);
+                    if ai_act.is_some() {
+                        action = ai_act;
+                    }
                     ui.add_space(4.0);
                 }
             }
 
             // 正在生成时显示流式内容
-            if app.chat_state.is_generating {
+            if chat.state.is_generating {
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
                     egui::Frame::new()
                         .fill(egui::Color32::from_rgb(255, 255, 255))
@@ -160,7 +194,7 @@ fn render_conversation_tab(ui: &mut egui::Ui, app: &mut DictApp, ai_config: &AiC
                             ui.set_max_width(350.0);
                             ui.spinner();
                             if let crate::ai::chat::StreamState::Generating(content) =
-                                &app.chat_state.stream_state
+                                &chat.state.stream_state
                             {
                                 if !content.is_empty() {
                                     ui.label(content);
@@ -180,7 +214,9 @@ fn render_conversation_tab(ui: &mut egui::Ui, app: &mut DictApp, ai_config: &AiC
     ui.separator();
 
     // 输入区域
-    render_input_area(ui, app);
+    render_input_area(ui, chat, engine, help_manager, manager);
+
+    action
 }
 
 /// 渲染用户消息气泡
@@ -201,11 +237,22 @@ fn render_user_message(ui: &mut egui::Ui, content: &str) {
 }
 
 /// 渲染 AI 消息气泡
-fn render_ai_message(ui: &mut egui::Ui, app: &mut DictApp, msg_idx: usize, is_last: bool) {
-    let msg = &app.chat_state.messages[msg_idx];
+#[allow(clippy::too_many_arguments)]
+fn render_ai_message(
+    ui: &mut egui::Ui,
+    chat: &mut ChatUiState,
+    msg_idx: usize,
+    is_last: bool,
+    engine: &Arc<SearchEngine<DictEntry>>,
+    help_manager: &Arc<HelpManager>,
+    manager: &ManagerState,
+) -> Option<ChatAction> {
+    let msg = &chat.state.messages[msg_idx];
     let content = msg.content.clone();
     let tool_calls = msg.tool_calls.clone();
     let is_interrupted = msg.is_interrupted;
+
+    let mut action: Option<ChatAction> = None;
 
     ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
         egui::Frame::new()
@@ -224,11 +271,7 @@ fn render_ai_message(ui: &mut egui::Ui, app: &mut DictApp, msg_idx: usize, is_la
                 if is_interrupted && content.is_empty() {
                     // 无内容，不渲染
                 } else {
-                    egui_commonmark::CommonMarkViewer::new().show(
-                        ui,
-                        &mut app.chat_md_cache,
-                        &content,
-                    );
+                    egui_commonmark::CommonMarkViewer::new().show(ui, &mut chat.md_cache, &content);
                 }
 
                 if is_interrupted && !content.is_empty() {
@@ -251,7 +294,7 @@ fn render_ai_message(ui: &mut egui::Ui, app: &mut DictApp, msg_idx: usize, is_la
                 }
 
                 // 快捷操作按钮（仅在非生成中的最后一条消息显示）
-                if is_last && !app.chat_state.is_generating {
+                if is_last && !chat.state.is_generating {
                     ui.add_space(6.0);
                     ui.separator();
                     ui.horizontal(|ui| {
@@ -292,10 +335,7 @@ fn render_ai_message(ui: &mut egui::Ui, app: &mut DictApp, msg_idx: usize, is_la
                                     .or_else(|| v.get("code"))
                                     .and_then(|s| s.as_str())
                             {
-                                app.current_view = crate::app::ViewMode::Dict;
-                                app.query = q.to_string();
-                                app.search_dirty = true;
-                                app.show_chat_viewport = false;
+                                action = Some(ChatAction::JumpToDict(q.to_string()));
                             }
                         });
 
@@ -306,19 +346,28 @@ fn render_ai_message(ui: &mut egui::Ui, app: &mut DictApp, msg_idx: usize, is_la
 
                         // 重新生成
                         if ui.small_button("🔄 重新生成").clicked()
-                            && let Some(user_msg) = app.chat_state.prepare_regenerate()
+                            && let Some(user_msg) = chat.state.prepare_regenerate()
                         {
-                            app.chat_input = user_msg;
-                            send_message(app, &ui.ctx().clone());
+                            chat.input = user_msg;
+                            send_message(chat, engine, help_manager, manager, &ui.ctx().clone());
                         }
                     });
                 }
             });
     });
+
+    action
 }
 
 /// 渲染输入区域
-fn render_input_area(ui: &mut egui::Ui, app: &mut DictApp) {
+#[allow(clippy::too_many_arguments)]
+fn render_input_area(
+    ui: &mut egui::Ui,
+    chat: &mut ChatUiState,
+    engine: &Arc<SearchEngine<DictEntry>>,
+    help_manager: &Arc<HelpManager>,
+    manager: &ManagerState,
+) {
     let ctx = ui.ctx().clone();
     let input_height = 52.0;
     let frame_v_margin = 12.0; // inner_margin 上下各 6
@@ -346,7 +395,7 @@ fn render_input_area(ui: &mut egui::Ui, app: &mut DictApp) {
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     ui.add(
-                        egui::TextEdit::multiline(&mut app.chat_input)
+                        egui::TextEdit::multiline(&mut chat.input)
                             .hint_text("输入消息...（Enter 发送，Shift+Enter 换行）")
                             .font(egui::TextStyle::Body)
                             .desired_width(input_width)
@@ -359,35 +408,35 @@ fn render_input_area(ui: &mut egui::Ui, app: &mut DictApp) {
 
         // 发送/停止按钮（与输入框等高，包含 frame 边距）
         let btn_height = input_height + frame_v_margin;
-        if app.chat_state.is_generating {
+        if chat.state.is_generating {
             if ui
                 .add_sized([btn_width, btn_height], egui::Button::new("⏹ 停止"))
                 .clicked()
             {
-                app.chat_state.interrupt_generation();
+                chat.state.interrupt_generation();
             }
         } else {
             let send_btn = ui.add_sized([btn_width, btn_height], egui::Button::new("发送"));
-            if send_btn.clicked() && !app.chat_input.trim().is_empty() {
-                send_message(app, &ctx);
+            if send_btn.clicked() && !chat.input.trim().is_empty() {
+                send_message(chat, engine, help_manager, manager, &ctx);
             }
         }
     });
 
     // Enter 发送（Shift+Enter 换行不触发）
     if text_edit_has_focus && ui.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.shift) {
-        send_message(app, &ctx);
+        send_message(chat, engine, help_manager, manager, &ctx);
     }
 }
 
 /// 轮询后台 AI 流式响应（非阻塞，每帧调用）
-fn poll_chat_stream(app: &mut DictApp, ctx: &egui::Context) {
-    let Some(rx) = &mut app.chat_rx else { return };
+fn poll_chat_stream(chat: &mut ChatUiState, ctx: &egui::Context) {
+    let Some(rx) = &mut chat.rx else { return };
     let mut need_repaint = false;
     loop {
         match rx.try_recv() {
             Ok(crate::ai::client::StreamMessage::TextDelta(delta)) => {
-                app.chat_state.append_stream(delta);
+                chat.state.append_stream(delta);
                 need_repaint = true;
             }
             Ok(crate::ai::client::StreamMessage::ToolCall {
@@ -396,25 +445,24 @@ fn poll_chat_stream(app: &mut DictApp, ctx: &egui::Context) {
                 result,
             }) => {
                 // 流式结束时从 FinalResponse 提取的带 result 的 tool call
-                app.chat_state
-                    .record_tool_call(tool_name, arguments, result);
+                chat.state.record_tool_call(tool_name, arguments, result);
                 need_repaint = true;
             }
             Ok(crate::ai::client::StreamMessage::Complete) => {
                 crate::ai_log!("生成完成");
-                app.chat_state.finish_generation();
+                chat.state.finish_generation();
                 let ai_config = AiConfig::load();
-                save_current_conversation(app, &ai_config);
-                app.chat_rx = None;
+                save_current_conversation(chat, &ai_config);
+                chat.rx = None;
                 ctx.request_repaint();
                 break;
             }
             Ok(crate::ai::client::StreamMessage::Error(e)) => {
                 crate::ai_log!("请求失败: {}", e);
-                app.chat_state.add_ai_message(format!("请求失败: {e}"));
-                app.chat_state.is_generating = false;
-                app.chat_state.abort_handle = None;
-                app.chat_rx = None;
+                chat.state.add_ai_message(format!("请求失败: {e}"));
+                chat.state.is_generating = false;
+                chat.state.abort_handle = None;
+                chat.rx = None;
                 ctx.request_repaint();
                 break;
             }
@@ -424,7 +472,7 @@ fn poll_chat_stream(app: &mut DictApp, ctx: &egui::Context) {
     if need_repaint {
         // 流式输出期间主动请求重绘，让 UI 逐字实时刷新
         ctx.request_repaint();
-    } else if app.chat_rx.is_some() {
+    } else if chat.rx.is_some() {
         // 仍在流式接收中但本帧无新增量时，也请求重绘以保持轮询存活，
         // 避免模型思考/网络停顿期间 UI 因无输入事件而停止刷新
         ctx.request_repaint();
@@ -432,28 +480,28 @@ fn poll_chat_stream(app: &mut DictApp, ctx: &egui::Context) {
 }
 
 /// 轮询测试连接结果（非阻塞，每帧调用）
-fn poll_chat_test(app: &mut DictApp) {
-    let Some(rx) = &mut app.chat_test_rx else {
+fn poll_chat_test(chat: &mut ChatUiState) {
+    let Some(rx) = &mut chat.test_rx else {
         return;
     };
     match rx.try_recv() {
         Ok(msg) => {
-            app.chat_test_response = msg;
-            app.chat_test_in_progress = false;
-            app.chat_test_rx = None;
+            chat.test_response = msg;
+            chat.test_in_progress = false;
+            chat.test_rx = None;
         }
         Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {}
         Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {
-            app.chat_test_response = "❌ 测试请求异常终止".to_string();
-            app.chat_test_in_progress = false;
-            app.chat_test_rx = None;
+            chat.test_response = "❌ 测试请求异常终止".to_string();
+            chat.test_in_progress = false;
+            chat.test_rx = None;
         }
     }
 }
 
 /// 保存当前对话到磁盘（仅在 persist_conversations 开启时生效）
-fn save_current_conversation(app: &mut DictApp, ai_config: &AiConfig) {
-    if app.chat_state.messages.is_empty() {
+fn save_current_conversation(chat: &mut ChatUiState, ai_config: &AiConfig) {
+    if chat.state.messages.is_empty() {
         return;
     }
     // 仅在用户开启"记录对话历史"时持久化
@@ -464,69 +512,79 @@ fn save_current_conversation(app: &mut DictApp, ai_config: &AiConfig) {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    let id = match app.chat_state.current_conversation_id.clone() {
+    let id = match chat.state.current_conversation_id.clone() {
         Some(id) => id,
         None => {
             let id = crate::ai::history::generate_conversation_id();
-            app.chat_state.current_conversation_id = Some(id.clone());
+            chat.state.current_conversation_id = Some(id.clone());
             id
         }
     };
-    let title = crate::ai::history::Conversation::title_from_messages(&app.chat_state.messages);
+    let title = crate::ai::history::Conversation::title_from_messages(&chat.state.messages);
     let conv = crate::ai::history::Conversation {
         id,
         title,
         created_at: now,
         updated_at: now,
-        messages: app.chat_state.messages.clone(),
+        messages: chat.state.messages.clone(),
     };
-    let _ = app.conversation_store.save_conversation(&conv);
-    app.conversation_store.enforce_max_conversations(50);
+    let _ = chat.conversation_store.save_conversation(&conv);
+    chat.conversation_store.enforce_max_conversations(50);
 }
 
 /// 渲染对话工具栏（新建、导出、历史切换、删除）
-fn render_conversation_toolbar(ui: &mut egui::Ui, app: &mut DictApp, ai_config: &AiConfig) {
+fn render_conversation_toolbar(ui: &mut egui::Ui, chat: &mut ChatUiState, ai_config: &AiConfig) {
     let persist_enabled = ai_config.persist_conversations;
 
     ui.horizontal(|ui| {
         if ui.button("📄 新建对话").clicked() {
             // 保存当前对话再清空（仅 persist 开启时保存）
-            save_current_conversation(app, ai_config);
-            app.chat_state.clear();
-            app.chat_state.current_conversation_id = None;
+            save_current_conversation(chat, ai_config);
+            chat.state.clear();
+            chat.state.current_conversation_id = None;
         }
 
         // 显示当前激活的模型
         if let Some(active) = ai_config.active_model() {
             ui.separator();
-            ui.label(
-                egui::RichText::new(format!("当前模型: {} - {}", active.name, active.model))
-                    .size(12.0)
-                    .color(egui::Color32::from_gray(100)),
-            );
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new("当前模型: ")
+                        .size(12.0)
+                        .color(egui::Color32::DARK_GRAY),
+                );
+                ui.label(
+                    egui::RichText::new(active.name.to_string())
+                        .size(12.0)
+                        .color(egui::Color32::DARK_GREEN),
+                );
+                ui.label(
+                    egui::RichText::new(format!("[{} ({})]", active.model, active.provider))
+                        .size(12.0)
+                        .color(egui::Color32::from_gray(160)),
+                );
+            });
         }
 
         ui.separator();
 
         if ui
             .add_enabled(
-                !app.chat_state.messages.is_empty(),
+                !chat.state.messages.is_empty(),
                 egui::Button::new("💾 导出回复"),
             )
             .clicked()
         {
             let conv = crate::ai::history::Conversation {
-                id: app
-                    .chat_state
+                id: chat
+                    .state
                     .current_conversation_id
                     .clone()
                     .unwrap_or_default(),
-                title: crate::ai::history::Conversation::title_from_messages(
-                    &app.chat_state.messages,
-                ),
+                title: crate::ai::history::Conversation::title_from_messages(&chat.state.messages),
                 created_at: 0,
                 updated_at: 0,
-                messages: app.chat_state.messages.clone(),
+                messages: chat.state.messages.clone(),
             };
             let md = crate::ai::history::ConversationStore::export_markdown(&conv);
             ui.ctx().copy_text(md);
@@ -535,8 +593,8 @@ fn render_conversation_toolbar(ui: &mut egui::Ui, app: &mut DictApp, ai_config: 
         ui.separator();
 
         if ui.button("🗑 清空当前").clicked() {
-            app.chat_state.clear();
-            app.chat_state.current_conversation_id = None;
+            chat.state.clear();
+            chat.state.current_conversation_id = None;
         }
 
         // 仅在开启持久化时显示历史切换和删除功能
@@ -544,8 +602,8 @@ fn render_conversation_toolbar(ui: &mut egui::Ui, app: &mut DictApp, ai_config: 
             ui.separator();
 
             // 历史对话切换下拉
-            let conversations = app.conversation_store.list_conversations();
-            let current_title = if let Some(id) = &app.chat_state.current_conversation_id {
+            let conversations = chat.conversation_store.list_conversations();
+            let current_title = if let Some(id) = &chat.state.current_conversation_id {
                 conversations
                     .iter()
                     .find(|c| &c.id == id)
@@ -560,8 +618,8 @@ fn render_conversation_toolbar(ui: &mut egui::Ui, app: &mut DictApp, ai_config: 
                 .selected_text(egui::RichText::new(format!("📂 {current_title}")).small())
                 .show_ui(ui, |ui| {
                     for meta in &conversations {
-                        let is_current = app
-                            .chat_state
+                        let is_current = chat
+                            .state
                             .current_conversation_id
                             .as_ref()
                             .map(|id| id == &meta.id)
@@ -573,29 +631,29 @@ fn render_conversation_toolbar(ui: &mut egui::Ui, app: &mut DictApp, ai_config: 
                         };
                         if ui.selectable_label(is_current, label).clicked() && !is_current {
                             // 加载选中的对话
-                            if let Ok(conv) = app.conversation_store.load_conversation(&meta.id) {
-                                app.chat_state.messages = conv.messages;
-                                app.chat_state.current_conversation_id = Some(conv.id);
-                                app.chat_state.is_generating = false;
+                            if let Ok(conv) = chat.conversation_store.load_conversation(&meta.id) {
+                                chat.state.messages = conv.messages;
+                                chat.state.current_conversation_id = Some(conv.id);
+                                chat.state.is_generating = false;
                             }
                         }
                     }
                 });
 
             // 删除当前对话记录
-            if app.chat_state.current_conversation_id.is_some()
+            if chat.state.current_conversation_id.is_some()
                 && ui.small_button("🗑 删除此记录").clicked()
-                && let Some(id) = app.chat_state.current_conversation_id.take()
+                && let Some(id) = chat.state.current_conversation_id.take()
             {
-                let _ = app.conversation_store.delete_conversation(&id);
-                app.chat_state.clear();
+                let _ = chat.conversation_store.delete_conversation(&id);
+                chat.state.clear();
             }
 
             // 删除所有记录
             if !conversations.is_empty() && ui.small_button("⚠ 删除所有记录").clicked() {
-                let _ = app.conversation_store.clear_all();
-                app.chat_state.clear();
-                app.chat_state.current_conversation_id = None;
+                let _ = chat.conversation_store.clear_all();
+                chat.state.clear();
+                chat.state.current_conversation_id = None;
             }
         }
     });
@@ -603,80 +661,82 @@ fn render_conversation_toolbar(ui: &mut egui::Ui, app: &mut DictApp, ai_config: 
 }
 
 /// 发送消息（后台异步，不阻塞 UI 线程）
-fn send_message(app: &mut DictApp, ctx: &egui::Context) {
-    let message = app.chat_input.trim().to_string();
-    if message.is_empty() || app.chat_state.is_generating {
+fn send_message(
+    chat: &mut ChatUiState,
+    engine: &Arc<SearchEngine<DictEntry>>,
+    help_manager: &Arc<HelpManager>,
+    manager: &ManagerState,
+    ctx: &egui::Context,
+) {
+    let message = chat.input.trim().to_string();
+    if message.is_empty() || chat.state.is_generating {
         return;
     }
 
     // 请求频率控制：最小间隔 500ms，防止误触连发
     const MIN_INTERVAL_MS: u128 = 500;
-    if let Some(last) = app.last_chat_send_time {
+    if let Some(last) = chat.last_send_time {
         let elapsed = last.elapsed().as_millis();
         if elapsed < MIN_INTERVAL_MS {
             return;
         }
     }
-    app.last_chat_send_time = Some(std::time::Instant::now());
+    chat.last_send_time = Some(std::time::Instant::now());
 
     // 添加用户消息
-    app.chat_state.add_user_message(message.clone());
-    app.chat_input.clear();
-    app.chat_state.start_generation();
+    chat.state.add_user_message(message.clone());
+    chat.input.clear();
+    chat.state.start_generation();
 
     // 从磁盘加载最新配置，获取当前激活模型
     let ai_config = crate::ai::config::AiConfig::load();
     let Some(model_config) = ai_config.active_model() else {
-        app.chat_state.is_generating = false;
-        app.chat_state
+        chat.state.is_generating = false;
+        chat.state
             .add_ai_message("无法发送消息：请先添加并激活一个模型配置".to_string());
         return;
     };
     let api_key = match model_config.get_api_key() {
         Ok(k) => k,
         Err(e) => {
-            app.chat_state.is_generating = false;
-            app.chat_state.add_ai_message(format!("无法发送消息：{e}"));
+            chat.state.is_generating = false;
+            chat.state.add_ai_message(format!("无法发送消息：{e}"));
             return;
         }
     };
 
-    let runtime = app.tokio_runtime.as_ref();
-    let Some(runtime) = runtime else {
-        app.chat_state.is_generating = false;
-        app.chat_state
+    let Some(runtime) = chat.tokio_runtime.as_ref() else {
+        chat.state.is_generating = false;
+        chat.state
             .add_ai_message("无法发送消息：后台运行时未初始化".to_string());
         return;
     };
 
     // 准备外部词典数据（仅在有外部词典且用户启用时）
     let external_dict_data =
-        if !app.manager.external_entries.is_empty() && ai_config.enable_external_dict_tool {
-            Some(crate::ai::tools::ExternalDictData::from_manager(
-                &app.manager,
-            ))
+        if !manager.external_entries.is_empty() && ai_config.enable_external_dict_tool {
+            Some(crate::ai::tools::ExternalDictData::from_manager(manager))
         } else {
             None
         };
 
-    let engine = app.engine.clone();
-    let help_mgr = app.help_manager.clone();
+    let engine_clone = engine.clone();
+    let help_mgr_clone = help_manager.clone();
 
     // 按配置的轮数裁剪历史
-    app.chat_state
-        .trim_history(ai_config.history_rounds as usize);
+    chat.state.trim_history(ai_config.history_rounds as usize);
 
     // 按 token 预算二次裁剪，确保总 token 不超过模型上下文限制
     // 保守假设模型上下文窗口 = 8 * max_tokens，留出余量给模型输出
     let token_budget = (model_config.max_tokens as usize) * 8;
-    app.chat_state.trim_by_token_budget(token_budget);
+    chat.state.trim_by_token_budget(token_budget);
 
     // 收集多轮上下文（裁剪后的历史，不含当前消息）
-    let chat_history = app.chat_state.to_rig_history();
+    let chat_history = chat.state.to_rig_history();
 
     // 创建 channel 接收响应
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<crate::ai::client::StreamMessage>();
-    app.chat_rx = Some(rx);
+    chat.rx = Some(rx);
 
     // 在后台 tokio 任务中执行整个异步流程
     let ctx_clone = ctx.clone();
@@ -704,8 +764,8 @@ fn send_message(app: &mut DictApp, ctx: &egui::Context) {
             client,
             &model_config_clone,
             &ai_config_clone,
-            engine,
-            help_mgr,
+            engine_clone,
+            help_mgr_clone,
             external_dict_data,
         );
         crate::ai_log!("Agent 创建成功，开始流式请求");
@@ -715,11 +775,11 @@ fn send_message(app: &mut DictApp, ctx: &egui::Context) {
         ctx_clone.request_repaint();
     });
 
-    app.chat_state.abort_handle = Some(handle.abort_handle());
+    chat.state.abort_handle = Some(handle.abort_handle());
 }
 
 /// 渲染设置标签页
-fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp, mut config: AiConfig) {
+fn render_settings_tab(ui: &mut egui::Ui, chat: &mut ChatUiState, mut config: AiConfig) {
     egui::ScrollArea::vertical().show(ui, |ui| {
         // 捕获可用宽度，所有区块都约束在此宽度内，避免内容溢出窗口外/重叠
         ui.style_mut().spacing.item_spacing = egui::vec2(8.0, 4.0);
@@ -730,33 +790,33 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp, mut config: AiConfi
         // 当前激活模型 + 新增按钮（放在列表上方）
         ui.horizontal(|ui| {
             if let Some(active) = config.active_model() {
-                ui.label(egui::RichText::new(format!("当前激活: {} - {} ({})", active.name, active.provider, active.model)).color(egui::Color32::from_rgb(100, 100, 100)));
+                ui.label(egui::RichText::new(format!("当前激活: {}（供应商：{} 模型：{}）", active.name, active.provider, active.model)).color(egui::Color32::from_rgb(100, 100, 100)));
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button("➕ 新增模型").clicked() {
-                    app.show_model_edit_dialog = true;
-                    app.editing_model_id = None;
-                    app.editing_model_name = String::new();
-                    app.editing_model_provider = Provider::default();
-                    app.editing_model_api_url = "https://api.deepseek.com".to_string();
-                    app.editing_model_model = "deepseek-chat".to_string();
-                    app.editing_model_api_key = String::new();
-                    app.editing_model_temperature = 0.7;
-                    app.editing_model_max_tokens = 2048;
-                    app.chat_test_response.clear();
-                    app.chat_test_in_progress = false;
+                    chat.model_editor.show_dialog = true;
+                    chat.model_editor.editing_id = None;
+                    chat.model_editor.name = String::new();
+                    chat.model_editor.provider = Provider::default();
+                    chat.model_editor.api_url = String::new();
+                    chat.model_editor.model = String::new();
+                    chat.model_editor.api_key = String::new();
+                    chat.model_editor.temperature = 0.7;
+                    chat.model_editor.max_tokens = 2048;
+                    chat.test_response.clear();
+                    chat.test_in_progress = false;
                 }
             });
         });
 
         // 模型操作结果提示
-        if !app.chat_save_response.is_empty() {
-            let color = if app.chat_save_response.starts_with("❌") {
+        if !chat.save_response.is_empty() {
+            let color = if chat.save_response.starts_with("❌") {
                 egui::Color32::from_rgb(220, 50, 50)
             } else {
                 egui::Color32::from_rgb(34, 150, 80)
             };
-            ui.label(egui::RichText::new(&app.chat_save_response).color(color));
+            ui.label(egui::RichText::new(&chat.save_response).color(color));
         }
 
         // 模型列表（限制最大高度，超出滚动）
@@ -794,31 +854,30 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp, mut config: AiConfi
 
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     if !is_active && ui.small_button("使用此模型").clicked() {
-                                        if !app.chat_state.is_generating {
+                                        if !chat.state.is_generating {
                                             config.active_model_id = Some(model.id.clone());
                                             let _ = config.save();
                                         } else {
-                                            app.chat_save_response = "⚠️ 当前正在生成，请完成后再切换".to_string();
+                                            chat.save_response = "⚠️ 当前正在生成，请完成后再切换".to_string();
                                         }
                                     }
-                                    if ui.small_button("✎").clicked() {
-                                        app.show_model_edit_dialog = true;
-                                        app.editing_model_id = Some(model.id.clone());
-                                        app.editing_model_name = model.name.clone();
-                                        app.editing_model_provider = model.provider.clone();
-                                        app.editing_model_api_url = model.api_url.clone();
-                                        app.editing_model_model = model.model.clone();
-                                        app.editing_model_api_key = String::new();
-                                        app.editing_model_temperature = model.temperature;
-                                        app.editing_model_max_tokens = model.max_tokens;
-                                        app.chat_test_response.clear();
-                                        app.chat_test_in_progress = false;
+                                    if ui.small_button("\u{270F}").on_hover_text("编辑").clicked() { // ✏️
+                                        chat.model_editor.show_dialog = true;
+                                        chat.model_editor.editing_id = Some(model.id.clone());
+                                        chat.model_editor.name = model.name.clone();
+                                        chat.model_editor.provider = model.provider.clone();
+                                        chat.model_editor.api_url = model.api_url.clone();
+                                        chat.model_editor.model = model.model.clone();
+                                        chat.model_editor.api_key = String::new();
+                                        chat.model_editor.temperature = model.temperature;
+                                        chat.model_editor.max_tokens = model.max_tokens;
+                                        chat.test_response.clear();
+                                        chat.test_in_progress = false;
                                     }
-                                    if ui.small_button("🗑").clicked() {
-                                        app.confirm_delete_model_id = Some(model.id.clone());
-                                        app.confirm_delete_model_name = model.name.clone();
+                                    if ui.small_button("🗑").on_hover_text("删除").clicked() {
+                                        chat.confirm_delete = Some((model.id.clone(), model.name.clone()));
                                     }
-                                    if ui.small_button("📋").clicked()
+                                    if ui.small_button("📋").on_hover_text("复制此配置").clicked()
                                         && let Some(_new_model) = config.duplicate_model(&model.id) {
                                             config.active_model_id = Some(_new_model.id.clone());
                                             let _ = config.save();
@@ -859,7 +918,7 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp, mut config: AiConfi
                     .link(egui::RichText::new("隐私声明").text_style(egui::TextStyle::Small))
                     .clicked()
                 {
-                    app.show_privacy_dialog = true;
+                    chat.show_privacy_dialog = true;
                 }
                 ui.small("）");
             });
@@ -897,17 +956,17 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp, mut config: AiConfi
             ui.horizontal(|ui| {
                 if ui.button("💾 保存全局设置").clicked() {
                     match config.save() {
-                        Ok(()) => app.chat_global_save_response = "✅ 全局设置已保存".to_string(),
-                        Err(e) => app.chat_global_save_response = format!("❌ 保存失败: {e}"),
+                        Ok(()) => chat.global_save_response = "✅ 全局设置已保存".to_string(),
+                        Err(e) => chat.global_save_response = format!("❌ 保存失败: {e}"),
                     }
                 }
-                if !app.chat_global_save_response.is_empty() {
-                    let color = if app.chat_global_save_response.starts_with("❌") {
+                if !chat.global_save_response.is_empty() {
+                    let color = if chat.global_save_response.starts_with("❌") {
                         egui::Color32::from_rgb(220, 50, 50)
                     } else {
                         egui::Color32::from_rgb(34, 150, 80)
                     };
-                    ui.label(egui::RichText::new(&app.chat_global_save_response).color(color));
+                    ui.label(egui::RichText::new(&chat.global_save_response).color(color));
                 }
             });
             });
@@ -915,8 +974,7 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp, mut config: AiConfi
         ui.add_space(4.0);
 
         // 确认删除模型弹窗（状态驱动，跨帧保持）
-        if let Some(delete_id) = app.confirm_delete_model_id.clone() {
-            let name = app.confirm_delete_model_name.clone();
+        if let Some((delete_id, name)) = chat.confirm_delete.clone() {
             let mut should_delete = false;
             let mut should_close = false;
             egui::Window::new("确认删除")
@@ -941,23 +999,22 @@ fn render_settings_tab(ui: &mut egui::Ui, app: &mut DictApp, mut config: AiConfi
                 let _ = config.save();
             }
             if should_delete || should_close {
-                app.confirm_delete_model_id = None;
-                app.confirm_delete_model_name.clear();
+                chat.confirm_delete = None;
             }
         }
 
         // 渲染模型编辑弹窗
-        render_model_edit_dialog(ui, app, &mut config);
+        render_model_edit_dialog(ui, chat, &mut config);
     });
 }
 
 /// 渲染新增/编辑模型弹窗
-fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut AiConfig) {
-    if !app.show_model_edit_dialog {
+fn render_model_edit_dialog(ui: &mut egui::Ui, chat: &mut ChatUiState, config: &mut AiConfig) {
+    if !chat.model_editor.show_dialog {
         return;
     }
 
-    let is_new = app.editing_model_id.is_none();
+    let is_new = chat.model_editor.editing_id.is_none();
     let title = if is_new {
         "新增模型"
     } else {
@@ -989,7 +1046,7 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
                     },
                 );
                 ui.add(
-                    egui::TextEdit::singleline(&mut app.editing_model_name)
+                    egui::TextEdit::singleline(&mut chat.model_editor.name)
                         .desired_width(ui.available_width())
                         .frame(input_frame),
                 );
@@ -1007,7 +1064,7 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
                 );
                 egui::ComboBox::from_id_salt("edit_provider_combo")
                     .width(ui.available_width())
-                    .selected_text(app.editing_model_provider.to_string())
+                    .selected_text(chat.model_editor.provider.to_string())
                     .show_ui(ui, |ui| {
                         let providers = [
                             Provider::DeepSeek,
@@ -1020,7 +1077,7 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
                         for p in &providers {
                             if ui
                                 .selectable_value(
-                                    &mut app.editing_model_provider,
+                                    &mut chat.model_editor.provider,
                                     p.clone(),
                                     p.to_string(),
                                 )
@@ -1029,34 +1086,34 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
                                 // 根据提供商设置默认 API URL 和模型名
                                 match p {
                                     Provider::DeepSeek => {
-                                        app.editing_model_api_url =
+                                        chat.model_editor.api_url =
                                             "https://api.deepseek.com".to_string();
-                                        app.editing_model_model = "deepseek-chat".to_string();
+                                        chat.model_editor.model = "deepseek-chat".to_string();
                                     }
                                     Provider::Zhipu => {
-                                        app.editing_model_api_url =
+                                        chat.model_editor.api_url =
                                             "https://open.bigmodel.cn/api/paas/v4".to_string();
-                                        app.editing_model_model = "glm-4-flash".to_string();
+                                        chat.model_editor.model = "glm-4-flash".to_string();
                                     }
                                     Provider::Moonshot => {
-                                        app.editing_model_api_url =
+                                        chat.model_editor.api_url =
                                             "https://api.moonshot.cn/v1".to_string();
-                                        app.editing_model_model = "moonshot-v1-8k".to_string();
+                                        chat.model_editor.model = "moonshot-v1-8k".to_string();
                                     }
                                     Provider::Qwen => {
-                                        app.editing_model_api_url =
+                                        chat.model_editor.api_url =
                                             "https://dashscope.aliyuncs.com/compatible-mode/v1"
                                                 .to_string();
-                                        app.editing_model_model = "qwen-turbo".to_string();
+                                        chat.model_editor.model = "qwen-turbo".to_string();
                                     }
                                     Provider::Yi => {
-                                        app.editing_model_api_url =
+                                        chat.model_editor.api_url =
                                             "https://api.lingyiwanwu.com/v1".to_string();
-                                        app.editing_model_model = "yi-large".to_string();
+                                        chat.model_editor.model = "yi-large".to_string();
                                     }
                                     Provider::Custom => {
-                                        if app.editing_model_api_url.is_empty() {
-                                            app.editing_model_api_url =
+                                        if chat.model_editor.api_url.is_empty() {
+                                            chat.model_editor.api_url =
                                                 "https://your-api-endpoint.com/v1".to_string();
                                         }
                                     }
@@ -1077,7 +1134,7 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
                     },
                 );
                 ui.add(
-                    egui::TextEdit::singleline(&mut app.editing_model_api_url)
+                    egui::TextEdit::singleline(&mut chat.model_editor.api_url)
                         .desired_width(ui.available_width())
                         .frame(input_frame),
                 );
@@ -1094,7 +1151,7 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
                     },
                 );
                 ui.add(
-                    egui::TextEdit::singleline(&mut app.editing_model_model)
+                    egui::TextEdit::singleline(&mut chat.model_editor.model)
                         .desired_width(ui.available_width())
                         .frame(input_frame),
                 );
@@ -1111,7 +1168,7 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
                     },
                 );
                 ui.add(
-                    egui::TextEdit::singleline(&mut app.editing_model_api_key)
+                    egui::TextEdit::singleline(&mut chat.model_editor.api_key)
                         .password(true)
                         .desired_width(ui.available_width())
                         .frame(input_frame),
@@ -1126,7 +1183,7 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
             ui.add_space(4.0);
 
             // 温度
-            let mut temp_pct = (app.editing_model_temperature * 100.0).round() as i32;
+            let mut temp_pct = (chat.model_editor.temperature * 100.0).round() as i32;
             ui.horizontal(|ui| {
                 ui.allocate_ui_with_layout(
                     egui::vec2(label_w, 0.0),
@@ -1137,7 +1194,7 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
                 );
                 ui.add(egui::Slider::new(&mut temp_pct, 0..=200).step_by(1.0));
                 ui.label("%");
-                app.editing_model_temperature = temp_pct as f32 / 100.0;
+                chat.model_editor.temperature = temp_pct as f32 / 100.0;
             });
             ui.add_space(4.0);
 
@@ -1151,7 +1208,7 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
                     },
                 );
                 ui.add(
-                    egui::Slider::new(&mut app.editing_model_max_tokens, 100..=8192).step_by(100.0),
+                    egui::Slider::new(&mut chat.model_editor.max_tokens, 100..=8192).step_by(100.0),
                 );
             });
 
@@ -1159,12 +1216,12 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
 
             // 测试连接
             ui.horizontal(|ui| {
-                let can_test = !app.editing_model_api_url.trim().is_empty()
-                    && !app.editing_model_model.trim().is_empty()
-                    && (!app.editing_model_api_key.trim().is_empty()
-                        || app.editing_model_id.is_some())
-                    && !app.chat_test_in_progress;
-                let test_label = if app.chat_test_in_progress {
+                let can_test = !chat.model_editor.api_url.trim().is_empty()
+                    && !chat.model_editor.model.trim().is_empty()
+                    && (!chat.model_editor.api_key.trim().is_empty()
+                        || chat.model_editor.editing_id.is_some())
+                    && !chat.test_in_progress;
+                let test_label = if chat.test_in_progress {
                     "测试中..."
                 } else {
                     "🔌 测试连接"
@@ -1175,18 +1232,18 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
                 {
                     // 构造临时 ModelConfig
                     let model_config = crate::ai::config::ModelConfig::new(
-                        app.editing_model_name.clone(),
-                        app.editing_model_provider.clone(),
-                        app.editing_model_api_url.trim().to_string(),
-                        app.editing_model_model.trim().to_string(),
-                        app.editing_model_temperature,
-                        app.editing_model_max_tokens,
+                        chat.model_editor.name.clone(),
+                        chat.model_editor.provider.clone(),
+                        chat.model_editor.api_url.trim().to_string(),
+                        chat.model_editor.model.trim().to_string(),
+                        chat.model_editor.temperature,
+                        chat.model_editor.max_tokens,
                     );
                     // 获取 API Key：优先用输入框，为空则从已有模型读取
                     let api_key_result: Result<String, String> =
-                        if !app.editing_model_api_key.trim().is_empty() {
-                            Ok(app.editing_model_api_key.trim().to_string())
-                        } else if let Some(edit_id) = &app.editing_model_id {
+                        if !chat.model_editor.api_key.trim().is_empty() {
+                            Ok(chat.model_editor.api_key.trim().to_string())
+                        } else if let Some(edit_id) = &chat.model_editor.editing_id {
                             match config.find_model(edit_id) {
                                 Some(m) => m.get_api_key(),
                                 None => Err("未找到原模型".to_string()),
@@ -1197,11 +1254,11 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
 
                     match api_key_result {
                         Ok(api_key) => {
-                            if let Some(runtime) = app.tokio_runtime.as_ref() {
+                            if let Some(runtime) = chat.tokio_runtime.as_ref() {
                                 let (tx, rx) = tokio::sync::oneshot::channel::<String>();
-                                app.chat_test_rx = Some(rx);
-                                app.chat_test_in_progress = true;
-                                app.chat_test_response.clear();
+                                chat.test_rx = Some(rx);
+                                chat.test_in_progress = true;
+                                chat.test_response.clear();
                                 let ctx_clone = ui.ctx().clone();
                                 runtime.spawn(async move {
                                     let result = async {
@@ -1220,23 +1277,23 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
                                     ctx_clone.request_repaint();
                                 });
                             } else {
-                                app.chat_test_response = "❌ 运行时未初始化".to_string();
+                                chat.test_response = "❌ 运行时未初始化".to_string();
                             }
                         }
                         Err(e) => {
-                            app.chat_test_response = format!("❌ {e}");
+                            chat.test_response = format!("❌ {e}");
                         }
                     }
                 }
 
-                if !app.chat_test_response.is_empty() {
-                    let color = if app.chat_test_response.starts_with("❌") {
+                if !chat.test_response.is_empty() {
+                    let color = if chat.test_response.starts_with("❌") {
                         egui::Color32::from_rgb(220, 50, 50)
                     } else {
                         egui::Color32::from_rgb(34, 150, 80)
                     };
                     ui.add(
-                        egui::Label::new(egui::RichText::new(&app.chat_test_response).color(color))
+                        egui::Label::new(egui::RichText::new(&chat.test_response).color(color))
                             .wrap(),
                     );
                 }
@@ -1245,9 +1302,9 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
             ui.add_space(16.0);
             ui.horizontal(|ui| {
                 if ui.button("取消").clicked() {
-                    app.show_model_edit_dialog = false;
-                    app.chat_test_response.clear();
-                    app.chat_test_in_progress = false;
+                    chat.model_editor.show_dialog = false;
+                    chat.test_response.clear();
+                    chat.test_in_progress = false;
                 }
 
                 if ui
@@ -1260,34 +1317,34 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
                 {
                     // 校验
                     let mut error = None;
-                    if app.editing_model_name.trim().is_empty() {
+                    if chat.model_editor.name.trim().is_empty() {
                         error = Some("名称不能为空");
-                    } else if app.editing_model_api_url.trim().is_empty() {
+                    } else if chat.model_editor.api_url.trim().is_empty() {
                         error = Some("API URL 不能为空");
-                    } else if !app.editing_model_api_url.starts_with("http://")
-                        && !app.editing_model_api_url.starts_with("https://")
+                    } else if !chat.model_editor.api_url.starts_with("http://")
+                        && !chat.model_editor.api_url.starts_with("https://")
                     {
                         error = Some("API URL 必须以 http:// 或 https:// 开头");
-                    } else if app.editing_model_model.trim().is_empty() {
+                    } else if chat.model_editor.model.trim().is_empty() {
                         error = Some("模型名不能为空");
-                    } else if is_new && app.editing_model_api_key.trim().is_empty() {
+                    } else if is_new && chat.model_editor.api_key.trim().is_empty() {
                         error = Some("API Key 不能为空");
                     }
 
                     if let Some(e) = error {
-                        app.chat_save_response = format!("❌ {e}");
+                        chat.save_response = format!("❌ {e}");
                         return;
                     }
 
-                    let name = app.editing_model_name.trim().to_string();
-                    let provider = app.editing_model_provider.clone();
-                    let api_url = app.editing_model_api_url.trim().to_string();
-                    let model_name = app.editing_model_model.trim().to_string();
-                    let temperature = app.editing_model_temperature;
-                    let max_tokens = app.editing_model_max_tokens;
-                    let api_key = app.editing_model_api_key.trim().to_string();
+                    let name = chat.model_editor.name.trim().to_string();
+                    let provider = chat.model_editor.provider.clone();
+                    let api_url = chat.model_editor.api_url.trim().to_string();
+                    let model_name = chat.model_editor.model.trim().to_string();
+                    let temperature = chat.model_editor.temperature;
+                    let max_tokens = chat.model_editor.max_tokens;
+                    let api_key = chat.model_editor.api_key.trim().to_string();
 
-                    match &app.editing_model_id {
+                    match &chat.model_editor.editing_id {
                         None => {
                             // 新增
                             let mut new_model = crate::ai::config::ModelConfig::new(
@@ -1314,7 +1371,7 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
                                 if !api_key.is_empty() {
                                     model.api_key = api_key;
                                 } else if model.api_key.is_empty() {
-                                    app.chat_save_response =
+                                    chat.save_response =
                                         "❌ 该模型尚未配置 API Key，请输入 API Key".to_string();
                                     return;
                                 }
@@ -1324,10 +1381,10 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, app: &mut DictApp, config: &mut A
 
                     config.validate_and_fix();
                     let _ = config.save();
-                    app.show_model_edit_dialog = false;
-                    app.chat_test_response.clear();
-                    app.chat_test_in_progress = false;
-                    app.chat_save_response.clear();
+                    chat.model_editor.show_dialog = false;
+                    chat.test_response.clear();
+                    chat.test_in_progress = false;
+                    chat.save_response.clear();
                 }
             });
         });

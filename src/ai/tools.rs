@@ -446,7 +446,7 @@ fn collect_ngrams(s: &str, out: &mut HashSet<String>) {
 }
 
 impl ExternalDictData {
-    pub fn from_manager(manager: &crate::app::ManagerState) -> Self {
+    pub fn from_manager(manager: &crate::manager::ManagerState) -> Self {
         let entries = manager.external_entries.clone();
         let mut ngram_index: BTreeMap<String, Vec<usize>> = BTreeMap::new();
 

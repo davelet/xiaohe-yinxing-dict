@@ -1,4 +1,4 @@
-use crate::app::ManagerState;
+use crate::manager::ManagerState;
 use eframe::egui;
 
 const DIALOG_WIDTH: f32 = 360.0;

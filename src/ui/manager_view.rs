@@ -1,7 +1,8 @@
 use crate::CopyKind;
-use crate::app::{ManagerState, SortField, SortOrder, ViewMode};
 use crate::dict::SearchableEntry;
+use crate::manager::{ManagerState, SortField, SortOrder};
 use crate::search;
+use crate::types::ViewMode;
 use eframe::egui;
 use egui::output::OutputCommand;
 

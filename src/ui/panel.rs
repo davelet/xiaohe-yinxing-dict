@@ -63,24 +63,24 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
             }
 
             // AI 对话 toggle button
-            let ai_btn_label = if app.show_chat_viewport {
+            let ai_btn_label = if app.chat.show_viewport {
                 "✨ AI 助手 ✓"
             } else {
                 "✨ AI 助手"
             };
-            let ai_btn = ui.selectable_label(app.show_chat_viewport, ai_btn_label);
+            let ai_btn = ui.selectable_label(app.chat.show_viewport, ai_btn_label);
             if ai_btn.clicked() {
-                app.show_chat_viewport = !app.show_chat_viewport;
-                app.current_view = if app.show_chat_viewport {
-                    crate::app::ViewMode::Chat
+                app.chat.show_viewport = !app.chat.show_viewport;
+                app.current_view = if app.chat.show_viewport {
+                    crate::types::ViewMode::Chat
                 } else {
-                    crate::app::ViewMode::Dict
+                    crate::types::ViewMode::Dict
                 };
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Keyboard nav for category cycling (仅词典视图，AI 对话时不监听方向键)
-                if !app.show_chat_viewport {
+                if !app.chat.show_viewport {
                     let k_down = ui.input(|i| i.key_pressed(egui::Key::ArrowDown));
                     let k_up = ui.input(|i| i.key_pressed(egui::Key::ArrowUp));
                     if k_down || k_up {
@@ -108,7 +108,7 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
                     "→ Rime数据"
                 };
                 if ui.button(rime_label).clicked() {
-                    app.current_view = crate::app::ViewMode::Manager;
+                    app.current_view = crate::types::ViewMode::Manager;
                     app.manager.search_auto_focus = true;
                     // 检查文件变更并自动重载
                     app.manager.check_and_reload_changed_files();
@@ -182,8 +182,11 @@ pub(crate) fn render_bottom_panel(app: &mut DictApp, ui: &mut egui::Ui) {
                 let version = env!("CARGO_PKG_VERSION");
                 let version_label = format!("v{}", version);
 
-                if let crate::update::UpdateState::Failed(ref err) =
-                    *app.update_state.lock().unwrap_or_else(|e| e.into_inner())
+                if let crate::update::UpdateState::Failed(ref err) = *app
+                    .update_ui
+                    .state
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
                 {
                     let err_clone = err.clone();
                     ui.label(

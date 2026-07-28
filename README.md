@@ -89,38 +89,6 @@ cargo test                   # 测试
 cargo fmt --all
 ```
 
-## 词典数据
-
-词典数据内联在 `src/dict_data.rs` 中，编译时直接嵌入二进制，无需解析外部文件。
-
-### 数据来源
-
-```
-my-mac-rime-data/（Rime 词典）
-    → 小鹤音形使用说明.md（Markdown 表格，~15000 条）
-    → build.rs（编译期解析）
-    → src/dict_data.rs（静态 Rust 常量数组，~14938 条）
-```
-
-### 重建 dict_data.rs
-
-当 `my-mac-rime-data` 子模块更新后，如果需要重新生成词典数据：
-
-```bash
-# 1. 从 git 历史恢复构建工具和源数据
-git show HEAD:build.rs > build.rs
-git show HEAD:小鹤音形使用说明.md > 小鹤音形使用说明.md
-
-# 2. 构建以触发解析生成
-cargo build
-
-# 3. 将生成结果拷贝为源码文件
-cp "$(find target -name generated_dict.rs | head -1)" src/dict_data.rs
-
-# 4. 清理临时文件
-rm build.rs 小鹤音形使用说明.md
-```
-
 ## 应用图标
 
 CI 打包使用 `assets/AppIcon.icns` 静态文件，它与运行时（`cargo run`）窗口图标由**完全相同的像素生成算法**生成，保证视觉一致性。
@@ -141,7 +109,7 @@ CI 打包使用 `assets/AppIcon.icns` 静态文件，它与运行时（`cargo ru
 
 ## 子模块：my-mac-rime-data
 
-本项目的字典数据基于 [davelet/my-mac-rime-data](https://github.com/davelet/my-mac-rime-data) 仓库，已将其添加为 git 子模块（`my-mac-rime-data/`）。该仓库包含了小鹤音形（flypy）输入法的 Rime 配置与词典文件：
+子模块 [davelet/my-mac-rime-data](https://github.com/davelet/my-mac-rime-data) 仓库仅作为引流，若您需要在自己电脑安装 Rime 可以参考。该仓库包含了小鹤音形（flypy）输入法的 Rime 配置与词典文件，也指导了如何微调进行 windows 适配：
 
 | 文件 | 说明 |
 |---|---|
