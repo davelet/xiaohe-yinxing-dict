@@ -75,8 +75,6 @@ impl DictApp {
             show_about_dialog: false,
             search_dirty: true,
             cached_category_count: None,
-            // AI 对话（26 字段已收敛进 ChatUiState）
-            main_window_positioned: false,
             chat: {
                 let mut chat = ChatUiState::new();
                 chat.tokio_runtime = Some(
@@ -148,9 +146,6 @@ struct DictApp {
     search_dirty: bool,
     /// 分类条目数缓存：(分类, 数量)；仅在 selected_category 变化时失效
     cached_category_count: Option<(Option<crate::dict::Category>, usize)>,
-    /// 主窗口是否已在首帧完成靠左定位（避免每帧覆盖、影响拖拽）
-    main_window_positioned: bool,
-    // ===== AI 对话（26 字段已收敛进 ChatUiState）=====
     /// AI 对话全部状态（输入、对话历史、流式响应、模型编辑草稿等）
     chat: ChatUiState,
 }

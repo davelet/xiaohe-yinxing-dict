@@ -19,24 +19,6 @@ impl eframe::App for DictApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
 
-        // 首次启动将主窗口靠左放置：距所在显示器左边缘 60px、垂直居中。
-        // 仅执行一次，避免每帧覆盖用户的拖拽结果。
-        if !self.main_window_positioned
-            && let Some(cmd) = ctx.input(|i| {
-                let size = i.viewport().outer_rect?.size();
-                let monitor_size = i.viewport().monitor_size?;
-                if monitor_size.x > 1.0 && monitor_size.y > 1.0 {
-                    let pos = egui::pos2(60.0, ((monitor_size.y - size.y) / 2.0).max(0.0));
-                    Some(egui::ViewportCommand::OuterPosition(pos))
-                } else {
-                    None
-                }
-            })
-        {
-            ctx.send_viewport_cmd(cmd);
-            self.main_window_positioned = true;
-        }
-
         // Handle feedback timer
         if self.feedback_timer > 0.0 {
             let dt = ctx.input(|i| i.unstable_dt);

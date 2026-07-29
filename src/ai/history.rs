@@ -52,6 +52,11 @@ impl ConversationStore {
         Self { base_dir }
     }
 
+    /// 对话文件存放目录（供打开所在文件夹等用途）
+    pub fn dir(&self) -> &PathBuf {
+        &self.base_dir
+    }
+
     fn conversations_dir() -> PathBuf {
         let config_dir = dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))

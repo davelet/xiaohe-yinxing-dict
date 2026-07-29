@@ -53,6 +53,12 @@ pub struct ModelConfig {
     /// API Key（明文存储于配置文件，与 opencode / hermes-agent 等工具一致）
     #[serde(default)]
     pub api_key: String,
+    /// 创建时间（Unix 秒时间戳）
+    #[serde(default)]
+    pub created_at: u64,
+    /// 最近修改时间（Unix 秒时间戳，与 created_at 相同表示未修改过）
+    #[serde(default)]
+    pub updated_at: u64,
 }
 
 impl ModelConfig {
@@ -65,6 +71,7 @@ impl ModelConfig {
         temperature: f32,
         max_tokens: u32,
     ) -> Self {
+        let now = now_secs();
         let id = Uuid::new_v4().to_string();
         Self {
             id,
@@ -75,7 +82,14 @@ impl ModelConfig {
             temperature,
             max_tokens,
             api_key: String::new(),
+            created_at: now,
+            updated_at: now,
         }
+    }
+
+    /// 标记为已修改，更新修改时间戳
+    pub fn touch(&mut self) {
+        self.updated_at = now_secs();
     }
 
     /// 读取 API Key（直接返回字段值）
@@ -98,6 +112,81 @@ impl ModelConfig {
         self.api_key.clear();
         Ok(())
     }
+
+    /// 时间戳展示文本。如果未修改过（updated_at == created_at）只显示创建时间
+    pub fn formatted_time_display(&self) -> String {
+        let created = fmt_timestamp(self.created_at);
+        let updated = fmt_timestamp(self.updated_at);
+        if self.updated_at > self.created_at && self.updated_at > 0 {
+            format!("创建于 {}  |  修改于 {}", created, updated)
+        } else if self.created_at > 0 {
+            format!("创建于 {}", created)
+        } else {
+            String::new()
+        }
+    }
+}
+
+/// 当前 Unix 秒时间戳
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// Unix 秒时间戳 → "YYYY-MM-DD HH:mm:ss"（东八区）
+fn fmt_timestamp(secs: u64) -> String {
+    if secs == 0 {
+        return "未知".to_string();
+    }
+    // 东八区偏移 8 小时
+    let local_secs = secs + 8 * 3600;
+    let days = local_secs / 86400;
+    let time_secs = local_secs % 86400;
+
+    let mut y = 1970i64;
+    let mut remaining = days as i64;
+    loop {
+        let days_in_year = if is_leap(y) { 366 } else { 365 };
+        if remaining < days_in_year {
+            break;
+        }
+        remaining -= days_in_year;
+        y += 1;
+    }
+
+    let month_days: &[i64] = if is_leap(y) {
+        &[31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        &[31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+
+    let mut m = 1u32;
+    for (i, &md) in month_days.iter().enumerate() {
+        if remaining < md {
+            m = (i + 1) as u32;
+            break;
+        }
+        remaining -= md;
+    }
+    if m > 12 {
+        m = 12;
+    }
+    let d = (remaining + 1) as u32;
+
+    let hour = (time_secs / 3600) as u32;
+    let min = ((time_secs % 3600) / 60) as u32;
+    let sec = (time_secs % 60) as u32;
+
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+        y, m, d, hour, min, sec
+    )
+}
+
+fn is_leap(year: i64) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
 impl Default for ModelConfig {
@@ -230,12 +319,21 @@ impl AiConfig {
 
     /// 复制模型
     pub fn duplicate_model(&mut self, source_id: &str) -> Option<ModelConfig> {
+        const MAX_NAME_LEN: usize = 50;
         let source = self.find_model(source_id).cloned();
         if let Some(mut source) = source {
             let new_id = Uuid::new_v4().to_string();
-            let new_name = format!("{} (副本)", source.name);
+            let suffix = " (副本)";
+            let new_name = if source.name.len() + suffix.len() <= MAX_NAME_LEN {
+                format!("{}{}", source.name, suffix)
+            } else {
+                source.name.clone()
+            };
+            let now = now_secs();
             source.id = new_id;
             source.name = new_name;
+            source.created_at = now;
+            source.updated_at = now;
             self.models.push(source.clone());
             Some(source)
         } else {

@@ -6,7 +6,7 @@ use tokio::sync::{mpsc::UnboundedReceiver, oneshot};
 
 use crate::ai::chat::ChatState;
 use crate::ai::client::StreamMessage;
-use crate::ai::config::Provider;
+use crate::ai::config::{AiConfig, Provider};
 use crate::ai::history::ConversationStore;
 use crate::types::ChatTab;
 
@@ -22,6 +22,7 @@ pub struct ModelEditorDraft {
     pub api_key: String,
     pub temperature: f32,
     pub max_tokens: u32,
+    pub error_message: String,
 }
 
 /// AI 对话相关的全部 UI 状态（从 DictApp 抽取，共 26 个字段）。
@@ -38,12 +39,15 @@ pub struct ChatUiState {
     pub test_rx: Option<oneshot::Receiver<String>>,
     pub test_in_progress: bool,
     pub save_response: String,
-    pub global_save_response: String,
     pub last_send_time: Option<Instant>,
     pub conversation_store: ConversationStore,
     pub model_editor: ModelEditorDraft,
     /// 删除确认弹窗状态 (model_id, model_name)
     pub confirm_delete: Option<(String, String)>,
+    /// 清空所有对话确认弹窗状态
+    pub confirm_clear_conversations: bool,
+    /// AI 配置（加载一次，跨帧保持修改状态）
+    pub ai_config: AiConfig,
 }
 
 impl Default for ChatUiState {
@@ -67,11 +71,12 @@ impl ChatUiState {
             test_rx: None,
             test_in_progress: false,
             save_response: String::new(),
-            global_save_response: String::new(),
             last_send_time: None,
             conversation_store: ConversationStore::new(),
             model_editor: ModelEditorDraft::default(),
             confirm_delete: None,
+            confirm_clear_conversations: false,
+            ai_config: AiConfig::load(),
         }
     }
 }
