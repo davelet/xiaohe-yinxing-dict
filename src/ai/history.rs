@@ -130,10 +130,10 @@ impl ConversationStore {
         if let Ok(entries) = std::fs::read_dir(&self.base_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                    if let Ok(meta) = std::fs::metadata(&path) {
-                        total += meta.len();
-                    }
+                if path.extension().and_then(|s| s.to_str()) == Some("json")
+                    && let Ok(meta) = std::fs::metadata(&path)
+                {
+                    total += meta.len();
                 }
             }
         }
@@ -161,7 +161,9 @@ impl ConversationStore {
                     break;
                 }
                 let remaining = self.list_conversations();
-                let Some(oldest) = remaining.last() else { break };
+                let Some(oldest) = remaining.last() else {
+                    break;
+                };
                 let path = self.base_dir.join(format!("{}.json", oldest.id));
                 let mut deleted = false;
                 if let Ok(file_meta) = std::fs::metadata(&path) {

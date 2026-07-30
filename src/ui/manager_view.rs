@@ -545,7 +545,8 @@ fn render_file_management(state: &mut ManagerState, ui: &mut egui::Ui) {
                     .hint_text("输入词典文件路径...")
                     .desired_width(input_w)
                     .frame(
-                        egui::Frame::default().stroke(egui::Stroke::new(1.0_f32, egui::Color32::GRAY)),
+                        egui::Frame::default()
+                            .stroke(egui::Stroke::new(1.0_f32, egui::Color32::GRAY)),
                     ),
             );
             if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {

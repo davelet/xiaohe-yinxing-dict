@@ -502,8 +502,10 @@ fn save_current_conversation(chat: &mut ChatUiState) {
         messages: chat.state.messages.clone(),
     };
     let _ = chat.conversation_store.save_conversation(&conv);
-    chat.conversation_store
-        .enforce_limits(chat.ai_config.max_conversations, chat.ai_config.max_conversation_disk_mb);
+    chat.conversation_store.enforce_limits(
+        chat.ai_config.max_conversations,
+        chat.ai_config.max_conversation_disk_mb,
+    );
 }
 
 /// 渲染对话工具栏（新建、导出、历史切换、删除）
@@ -1140,6 +1142,18 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, chat: &mut ChatUiState) {
                             Provider::Moonshot,
                             Provider::Qwen,
                             Provider::Yi,
+                            Provider::Doubao,
+                            Provider::Hunyuan,
+                            Provider::Qianfan,
+                            Provider::Qna360,
+                            Provider::MiniMax,
+                            Provider::Baichuan,
+                            Provider::StepFun,
+                            Provider::SenseNova,
+                            Provider::MiniCPM,
+                            Provider::SkyWork,
+                            Provider::Mobvoi,
+                            Provider::SiliconFlow,
                             Provider::Custom,
                         ];
                         for p in &providers {
@@ -1151,41 +1165,8 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, chat: &mut ChatUiState) {
                                 )
                                 .clicked()
                             {
-                                // 根据提供商设置默认 API URL 和模型名
-                                match p {
-                                    Provider::DeepSeek => {
-                                        chat.model_editor.api_url =
-                                            "https://api.deepseek.com".to_string();
-                                        chat.model_editor.model = "deepseek-chat".to_string();
-                                    }
-                                    Provider::Zhipu => {
-                                        chat.model_editor.api_url =
-                                            "https://open.bigmodel.cn/api/paas/v4".to_string();
-                                        chat.model_editor.model = "glm-4-flash".to_string();
-                                    }
-                                    Provider::Moonshot => {
-                                        chat.model_editor.api_url =
-                                            "https://api.moonshot.cn/v1".to_string();
-                                        chat.model_editor.model = "moonshot-v1-8k".to_string();
-                                    }
-                                    Provider::Qwen => {
-                                        chat.model_editor.api_url =
-                                            "https://dashscope.aliyuncs.com/compatible-mode/v1"
-                                                .to_string();
-                                        chat.model_editor.model = "qwen-turbo".to_string();
-                                    }
-                                    Provider::Yi => {
-                                        chat.model_editor.api_url =
-                                            "https://api.lingyiwanwu.com/v1".to_string();
-                                        chat.model_editor.model = "yi-large".to_string();
-                                    }
-                                    Provider::Custom => {
-                                        if chat.model_editor.api_url.is_empty() {
-                                            chat.model_editor.api_url =
-                                                "https://your-api-endpoint.com/v1".to_string();
-                                        }
-                                    }
-                                }
+                                chat.model_editor.api_url = p.default_api_url().to_string();
+                                chat.model_editor.model = p.default_model().to_string();
                             }
                         }
                     });

@@ -15,6 +15,30 @@ pub enum Provider {
     Qwen,
     /// 零一万物 (Yi)
     Yi,
+    /// 字节跳动豆包 (火山引擎方舟)
+    Doubao,
+    /// 腾讯混元
+    Hunyuan,
+    /// 百度千帆 (文心)
+    Qianfan,
+    /// 360 智脑
+    Qna360,
+    /// MiniMax (海螺)
+    MiniMax,
+    /// 百川智能
+    Baichuan,
+    /// 阶跃星辰 (StepFun)
+    StepFun,
+    /// 商汤日日新
+    SenseNova,
+    /// 面壁智能 (MiniCPM)
+    MiniCPM,
+    /// 昆仑万维天工
+    SkyWork,
+    /// 出门问问序列猴子
+    Mobvoi,
+    /// 硅基流动 (SiliconFlow 聚合平台)
+    SiliconFlow,
     /// 自定义 OpenAI 兼容端点
     #[default]
     Custom,
@@ -24,11 +48,73 @@ impl std::fmt::Display for Provider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DeepSeek => write!(f, "深度求索 (DeepSeek)"),
-            Self::Zhipu => write!(f, "智谱 (GLM)"),
+            Self::Zhipu => write!(f, "智谱 (Zhipu)"),
             Self::Moonshot => write!(f, "月之暗面 (Moonshot)"),
             Self::Qwen => write!(f, "通义千问 (Qwen)"),
             Self::Yi => write!(f, "零一万物 (Yi)"),
-            Self::Custom => write!(f, "自定义"),
+            Self::Doubao => write!(f, "字节豆包 (Doubao)"),
+            Self::Hunyuan => write!(f, "腾讯混元 (Hunyuan)"),
+            Self::Qianfan => write!(f, "百度千帆 (Qianfan)"),
+            Self::Qna360 => write!(f, "360智脑 (360GPT)"),
+            Self::MiniMax => write!(f, "海螺AI (MiniMax)"),
+            Self::Baichuan => write!(f, "百川智能 (Baichuan)"),
+            Self::StepFun => write!(f, "阶跃星辰 (StepFun)"),
+            Self::SenseNova => write!(f, "商汤日日新 (SenseNova)"),
+            Self::MiniCPM => write!(f, "面壁智能 (MiniCPM)"),
+            Self::SkyWork => write!(f, "昆仑万维 (SkyWork)"),
+            Self::Mobvoi => write!(f, "出门问问 (Mobvoi)"),
+            Self::SiliconFlow => write!(f, "硅基流动 (SiliconFlow)"),
+            Self::Custom => write!(f, "自定义 (Custom)"),
+        }
+    }
+}
+
+impl Provider {
+    /// 返回该供应商的默认 API Base URL
+    pub fn default_api_url(&self) -> &'static str {
+        match self {
+            Self::DeepSeek => "https://api.deepseek.com",
+            Self::Zhipu => "https://open.bigmodel.cn",
+            Self::Moonshot => "https://api.moonshot.cn/v1",
+            Self::Qwen => "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            Self::Yi => "https://api.lingyiwanwu.com/v1",
+            Self::Doubao => "https://ark.cn-beijing.volces.com/api/v3",
+            Self::Hunyuan => "https://api.hunyuan.cloud.tencent.com/v1",
+            Self::Qianfan => "https://qianfan.baidubce.com/v2",
+            Self::Qna360 => "https://api.360.cn/v1",
+            Self::MiniMax => "https://api.minimax.chat/v1",
+            Self::Baichuan => "https://api.baichuan-ai.com/v1",
+            Self::StepFun => "https://api.stepfun.com/v1",
+            Self::SenseNova => "https://api.sensenova.cn/compatible-mode/v1",
+            Self::MiniCPM => "https://api.minicpm.cn/v1",
+            Self::SkyWork => "https://api-preview.skyneng.cn/v1",
+            Self::Mobvoi => "https://api.mobvoi.com/v1",
+            Self::SiliconFlow => "https://api.siliconflow.cn/v1",
+            Self::Custom => "",
+        }
+    }
+
+    /// 返回该供应商的默认模型标识
+    pub fn default_model(&self) -> &'static str {
+        match self {
+            Self::DeepSeek => "deepseek-chat",
+            Self::Zhipu => "glm-4-flash",
+            Self::Moonshot => "moonshot-v1-8k",
+            Self::Qwen => "qwen-turbo",
+            Self::Yi => "yi-lightning",
+            Self::Doubao => "doubao-pro-4k",
+            Self::Hunyuan => "hunyuan-lite",
+            Self::Qianfan => "ernie-speed-8k",
+            Self::Qna360 => "360gpt-turbo",
+            Self::MiniMax => "abab6.5s-chat",
+            Self::Baichuan => "Baichuan3-Turbo",
+            Self::StepFun => "step-1-8k",
+            Self::SenseNova => "SenseChat-5",
+            Self::MiniCPM => "MiniCPM-4",
+            Self::SkyWork => "SkyChat-MegaVerse",
+            Self::Mobvoi => "uclaml-large",
+            Self::SiliconFlow => "deepseek-ai/DeepSeek-V3",
+            Self::Custom => "",
         }
     }
 }
@@ -395,15 +481,15 @@ impl AiConfig {
             && let Some(provider) = config.provider.take()
         {
             let name = provider.to_string();
-            let api_url = config.api_url.take().unwrap_or_else(|| match provider {
-                Provider::DeepSeek => "https://api.deepseek.com".to_string(),
-                Provider::Zhipu => "https://open.bigmodel.cn".to_string(),
-                Provider::Moonshot => "https://api.moonshot.cn".to_string(),
-                Provider::Qwen => "https://dashscope.aliyuncs.com".to_string(),
-                Provider::Yi => "https://api.lingyiwanwu.com".to_string(),
-                Provider::Custom => String::new(),
-            });
-            let model = config.model.take().unwrap_or_default();
+            let api_url = config
+                .api_url
+                .take()
+                .unwrap_or_else(|| provider.default_api_url().to_string());
+            let model = config
+                .model
+                .take()
+                .filter(|m| !m.is_empty())
+                .unwrap_or_else(|| provider.default_model().to_string());
             let temperature = config.temperature.take().unwrap_or(0.7);
             let max_tokens = config.max_tokens.take().unwrap_or(2048);
 
