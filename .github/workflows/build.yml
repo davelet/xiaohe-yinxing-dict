@@ -398,10 +398,6 @@ jobs:
             echo ""
             if [ -n "$PREV_TAG" ]; then
               git log "$PREV_TAG...$TAG" --pretty=format:"* %s" --no-merges
-              echo ""
-              echo ""
-              echo "---"
-              echo "**完整变更**: ${{ github.repository }}/compare/$PREV_TAG...$TAG"
             else
               git log --pretty=format:"* %s" --no-merges
             fi

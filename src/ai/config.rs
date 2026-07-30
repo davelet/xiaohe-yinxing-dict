@@ -202,6 +202,14 @@ impl Default for ModelConfig {
     }
 }
 
+fn default_max_conversations() -> usize {
+    50
+}
+
+fn default_max_conversation_disk_mb() -> u64 {
+    1000
+}
+
 /// AI 配置（持久化至 ai_config.json）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiConfig {
@@ -219,6 +227,12 @@ pub struct AiConfig {
     /// 是否持久化已关闭的对话历史（关闭时不记录、不提供切换，但不主动删除已有记录）
     #[serde(default)]
     pub persist_conversations: bool,
+    /// 最大保留对话数（1~1000），超出自动删除最旧对话
+    #[serde(default = "default_max_conversations")]
+    pub max_conversations: usize,
+    /// 对话文件最大磁盘占用（MB，100~20000），超出自动删除最旧对话
+    #[serde(default = "default_max_conversation_disk_mb")]
+    pub max_conversation_disk_mb: u64,
 
     /// 多模型列表
     #[serde(default)]
@@ -253,6 +267,8 @@ impl Default for AiConfig {
             max_tool_turns: 10,
             configured: false,
             persist_conversations: false,
+            max_conversations: 50,
+            max_conversation_disk_mb: 1000,
             models: Vec::new(),
             active_model_id: None,
             keyring_user: None,
@@ -343,6 +359,9 @@ impl AiConfig {
 
     /// 校验并修复 active_model_id，确保指向有效模型
     pub fn validate_and_fix(&mut self) {
+        self.max_conversations = self.max_conversations.clamp(1, 1000);
+        self.max_conversation_disk_mb = self.max_conversation_disk_mb.clamp(100, 20000);
+
         if self.models.is_empty() {
             self.active_model_id = None;
             self.configured = false;

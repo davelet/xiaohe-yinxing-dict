@@ -124,15 +124,58 @@ impl ConversationStore {
         Ok(())
     }
 
-    /// 限制最大对话数（删除最旧的超出部分）
-    pub fn enforce_max_conversations(&self, max: usize) {
-        let metas = self.list_conversations();
-        if metas.len() <= max {
-            return;
+    /// 计算对话文件总磁盘占用（字节）
+    pub fn total_disk_usage(&self) -> u64 {
+        let mut total: u64 = 0;
+        if let Ok(entries) = std::fs::read_dir(&self.base_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                    if let Ok(meta) = std::fs::metadata(&path) {
+                        total += meta.len();
+                    }
+                }
+            }
         }
-        // list_conversations 已按更新时间倒序，末尾的是最旧的
-        for meta in metas.into_iter().skip(max) {
-            let _ = self.delete_conversation(&meta.id);
+        total
+    }
+
+    /// 执行保留策略：同时限制对话数量和磁盘占用，超出时删除最旧的对话
+    pub fn enforce_limits(&self, max_count: usize, max_disk_mb: u64) {
+        let metas = self.list_conversations();
+        let max_bytes = max_disk_mb * 1024 * 1024;
+
+        // 先按数量裁剪
+        if metas.len() > max_count {
+            for meta in metas.iter().skip(max_count) {
+                let _ = self.delete_conversation(&meta.id);
+            }
+        }
+
+        // 再按磁盘空间裁剪（从最旧的开始删除）
+        let mut disk_used = self.total_disk_usage();
+        if disk_used > max_bytes {
+            let mut remaining_count = self.list_conversations().len();
+            loop {
+                if disk_used <= max_bytes || remaining_count <= 1 {
+                    break;
+                }
+                let remaining = self.list_conversations();
+                let Some(oldest) = remaining.last() else { break };
+                let path = self.base_dir.join(format!("{}.json", oldest.id));
+                let mut deleted = false;
+                if let Ok(file_meta) = std::fs::metadata(&path) {
+                    let file_size = file_meta.len();
+                    if self.delete_conversation(&oldest.id).is_ok() {
+                        disk_used = disk_used.saturating_sub(file_size);
+                        deleted = true;
+                    }
+                }
+                if !deleted {
+                    break;
+                }
+                remaining_count -= 1;
+            }
         }
     }
 

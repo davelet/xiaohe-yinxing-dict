@@ -194,14 +194,13 @@ impl ChatState {
         self.last_user_message.clone()
     }
 
-    /// 按轮数裁剪历史消息，保留最近 N 轮对话
+    /// 按轮数裁剪历史消息，返回裁剪后的消息副本（不修改原 messages）
     /// 一轮 = 1 条用户消息 + 1 条 AI 消息
-    pub fn trim_history(&mut self, max_rounds: usize) {
+    pub fn clone_trimmed_history(&self, max_rounds: usize) -> Vec<ChatMessage> {
         if max_rounds == 0 || self.messages.is_empty() {
-            return;
+            return self.messages.clone();
         }
 
-        // 找到最近 N 轮的用户消息位置
         let mut user_count = 0;
         let mut split_index = 0;
 
@@ -215,31 +214,32 @@ impl ChatState {
             }
         }
 
-        // 如果找到了分割点，删除之前的消息
         if split_index > 0 {
-            self.messages.drain(..split_index);
+            self.messages[split_index..].to_vec()
+        } else {
+            self.messages.clone()
         }
     }
 
     /// 将历史消息（不含最后一条用户消息，因为它是当前 prompt）转换为 rig-core Message 格式
     /// 用于 stream_chat 的 chat_history 参数
     pub fn to_rig_history(&self) -> Vec<rig_core::completion::Message> {
+        Self::messages_to_rig_history(&self.messages)
+    }
+
+    /// 从给定的消息列表转换为 rig-core Message 格式（不含最后一条用户消息）
+    pub fn messages_to_rig_history(msgs: &[ChatMessage]) -> Vec<rig_core::completion::Message> {
         use rig_core::OneOrMany;
         use rig_core::completion::{AssistantContent, Message};
 
-        // 排除最后一条消息（它是当前要发送的用户消息，由 stream_chat 的 prompt 参数传入）
-        let msgs = if self
-            .messages
-            .last()
-            .map(|m| m.role == Role::User)
-            .unwrap_or(false)
-        {
-            &self.messages[..self.messages.len() - 1]
+        let trimmed = if msgs.last().map(|m| m.role == Role::User).unwrap_or(false) {
+            &msgs[..msgs.len() - 1]
         } else {
-            &self.messages[..]
+            msgs
         };
 
-        msgs.iter()
+        trimmed
+            .iter()
             .filter_map(|msg| match msg.role {
                 Role::User => Some(Message::from(msg.content.clone())),
                 Role::AI => Some(Message::Assistant {
@@ -253,19 +253,54 @@ impl ChatState {
 
     /// 获取估算的 token 数量（粗略估计：1 个汉字约 2 个 token，1 个英文单词约 1.5 个 token）
     pub fn estimate_tokens(&self) -> usize {
+        Self::estimate_tokens_for(&self.messages)
+    }
+
+    /// 按 token 预算裁剪历史消息（传入可变引用，不修改 self.messages）
+    /// 保留至少最近 2 轮对话，避免裁剪过度
+    pub fn trim_messages_by_token_budget(msgs: &mut Vec<ChatMessage>, budget: usize) {
+        let mut current_tokens = Self::estimate_tokens_for(msgs);
+        const MIN_ROUNDS: usize = 2;
+
+        while current_tokens > budget {
+            let user_count = msgs.iter().filter(|m| m.role == Role::User).count();
+            if user_count <= MIN_ROUNDS {
+                break;
+            }
+            if msgs.is_empty() {
+                break;
+            }
+            let msg_tokens = {
+                let oldest = &msgs[0];
+                let chinese_chars = oldest
+                    .content
+                    .chars()
+                    .filter(|c| (*c as u32) >= 0x4e00)
+                    .count();
+                let other_chars = oldest
+                    .content
+                    .chars()
+                    .filter(|c| (*c as u32) < 0x4e00)
+                    .count();
+                chinese_chars * 2 + (other_chars as f64 * 1.5) as usize
+            };
+            current_tokens = current_tokens.saturating_sub(msg_tokens);
+            msgs.remove(0);
+        }
+    }
+
+    /// 估算给定消息列表的 token 数量
+    fn estimate_tokens_for(msgs: &[ChatMessage]) -> usize {
         let mut total = 0;
-        for msg in &self.messages {
-            // 中文字符
+        for msg in msgs {
             let chinese_chars = msg
                 .content
                 .chars()
                 .filter(|c| (*c as u32) >= 0x4e00)
                 .count();
-            // 英文和其他字符
             let other_chars = msg.content.chars().filter(|c| (*c as u32) < 0x4e00).count();
             total += chinese_chars * 2 + (other_chars as f64 * 1.5) as usize;
 
-            // 工具调用
             for tc in &msg.tool_calls {
                 let tc_chinese = tc
                     .arguments
@@ -285,43 +320,6 @@ impl ChatState {
             }
         }
         total
-    }
-
-    /// 按 token 预算裁剪历史（工具结果超长时截断）
-    /// 保留至少最近 2 轮对话，避免裁剪过度
-    pub fn trim_by_token_budget(&mut self, budget: usize) {
-        let mut current_tokens = self.estimate_tokens();
-        const MIN_ROUNDS: usize = 2;
-
-        while current_tokens > budget {
-            let user_count = self
-                .messages
-                .iter()
-                .filter(|m| m.role == Role::User)
-                .count();
-            if user_count <= MIN_ROUNDS {
-                break;
-            }
-            if let Some(oldest) = self.messages.first() {
-                let msg_tokens = {
-                    let chinese_chars = oldest
-                        .content
-                        .chars()
-                        .filter(|c| (*c as u32) >= 0x4e00)
-                        .count();
-                    let other_chars = oldest
-                        .content
-                        .chars()
-                        .filter(|c| (*c as u32) < 0x4e00)
-                        .count();
-                    chinese_chars * 2 + (other_chars as f64 * 1.5) as usize
-                };
-                current_tokens = current_tokens.saturating_sub(msg_tokens);
-                self.messages.remove(0);
-            } else {
-                break;
-            }
-        }
     }
 }
 

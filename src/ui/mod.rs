@@ -243,7 +243,7 @@ impl DictApp {
                             .desired_width(f32::INFINITY)
                             .frame(
                                 egui::Frame::default()
-                                    .stroke(egui::Stroke::new(1.0, egui::Color32::GRAY)),
+                                    .stroke(egui::Stroke::new(1.0_f32, egui::Color32::GRAY)),
                             ),
                     );
                 },

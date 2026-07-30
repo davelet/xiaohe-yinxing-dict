@@ -342,7 +342,7 @@ fn render_input_area(
     manager: &ManagerState,
 ) {
     let ctx = ui.ctx().clone();
-    let row_content_height = 40.0; // 输入框内容高度，减小以降低整体高度
+    let row_content_height = 67.0; // 输入框内容高度，减小以降低整体高度
     let mut text_edit_has_focus = false;
 
     ui.horizontal_top(|ui| {
@@ -354,7 +354,7 @@ fn render_input_area(
         // 输入框带边框 - 固定高度，内容超出时内部滚动
         let input_frame = egui::Frame::NONE
             .stroke(egui::Stroke::new(
-                1.5,
+                1.5_f32,
                 egui::Color32::from_rgb(130, 130, 145),
             ))
             .corner_radius(8.0)
@@ -363,18 +363,20 @@ fn render_input_area(
             ui.set_min_height(row_content_height);
             ui.set_max_height(row_content_height);
             ui.set_max_width(input_width);
-            let scroll = egui::ScrollArea::vertical()
+            egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
+                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
                 .show(ui, |ui| {
                     ui.add(
                         egui::TextEdit::multiline(&mut chat.input)
                             .hint_text("输入消息...（Enter 发送，Shift+Enter 换行）")
                             .font(egui::TextStyle::Body)
                             .desired_width(input_width)
+                            .desired_rows(3)
                             .frame(egui::Frame::NONE),
                     )
-                });
-            scroll.inner
+                })
+                .inner
         });
         text_edit_has_focus = response.inner.has_focus();
         // 用输入框实际渲染高度作为按钮高度，保证上下严格对齐
@@ -500,7 +502,8 @@ fn save_current_conversation(chat: &mut ChatUiState) {
         messages: chat.state.messages.clone(),
     };
     let _ = chat.conversation_store.save_conversation(&conv);
-    chat.conversation_store.enforce_max_conversations(50);
+    chat.conversation_store
+        .enforce_limits(chat.ai_config.max_conversations, chat.ai_config.max_conversation_disk_mb);
 }
 
 /// 渲染对话工具栏（新建、导出、历史切换、删除）
@@ -680,16 +683,18 @@ fn send_message(
     let engine_clone = engine.clone();
     let help_mgr_clone = help_manager.clone();
 
-    // 按配置的轮数裁剪历史
-    chat.state.trim_history(ai_config.history_rounds as usize);
+    // 按配置的轮数裁剪历史（仅用于发送给 AI，不修改内存中的完整消息列表）
+    let mut trimmed_history = chat
+        .state
+        .clone_trimmed_history(ai_config.history_rounds as usize);
 
     // 按 token 预算二次裁剪，确保总 token 不超过模型上下文限制
     // 保守假设模型上下文窗口 = 8 * max_tokens，留出余量给模型输出
     let token_budget = (model_config.max_tokens as usize) * 8;
-    chat.state.trim_by_token_budget(token_budget);
+    crate::ai::chat::ChatState::trim_messages_by_token_budget(&mut trimmed_history, token_budget);
 
     // 收集多轮上下文（裁剪后的历史，不含当前消息）
-    let chat_history = chat.state.to_rig_history();
+    let chat_history = crate::ai::chat::ChatState::messages_to_rig_history(&trimmed_history);
 
     // 创建 channel 接收响应
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<crate::ai::client::StreamMessage>();
@@ -948,6 +953,40 @@ fn render_settings_tab(ui: &mut egui::Ui, chat: &mut ChatUiState) {
                 let _ = config.save();
             }
 
+            // 对话保留策略（仅 persist 开启时显示）
+            if config.persist_conversations {
+                ui.add_space(4.0);
+                let mut should_save = false;
+                ui.indent("retention_policy", |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("最大对话数:");
+                        let count_resp = ui.add(egui::Slider::new(
+                            &mut config.max_conversations,
+                            1..=1000,
+                        ));
+                        count_resp.surrender_focus();
+                        if count_resp.drag_stopped() {
+                            should_save = true;
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("最大磁盘占用 (MB):");
+                        let disk_resp = ui.add(egui::Slider::new(
+                            &mut config.max_conversation_disk_mb,
+                            100..=20000,
+                        ));
+                        disk_resp.surrender_focus();
+                        if disk_resp.drag_stopped() {
+                            should_save = true;
+                        }
+                    });
+                    ui.small("超出任一限制时，自动删除最旧的对话");
+                });
+                if should_save {
+                    let _ = config.save();
+                }
+            }
+
             ui.add_space(8.0);
 
             // 对话数据管理
@@ -1058,7 +1097,7 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, chat: &mut ChatUiState) {
         .show(ui.ctx(), |ui| {
             // 输入框统一样式
             let input_frame = egui::Frame::group(ui.style())
-                .stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(180)))
+                .stroke(egui::Stroke::new(1.0_f32, egui::Color32::from_gray(180)))
                 .corner_radius(4.0)
                 .inner_margin(egui::Margin::symmetric(4, 2));
 
