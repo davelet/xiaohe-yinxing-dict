@@ -264,7 +264,13 @@ fn render_ai_message(
 
                 if is_interrupted && content.is_empty() {
                 } else {
-                    egui_commonmark::CommonMarkViewer::new().show(ui, &mut chat.md_cache, &content);
+                    ui.push_id(msg_idx, |ui| {
+                        egui_commonmark::CommonMarkViewer::new().show(
+                            ui,
+                            &mut chat.md_cache,
+                            &content,
+                        );
+                    });
                 }
 
                 if is_interrupted && !content.is_empty() {
@@ -277,33 +283,22 @@ fn render_ai_message(
         if is_last && !chat.state.is_generating {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                let has_codes = !tool_calls.is_empty();
-                ui.add_enabled_ui(has_codes, |ui| {
-                    if ui.small_button("📋 复制编码").clicked() {
-                        let codes: Vec<String> = tool_calls
-                            .iter()
-                            .filter_map(|tc| {
-                                serde_json::from_str::<serde_json::Value>(&tc.result)
-                                    .ok()
-                                    .and_then(|v| {
-                                        v.get("results")?
-                                            .as_array()?
-                                            .iter()
-                                            .filter_map(|r| {
-                                                r.get("code")?.as_str().map(String::from)
-                                            })
-                                            .reduce(|a, b| format!("{}, {}", a, b))
-                                    })
-                            })
-                            .collect();
-                        if !codes.is_empty() {
-                            ui.ctx().copy_text(codes.join("; "));
-                        }
-                    }
-                });
+                if ui
+                    .small_button(egui::RichText::new("🔄 重新生成").color(egui::Color32::BLUE))
+                    .clicked()
+                    && let Some(user_msg) = chat.state.prepare_regenerate()
+                {
+                    chat.input = user_msg;
+                    send_message(chat, engine, help_manager, manager, &ui.ctx().clone());
+                }
 
-                ui.add_enabled_ui(has_codes, |ui| {
-                    if ui.small_button("🔍 词典中查看").clicked()
+                ui.add_enabled_ui(!tool_calls.is_empty(), |ui| {
+                    if ui
+                        .small_button(
+                            egui::RichText::new("🔍 词典中查看")
+                                .color(egui::Color32::from_rgb(240, 144, 0)),
+                        )
+                        .clicked()
                         && let Some(tc) = tool_calls.first()
                         && let Ok(v) = serde_json::from_str::<serde_json::Value>(&tc.arguments)
                         && let Some(q) = v
@@ -315,15 +310,31 @@ fn render_ai_message(
                     }
                 });
 
-                if ui.small_button("📋 复制回复").clicked() {
-                    ui.ctx().copy_text(content.clone());
-                }
-
-                if ui.small_button("🔄 重新生成").clicked()
-                    && let Some(user_msg) = chat.state.prepare_regenerate()
+                if ui
+                    .add_enabled(
+                        !chat.state.messages.is_empty(),
+                        egui::Button::new(
+                            egui::RichText::new("📋 复制会话完整内容")
+                                .color(egui::Color32::from_rgb(128, 0, 128)),
+                        ),
+                    )
+                    .clicked()
                 {
-                    chat.input = user_msg;
-                    send_message(chat, engine, help_manager, manager, &ui.ctx().clone());
+                    let conv = crate::ai::history::Conversation {
+                        id: chat
+                            .state
+                            .current_conversation_id
+                            .clone()
+                            .unwrap_or_default(),
+                        title: crate::ai::history::Conversation::title_from_messages(
+                            &chat.state.messages,
+                        ),
+                        created_at: 0,
+                        updated_at: 0,
+                        messages: chat.state.messages.clone(),
+                    };
+                    let md = crate::ai::history::ConversationStore::export_markdown(&conv);
+                    ui.ctx().copy_text(md);
                 }
             });
         }
@@ -542,30 +553,6 @@ fn render_conversation_toolbar(ui: &mut egui::Ui, chat: &mut ChatUiState) {
             });
         }
 
-        ui.separator();
-
-        if ui
-            .add_enabled(
-                !chat.state.messages.is_empty(),
-                egui::Button::new("💾 导出回复"),
-            )
-            .clicked()
-        {
-            let conv = crate::ai::history::Conversation {
-                id: chat
-                    .state
-                    .current_conversation_id
-                    .clone()
-                    .unwrap_or_default(),
-                title: crate::ai::history::Conversation::title_from_messages(&chat.state.messages),
-                created_at: 0,
-                updated_at: 0,
-                messages: chat.state.messages.clone(),
-            };
-            let md = crate::ai::history::ConversationStore::export_markdown(&conv);
-            ui.ctx().copy_text(md);
-        }
-
         // 仅在开启持久化时显示历史切换
         if persist_enabled {
             ui.separator();
@@ -608,15 +595,6 @@ fn render_conversation_toolbar(ui: &mut egui::Ui, chat: &mut ChatUiState) {
                         }
                     }
                 });
-
-            // 删除当前对话记录
-            if chat.state.current_conversation_id.is_some()
-                && ui.small_button("🗑 删除此记录").clicked()
-                && let Some(id) = chat.state.current_conversation_id.take()
-            {
-                let _ = chat.conversation_store.delete_conversation(&id);
-                chat.state.clear();
-            }
         }
     });
     ui.separator();
