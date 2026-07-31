@@ -6,7 +6,12 @@ use std::sync::{Arc, Mutex};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
+const REPO_OWNER: &str = "davelet";
+const REPO_NAME: &str = "xiaohe-yinxing-dict";
+
+/// 代理获取策略：环境变量优先，其次读取系统代理
 fn get_proxy_url() -> Option<String> {
+    // 优先使用环境变量代理
     for var in &[
         "HTTPS_PROXY",
         "https_proxy",
@@ -21,16 +26,25 @@ fn get_proxy_url() -> Option<String> {
             return Some(val);
         }
     }
+    // 回退到系统代理
     if let Ok(proxy) = sysproxy::Sysproxy::get_system_proxy()
         && proxy.enable
     {
-        return Some(format!("http://{}:{}", proxy.host, proxy.port));
+        let url = format!("http://{}:{}", proxy.host, proxy.port);
+        return Some(url);
     }
     None
 }
 
-const REPO_OWNER: &str = "davelet";
-const REPO_NAME: &str = "xiaohe-yinxing-dict";
+fn http_client_builder() -> reqwest::blocking::ClientBuilder {
+    let mut builder = reqwest::blocking::Client::builder().user_agent("xiaohe-yinxing-dict");
+    if let Some(proxy_url) = get_proxy_url()
+        && let Ok(proxy) = reqwest::Proxy::all(&proxy_url)
+    {
+        builder = builder.proxy(proxy);
+    }
+    builder
+}
 
 #[derive(Debug, Clone)]
 pub struct UpdateInfo {
@@ -79,15 +93,10 @@ pub fn check_for_update(current_version: &str) -> Option<UpdateInfo> {
         REPO_OWNER, REPO_NAME
     );
 
-    let mut builder = reqwest::blocking::Client::builder()
-        .user_agent("xiaohe-yinxing-dict")
-        .timeout(std::time::Duration::from_secs(5));
-    if let Some(proxy_url) = get_proxy_url()
-        && let Ok(proxy) = reqwest::Proxy::all(&proxy_url)
-    {
-        builder = builder.proxy(proxy);
-    }
-    let client = builder.build().ok()?;
+    let client = http_client_builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .ok()?;
 
     let response = client.get(&url).send().ok()?;
     if !response.status().is_success() {
@@ -230,27 +239,42 @@ fn do_download(
     progress: &Arc<Mutex<UpdateProgress>>,
     cancelled: &AtomicBool,
 ) -> Result<PathBuf, String> {
-    let mut builder = reqwest::blocking::Client::builder()
-        .user_agent("xiaohe-yinxing-dict")
-        .connect_timeout(std::time::Duration::from_secs(5))
-        .timeout(std::time::Duration::from_secs(30));
-    if let Some(proxy_url) = get_proxy_url()
-        && let Ok(proxy) = reqwest::Proxy::all(&proxy_url)
-    {
-        builder = builder.proxy(proxy);
-    }
-    let client = builder
+    let client = http_client_builder()
+        .connect_timeout(std::time::Duration::from_secs(15))
+        .timeout(std::time::Duration::from_secs(300))
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-    let mut response = client
-        .get(&info.download_url)
-        .send()
-        .map_err(|e| format!("下载请求失败: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err(format!("下载失败: HTTP {}", response.status()));
+    let mut last_err = String::new();
+    let mut response = None;
+    for attempt in 0..3 {
+        if attempt > 0 {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+        }
+        // 重试前检查取消，避免用户取消后仍在重试等待
+        if cancelled.load(Ordering::Relaxed) {
+            return Err("已取消".to_string());
+        }
+        match client.get(&info.download_url).send() {
+            Ok(r) if r.status().is_success() => {
+                response = Some(r);
+                break;
+            }
+            Ok(r) => {
+                let status = r.status();
+                last_err = format!("HTTP {}", status);
+                // 4xx 客户端错误重试无意义，直接失败
+                if status.is_client_error() {
+                    return Err(format!("下载失败: {}", last_err));
+                }
+            }
+            Err(e) => {
+                last_err = e.to_string();
+            }
+        }
     }
+    let mut response =
+        response.ok_or_else(|| format!("下载请求失败: 重试3次均失败 ({})", last_err))?;
 
     let content_length = response.content_length().unwrap_or(0);
 
