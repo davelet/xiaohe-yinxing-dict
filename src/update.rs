@@ -470,6 +470,12 @@ fn remove_quarantine(path: &Path) -> Result<(), String> {
 }
 
 #[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+#[cfg(target_os = "windows")]
 fn apply_update_windows(zip_path: &Path) -> Result<PathBuf, String> {
     let tmp_dir = std::env::temp_dir();
     let extract_dir = tmp_dir.join(format!("xiaohe-update-{}", std::process::id()));
@@ -492,17 +498,22 @@ fn apply_update_windows(zip_path: &Path) -> Result<PathBuf, String> {
     let old_exe = current_exe.with_extension("exe.old");
     let _ = std::fs::remove_file(&old_exe);
 
-    let updater_exe = current_exe
+    // 优先使用新 zip 里的 updater.exe（新版本带 asInvoker manifest，不会被 UAC
+    // 安装程序检测拦截），其次回退到当前目录的 updater.exe。
+    let local_updater = current_exe
         .parent()
         .ok_or("无法获取程序目录")?
         .join("updater.exe");
+    let updater_exe = find_updater_in_dir(&extract_dir)
+        .or_else(|| local_updater.exists().then_some(local_updater));
 
-    if updater_exe.exists() {
+    if let Some(updater_exe) = updater_exe {
         let _ = std::process::Command::new(&updater_exe)
             .arg("--old")
             .arg(&current_exe)
             .arg("--new")
             .arg(&new_exe)
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| format!("启动 updater 失败: {}", e))?;
     } else {
@@ -517,8 +528,10 @@ fn apply_update_windows(zip_path: &Path) -> Result<PathBuf, String> {
         let old_str = current_exe.to_string_lossy().to_string();
         let new_str = new_exe.to_string_lossy().to_string();
 
+        // BOM + chcp 65001 确保 cmd 能正确解析内容里的中文路径
         let bat_content = format!(
-            "@echo off\r\n\
+            "\u{FEFF}@echo off\r\n\
+             chcp 65001 >nul\r\n\
              setlocal enabledelayedexpansion\r\n\
              :wait\r\n\
              tasklist /FI \"IMAGENAME eq {exe}\" /NH 2>nul | find /I \"{exe}\" >nul\r\n\
@@ -537,15 +550,37 @@ fn apply_update_windows(zip_path: &Path) -> Result<PathBuf, String> {
 
         std::fs::write(&bat_path, &bat_content).map_err(|e| format!("创建重启脚本失败: {}", e))?;
 
-        std::process::Command::new(&bat_path)
+        // .bat 不能直接被 CreateProcess 执行，必须通过 cmd 启动
+        std::process::Command::new("cmd")
+            .args(["/C"])
+            .arg(&bat_path)
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| format!("启动重启脚本失败: {}", e))?;
     }
 
-    let _ = std::fs::remove_dir_all(&extract_dir);
-    let _ = std::fs::remove_file(zip_path);
+    // 注意：不能在此处删除 extract_dir 和 zip —— updater/bat 脚本会在本进程
+    // 退出后才从 new_exe（位于 extract_dir 内）拷贝新版本。
+    // 残留的临时文件由下次启动时的 cleanup_old_files_keep_previous() 清理。
 
     Ok(current_exe)
+}
+
+#[cfg(target_os = "windows")]
+fn find_updater_in_dir(dir: &Path) -> Option<PathBuf> {
+    let entries = std::fs::read_dir(dir).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() && path.file_name().is_some_and(|n| n == "updater.exe") {
+            return Some(path);
+        }
+        if path.is_dir()
+            && let Some(found) = find_updater_in_dir(&path)
+        {
+            return Some(found);
+        }
+    }
+    None
 }
 
 #[cfg(target_os = "windows")]
@@ -590,6 +625,20 @@ pub fn cleanup_old_files_keep_previous() {
             let older_exe = current_exe.with_extension("exe.old.old");
             let _ = std::fs::remove_file(&older_exe);
             let _ = std::fs::rename(&old_exe, &older_exe);
+
+            // 清理上次自动更新遗留的临时文件（解压目录和重启脚本）
+            let tmp_dir = std::env::temp_dir();
+            if let Ok(entries) = std::fs::read_dir(&tmp_dir) {
+                for entry in entries.flatten() {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    let path = entry.path();
+                    if name.starts_with("xiaohe-update-") && path.is_dir() {
+                        let _ = std::fs::remove_dir_all(&path);
+                    } else if name.starts_with("xiaohe-restart-") && name.ends_with(".bat") {
+                        let _ = std::fs::remove_file(&path);
+                    }
+                }
+            }
         }
     }
 }

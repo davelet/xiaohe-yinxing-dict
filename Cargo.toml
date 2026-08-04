@@ -1,6 +1,6 @@
 [package]
 name = "xiaohe-yinxing-dict"
-version = "2.0.5"
+version = "2.0.6"
 edition = "2024"
 license = "Unlicense"
 
