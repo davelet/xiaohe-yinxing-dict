@@ -11,6 +11,7 @@ mod external_dict_cache;
 pub mod help;
 pub mod icon;
 pub mod manager;
+pub mod menu;
 pub mod rime_loader;
 pub mod search;
 mod trie;
@@ -48,6 +49,8 @@ impl DictApp {
             Self::check_update_background(update_info_clone, ctx_clone);
         });
 
+        // 菜单延迟到第一个 UI 帧初始化，避免在 app_did_finish_launching 回调栈内调用引发崩溃
+
         Self {
             engine: Arc::new(engine),
             categories,
@@ -83,6 +86,7 @@ impl DictApp {
                 );
                 chat
             },
+            menu_initialized: false,
         }
     }
 
@@ -148,6 +152,15 @@ struct DictApp {
     cached_category_count: Option<(Option<crate::dict::Category>, usize)>,
     /// AI 对话全部状态（输入、对话历史、流式响应、模型编辑草稿等）
     chat: ChatUiState,
+    /// 原生菜单是否已初始化。
+    ///
+    /// 菜单不能放在 `DictApp::new()` 中初始化，因为 eframe 的 init 闭包运行在
+    /// NSApplicationDelegate 的 app_did_finish_launching 回调栈内，此时调用
+    /// [NSApp setMainMenu:] 会触发 ObjC 回调栈冲突导致 panic → abort。
+    /// 因此延迟到第一帧 `App::ui()` 中执行。
+    ///
+    /// 详见 src/ui/mod.rs 和 src/menu.rs 中的相关笔记。
+    menu_initialized: bool,
 }
 
 fn create_app_icon() -> egui::IconData {

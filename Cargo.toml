@@ -1,6 +1,6 @@
 [package]
 name = "xiaohe-yinxing-dict"
-version = "2.1.0"
+version = "2.2.0"
 edition = "2024"
 license = "Unlicense"
 
@@ -30,6 +30,10 @@ tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "sync"] 
 thiserror = "2"
 futures = "0.3.32"
 uuid = { version = "1", features = ["v4", "serde"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+muda = "0.16"
+keyboard-types = "0.7"
 
 [build-dependencies]
 winres = "0.1"

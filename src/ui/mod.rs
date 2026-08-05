@@ -19,6 +19,27 @@ impl eframe::App for DictApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
 
+        // 笔记：延迟初始化原生菜单
+        //
+        // setup_menu() 不能在 eframe 的 init 闭包里直接调用，因为 init 闭包
+        // 运行在 winit 的 app_did_finish_launching（NSApplicationDelegate）
+        // 回调栈内。在这个栈内调用 [NSApp setMainMenu:] 会触发 ObjC 运行时
+        // 重入或状态冲突，导致 declare_class! 宏的 catch_unwind 捕获 panic
+        // 后尝试 resume_unwind，而 extern "C" 委托方法禁止 unwind，最终以
+        // panic_nounwind 直接 abort。
+        //
+        // 解决方案：推迟到第一个 UI 帧（App::ui()）执行，此时已脱离 ObjC
+        // 委托回调栈，可以安全调用 setMainMenu:。
+        if !self.menu_initialized {
+            self.menu_initialized = true;
+            crate::menu::setup_menu();
+        }
+
+        // 处理菜单事件
+        while let Some(event) = crate::menu::poll_menu_events() {
+            crate::menu::handle_menu_event(self, event);
+        }
+
         // Handle feedback timer
         if self.feedback_timer > 0.0 {
             let dt = ctx.input(|i| i.unstable_dt);
@@ -87,11 +108,15 @@ impl eframe::App for DictApp {
         // Cmd/Ctrl + , 切换 AI 助手
         if ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Comma)) {
             self.chat.show_viewport = !self.chat.show_viewport;
-            self.current_view = if self.chat.show_viewport {
-                crate::types::ViewMode::Chat
+            if self.chat.show_viewport {
+                // 打开 Chat 时退出帮助，保持与菜单 OpenAi 一致
+                self.show_help_panel = false;
+                self.current_view = crate::types::ViewMode::Chat;
             } else {
-                crate::types::ViewMode::Dict
-            };
+                if self.current_view == crate::types::ViewMode::Chat {
+                    self.current_view = crate::types::ViewMode::Dict;
+                }
+            }
             ctx.request_repaint();
         }
 
