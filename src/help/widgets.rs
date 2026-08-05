@@ -96,18 +96,18 @@ pub(in crate::help) fn navrow(
 ) {
     ui.add_space(6.0);
     ui.horizontal(|ui| {
-        if let Some(id) = prev {
-            if let Some(ch) = manager.get_chapter(id) {
-                label_hl(ui, "上一篇：");
-                lnk(ui, nav, ch.title, id);
-            }
+        if let Some(id) = prev
+            && let Some(ch) = manager.get_chapter(id)
+        {
+            label_hl(ui, "上一篇：");
+            lnk(ui, nav, ch.title, id);
         }
         ui.separator();
-        if let Some(id) = next {
-            if let Some(ch) = manager.get_chapter(id) {
-                label_hl(ui, "下一篇：");
-                lnk(ui, nav, ch.title, id);
-            }
+        if let Some(id) = next
+            && let Some(ch) = manager.get_chapter(id)
+        {
+            label_hl(ui, "下一篇：");
+            lnk(ui, nav, ch.title, id);
         }
     });
 }

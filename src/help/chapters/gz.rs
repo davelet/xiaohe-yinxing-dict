@@ -185,11 +185,5 @@ pub(crate) fn render_gz(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) 
     });
 
     hr(ui);
-    navrow(
-        ui,
-        nav,
-        _manager,
-        Some("ux"),
-        Some("zg"),
-    );
+    navrow(ui, nav, _manager, Some("ux"), Some("zg"));
 }

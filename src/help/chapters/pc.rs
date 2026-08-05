@@ -316,11 +316,5 @@ pub(crate) fn render_pc(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) 
     qt(ui, "＜全码词＞部分已出简码的词的全码");
 
     hr(ui);
-    navrow(
-        ui,
-        nav,
-        _manager,
-        Some("fh"),
-        Some("sj"),
-    );
+    navrow(ui, nav, _manager, Some("fh"), Some("sj"));
 }
