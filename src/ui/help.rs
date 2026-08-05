@@ -166,7 +166,7 @@ pub(crate) fn render_help_fullscreen(app: &mut DictApp, ui: &mut egui::Ui) {
                 .show(ui, |ui| {
                     if let Some(chapter) = app.help_manager.get_chapter(id) {
                         help::reset_table_counter();
-                        (chapter.render)(ui, &mut nav);
+                        (chapter.render)(ui, &mut nav, &app.help_manager);
                     }
                 });
         } else {

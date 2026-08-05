@@ -57,7 +57,7 @@ pub struct HelpChapter {
     pub id: &'static str,
     pub title: &'static str,
     pub parent_id: Option<&'static str>,
-    pub render: fn(&mut Ui, &mut HelpNav),
+    pub render: fn(&mut Ui, &mut HelpNav, &HelpManager),
     /// 章节全文检索用句子数组（每个元素是一个完整句子）
     pub search_text: &'static [&'static str],
 }

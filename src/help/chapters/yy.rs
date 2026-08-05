@@ -1,6 +1,6 @@
 use super::super::*;
 
-pub(crate) fn render_yy(ui: &mut Ui, nav: &mut HelpNav) {
+pub(crate) fn render_yy(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) {
     h2(ui, "2 输入法应用");
 
     h4(ui, "一、拼音内置——小鹤双拼");
@@ -65,7 +65,8 @@ pub(crate) fn render_yy(ui: &mut Ui, nav: &mut HelpNav) {
     navrow(
         ui,
         nav,
-        Some(("1.2.2 字根", "zg")),
-        Some(("2.1 简码", "jm")),
+        _manager,
+        Some("zg"),
+        Some("jm"),
     );
 }

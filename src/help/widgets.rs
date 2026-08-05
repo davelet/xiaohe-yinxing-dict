@@ -1,7 +1,8 @@
 use eframe::egui::{self, RichText, ScrollArea, Ui};
 
 use super::{
-    BLUE, CODE_BG, CODE_FG, GRAY, HelpNav, ORANGE, RED, next_table_idx, render_hl, render_hl_inline,
+    BLUE, CODE_BG, CODE_FG, GRAY, HelpManager, HelpNav, ORANGE, RED, next_table_idx, render_hl,
+    render_hl_inline,
 };
 
 pub(in crate::help) fn h1(ui: &mut Ui, t: &str) {
@@ -77,36 +78,36 @@ pub(in crate::help) fn lnk(ui: &mut Ui, nav: &mut HelpNav, text: &str, target: &
 }
 
 pub(in crate::help) fn ext_link(ui: &mut Ui, text: &str, url: &str) {
-    let label = ui.add(
-        egui::Label::new(
-            RichText::new(text)
-                .color(ui.visuals().hyperlink_color)
-                .underline(),
-        )
-        .sense(egui::Sense::click()),
-    );
-    if label.clicked() {
+    if ui.link(text).clicked() {
         let _ = open::that(url);
     }
 }
 
 /// 上一篇 / 下一篇 导航行
+///
+/// 只接收章节 `id`，标题由 `HelpManager` 统一查表得到，
+/// 避免调用处手写 `(title, id)` 造成二者错配导致跳转失效。
 pub(in crate::help) fn navrow(
     ui: &mut Ui,
     nav: &mut HelpNav,
-    prev: Option<(&str, &'static str)>,
-    next: Option<(&str, &'static str)>,
+    manager: &HelpManager,
+    prev: Option<&'static str>,
+    next: Option<&'static str>,
 ) {
     ui.add_space(6.0);
     ui.horizontal(|ui| {
-        if let Some((t, id)) = prev {
-            label_hl(ui, "上一篇：");
-            lnk(ui, nav, t, id);
+        if let Some(id) = prev {
+            if let Some(ch) = manager.get_chapter(id) {
+                label_hl(ui, "上一篇：");
+                lnk(ui, nav, ch.title, id);
+            }
         }
         ui.separator();
-        if let Some((t, id)) = next {
-            label_hl(ui, "下一篇：");
-            lnk(ui, nav, t, id);
+        if let Some(id) = next {
+            if let Some(ch) = manager.get_chapter(id) {
+                label_hl(ui, "下一篇：");
+                lnk(ui, nav, ch.title, id);
+            }
         }
     });
 }

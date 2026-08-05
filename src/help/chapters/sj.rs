@@ -1,6 +1,6 @@
 use super::super::*;
 
-pub(crate) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
+pub(crate) fn render_sj(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) {
     h2(ui, "2.4 安卓版 指南");
     blue(ui, "「小鹤音形」方案 ＋「小胖输入法」平台");
     sp(ui);
@@ -644,5 +644,5 @@ pub(crate) fn render_sj(ui: &mut Ui, nav: &mut HelpNav) {
     });
 
     hr(ui);
-    navrow(ui, nav, Some(("2.3 win版", "pc")), Some(("2.5 挂接", "gj")));
+    navrow(ui, nav, _manager, Some("pc"), Some("gj"));
 }

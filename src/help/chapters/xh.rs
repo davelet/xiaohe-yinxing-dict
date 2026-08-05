@@ -1,6 +1,6 @@
 use super::super::*;
 
-pub(crate) fn render_xh(ui: &mut Ui, nav: &mut HelpNav) {
+pub(crate) fn render_xh(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) {
     h1(ui, "1 入门概述");
 
     h4(ui, "一、小鹤音形");
@@ -91,5 +91,5 @@ pub(crate) fn render_xh(ui: &mut Ui, nav: &mut HelpNav) {
     );
     bul(ui, "拼字输入方式作为补充，支持GB18030-2022");
     hr(ui);
-    navrow(ui, nav, Some(("导读", "readme")), Some(("1.1 双拼", "up")));
+    navrow(ui, nav, _manager, Some("readme"), Some("up"));
 }

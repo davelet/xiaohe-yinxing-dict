@@ -1,6 +1,6 @@
 use super::super::*;
 
-pub(crate) fn render_gj(ui: &mut Ui, nav: &mut HelpNav) {
+pub(crate) fn render_gj(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) {
     h2(ui, "2.5 挂接第三方");
 
     h4(ui, "一、安装版");
@@ -107,5 +107,5 @@ pub(crate) fn render_gj(ui: &mut Ui, nav: &mut HelpNav) {
     qt(ui, "击键：每秒按键数");
 
     hr(ui);
-    navrow(ui, nav, Some(("2.4 安卓版", "sj")), Some(("3 文章", "wv")));
+    navrow(ui, nav, _manager, Some("sj"), Some("wv"));
 }

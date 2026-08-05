@@ -1,6 +1,6 @@
 use super::super::*;
 
-pub(crate) fn render_jm(ui: &mut Ui, nav: &mut HelpNav) {
+pub(crate) fn render_jm(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) {
     h2(ui, "2.1 简码");
 
     h4(ui, "一、一简：一码一字或一词（取首字首码）");
@@ -100,5 +100,5 @@ pub(crate) fn render_jm(ui: &mut Ui, nav: &mut HelpNav) {
     );
 
     hr(ui);
-    navrow(ui, nav, Some(("2 应用", "yy")), Some(("2.2 符号", "fh")));
+    navrow(ui, nav, _manager, Some("yy"), Some("fh"));
 }

@@ -1,6 +1,6 @@
 use super::super::*;
 
-pub(crate) fn render_readme(ui: &mut Ui, nav: &mut HelpNav) {
+pub(crate) fn render_readme(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) {
     h1(ui, "小鹤音形帮助文档");
     label_hl_mk(ui, "小鹤音形", |s| RichText::new(s).strong());
     qt(ui, "一个简单易学高效的输入方案");
@@ -66,5 +66,5 @@ pub(crate) fn render_readme(ui: &mut Ui, nav: &mut HelpNav) {
     });
 
     hr(ui);
-    navrow(ui, nav, None, Some(("1 入门", "xh")));
+    navrow(ui, nav, _manager, None, Some("xh"));
 }

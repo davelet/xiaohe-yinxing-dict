@@ -1,6 +1,6 @@
 use super::super::*;
 
-pub(crate) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
+pub(crate) fn render_up(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) {
     h2(ui, "1.1 双拼");
 
     h4(ui, "一、双拼方案");
@@ -432,5 +432,5 @@ pub(crate) fn render_up(ui: &mut Ui, nav: &mut HelpNav) {
     );
 
     hr(ui);
-    navrow(ui, nav, Some(("1 入门", "xh")), Some(("1.2 双形", "ux")));
+    navrow(ui, nav, _manager, Some("xh"), Some("ux"));
 }

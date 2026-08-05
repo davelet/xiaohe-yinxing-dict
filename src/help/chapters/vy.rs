@@ -1,6 +1,6 @@
 use super::super::*;
 
-pub(crate) fn render_vy(ui: &mut Ui, nav: &mut HelpNav) {
+pub(crate) fn render_vy(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) {
     h2(ui, "5 小鹤学习指引");
     qt(ui, "初学者请先阅读本指引");
     sp(ui);
@@ -10,7 +10,7 @@ pub(crate) fn render_vy(ui: &mut Ui, nav: &mut HelpNav) {
     ui.horizontal_wrapped(|ui| {
         label_hl(ui, "在学习双拼之前，建议到小鹤网盘 ");
         ext_link(ui, "http://flypy.ysepan.com", "http://flypy.ysepan.com");
-        label_hl(ui, " 下载“小鹤专用添雨跟打器”，用这个工具测试其中所提一小段文字，取得你的全拼打字速度指标，主要还是看看熟练情况下的击键水平，以做日后参考。");
+        label_hl(ui, " 下载“小鹤专用添雨跟打器（在“小鹤入门”文件夹内）”，用这个工具测试其中所提一小段文字，取得你的全拼打字速度指标，主要还是看看熟练情况下的击键水平，以做日后参考。");
     });
     num(ui, "2", "了解自己");
     p(
@@ -42,12 +42,6 @@ pub(crate) fn render_vy(ui: &mut Ui, nav: &mut HelpNav) {
         "主流拼音输入法均内置了小鹤双拼方案（比如搜狗拼音），只需要在其设置中找到双拼方案设置并选择“小鹤双拼”方案即可，然后日常聊天打字直接用就好。双拼键位可以通过口诀记忆，也可把键位图放电脑桌面做背景或者直接打印出来边用边记，一般一周时间就能适应。",
     );
     p(ui, "最好使用电脑学习，因为电脑会了手机就会了。");
-    red(ui, "小鹤双拼键位图");
-    qt(ui, "零声母音节：① 双字母保持全拼方式，如：ai en ou er");
-    qt(
-        ui,
-        "　　　　　　② 一三字母为首字母+韵母所在键，如：ee(e) ah(ang)",
-    );
     num(ui, "2", "学习进度");
     p(ui, "通常一个月时间恢复全拼时的速度。");
     sp(ui);
@@ -109,5 +103,5 @@ pub(crate) fn render_vy(ui: &mut Ui, nav: &mut HelpNav) {
     qt(ui, "[5]键准：按键的准确率");
 
     hr(ui);
-    navrow(ui, nav, Some(("4 问题", "wt")), Some(("6 关于", "gy")));
+    navrow(ui, nav, _manager, Some("wt"), Some("gy"));
 }

@@ -1,6 +1,6 @@
 use super::super::*;
 
-pub(crate) fn render_fh(ui: &mut Ui, nav: &mut HelpNav) {
+pub(crate) fn render_fh(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) {
     h2(ui, "2.2 符号编码");
 
     h4(ui, "一、最简O符");
@@ -148,5 +148,5 @@ pub(crate) fn render_fh(ui: &mut Ui, nav: &mut HelpNav) {
     }
 
     hr(ui);
-    navrow(ui, nav, Some(("2.1 简码", "jm")), Some(("2.3 win版", "pc")));
+    navrow(ui, nav, _manager, Some("jm"), Some("pc"));
 }

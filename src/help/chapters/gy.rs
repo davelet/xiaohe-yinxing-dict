@@ -1,6 +1,6 @@
 use super::super::*;
 
-pub(crate) fn render_gy(ui: &mut Ui, nav: &mut HelpNav) {
+pub(crate) fn render_gy(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) {
     h2(ui, "6 关于小鹤");
     p(ui, "帮助我们，让小鹤飞得更高！");
     sp(ui);
@@ -49,5 +49,5 @@ pub(crate) fn render_gy(ui: &mut Ui, nav: &mut HelpNav) {
     qt(ui, "小鹤双拼一直都在你们身边");
 
     hr(ui);
-    navrow(ui, nav, Some(("5 指引", "vy")), None);
+    navrow(ui, nav, _manager, Some("vy"), None);
 }

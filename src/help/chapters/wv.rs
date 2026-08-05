@@ -1,6 +1,6 @@
 use super::super::*;
 
-pub(crate) fn render_wv(ui: &mut Ui, nav: &mut HelpNav) {
+pub(crate) fn render_wv(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) {
     h2(ui, "3 相关文章");
     qt(ui, "下面文章会让你对小鹤多一些了解");
     sp(ui);
@@ -124,5 +124,5 @@ pub(crate) fn render_wv(ui: &mut Ui, nav: &mut HelpNav) {
     });
 
     hr(ui);
-    navrow(ui, nav, Some(("2.5 挂接", "gj")), Some(("4 问题", "wt")));
+    navrow(ui, nav, _manager, Some("gj"), Some("wt"));
 }

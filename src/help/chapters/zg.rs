@@ -1,6 +1,6 @@
 use super::super::*;
 
-pub(crate) fn render_zg(ui: &mut Ui, nav: &mut HelpNav) {
+pub(crate) fn render_zg(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) {
     h2(ui, "1.2.2 鹤形：字根");
 
     h4(ui, "一、字根合图");
@@ -82,5 +82,5 @@ pub(crate) fn render_zg(ui: &mut Ui, nav: &mut HelpNav) {
     tbl4(ui, 70.0, &["例字", "全码", "首形", "末形"], CHAIFEN);
 
     hr(ui);
-    navrow(ui, nav, Some(("1.2.1 规则", "gz")), Some(("2 应用", "yy")));
+    navrow(ui, nav, _manager, Some("gz"), Some("yy"));
 }

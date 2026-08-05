@@ -1,6 +1,6 @@
 use super::super::*;
 
-pub(crate) fn render_wt(ui: &mut Ui, nav: &mut HelpNav) {
+pub(crate) fn render_wt(ui: &mut Ui, nav: &mut HelpNav, _manager: &HelpManager) {
     h2(ui, "4 常见问题解答");
 
     h4(ui, "一、只有一个候选字词？");
@@ -113,5 +113,5 @@ pub(crate) fn render_wt(ui: &mut Ui, nav: &mut HelpNav) {
     qt(ui, "- 出简让全-：字已有简码，全码让出首选位");
 
     hr(ui);
-    navrow(ui, nav, Some(("3 文章", "wv")), Some(("5 指引", "vy")));
+    navrow(ui, nav, _manager, Some("wv"), Some("vy"));
 }
