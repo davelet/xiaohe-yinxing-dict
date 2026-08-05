@@ -63,12 +63,19 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
             }
 
             // AI 对话 toggle button
-            let ai_btn_label = if app.chat.show_viewport {
-                "✨ AI 助手 ✓"
-            } else {
-                "✨ AI 助手"
-            };
-            let ai_btn = ui.selectable_label(app.chat.show_viewport, ai_btn_label);
+            let ai_btn_label = format!(
+                "✨ AI 助手[{}+,]",
+                if cfg!(target_os = "macos") {
+                    "cmd"
+                } else {
+                    "ctrl"
+                }
+            );
+            let ai_btn = ui.add(
+                egui::Button::new(ai_btn_label)
+                    .fill(egui::Color32::from_rgb(207, 228, 235))
+                    .selected(app.chat.show_viewport),
+            );
             if ai_btn.clicked() {
                 app.chat.show_viewport = !app.chat.show_viewport;
                 app.current_view = if app.chat.show_viewport {
@@ -107,7 +114,10 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
                 } else {
                     "→ Rime数据"
                 };
-                if ui.button(rime_label).clicked() {
+                if ui
+                    .add(egui::Button::new(rime_label).fill(egui::Color32::from_rgb(220, 210, 240)))
+                    .clicked()
+                {
                     app.current_view = crate::types::ViewMode::Manager;
                     app.manager.search_auto_focus = true;
                     // 检查文件变更并自动重载

@@ -25,6 +25,7 @@ pub fn render_chat_viewport(
         let style = ui.style_mut();
         style.visuals = egui::Visuals::light();
         crate::ui::styles::DictViewStyle::apply(style);
+        style.visuals.panel_fill = egui::Color32::from_rgb(240, 248, 252);
     }
 
     // 轮询后台 AI 响应（非阻塞）
@@ -38,7 +39,35 @@ pub fn render_chat_viewport(
         render_privacy_dialog(ui, chat);
     }
 
+    let modal_open = chat.show_privacy_dialog
+        || mandatory_privacy
+        || chat.confirm_delete.is_some()
+        || chat.confirm_clear_conversations
+        || chat.model_editor.show_dialog;
+
     let mut action: Option<ChatAction> = None;
+
+    if !modal_open && ui.input(|i| i.key_pressed(egui::Key::ArrowUp)) {
+        action = Some(ChatAction::Close);
+        ui.input_mut(|input| {
+            input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp);
+        });
+    }
+
+    if !modal_open && !ui.ctx().text_edit_focused() {
+        let arrow = ui
+            .input(|i| i.key_pressed(egui::Key::ArrowLeft) || i.key_pressed(egui::Key::ArrowRight));
+        if arrow {
+            chat.tab = match chat.tab {
+                ChatTab::Conversation => ChatTab::Settings,
+                ChatTab::Settings => ChatTab::Conversation,
+            };
+            ui.input_mut(|input| {
+                input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowLeft);
+                input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowRight);
+            });
+        }
+    }
 
     egui::CentralPanel::default().show_inside(ui, |ui| {
         // 顶部 tab 栏
@@ -53,11 +82,14 @@ pub fn render_chat_viewport(
                 chat.tab = ChatTab::Settings;
             }
 
+            ui.small(RichText::new("←/→ 切换").color(Color32::from_gray(150)));
+
             // 添加关闭按钮
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button("✖ 关闭").clicked() {
                     action = Some(ChatAction::Close);
                 }
+                ui.small(RichText::new("↑键关闭").color(Color32::from_gray(150)));
             });
         });
         ui.separator();
@@ -895,7 +927,7 @@ fn render_settings_tab(ui: &mut egui::Ui, chat: &mut ChatUiState) {
                 .spacing(egui::vec2(8.0, 8.0))
                 .show(ui, |ui| {
                     ui.label("上下文保留轮数:");
-                    let history_resp = ui.add(egui::Slider::new(&mut config.history_rounds, 4..=30));
+                    let history_resp = ui.add(egui::Slider::new(&mut config.history_rounds, 1..=30));
                     history_resp.surrender_focus();
                     ui.end_row();
 
@@ -904,7 +936,7 @@ fn render_settings_tab(ui: &mut egui::Ui, chat: &mut ChatUiState) {
                     ui.end_row();
 
                     ui.label("最大工具调用轮次:");
-                    let turns_resp = ui.add(egui::Slider::new(&mut config.max_tool_turns, 1..=30));
+                    let turns_resp = ui.add(egui::Slider::new(&mut config.max_tool_turns, 1..=100));
                     turns_resp.surrender_focus();
                     ui.end_row();
 
@@ -939,7 +971,7 @@ fn render_settings_tab(ui: &mut egui::Ui, chat: &mut ChatUiState) {
                 let mut should_save = false;
                 ui.indent("retention_policy", |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("最大对话数:");
+                        ui.label("最大对话记录:");
                         let count_resp = ui.add(egui::Slider::new(
                             &mut config.max_conversations,
                             1..=1000,
@@ -970,8 +1002,10 @@ fn render_settings_tab(ui: &mut egui::Ui, chat: &mut ChatUiState) {
             ui.add_space(8.0);
 
             // 对话数据管理
+            let disk_bytes = chat.conversation_store.total_disk_usage();
+            let disk_str = format_bytes(disk_bytes);
             ui.small(format!(
-                "当前共有 {} 个本地对话记录（文件位于 {}）",
+                "当前共有 {} 个对话记录，占用 {disk_str}，文件位于 {}",
                 chat.conversation_store.list_conversations().len(),
                 chat.conversation_store.dir().display()
             ));
@@ -1429,4 +1463,16 @@ fn render_model_edit_dialog(ui: &mut egui::Ui, chat: &mut ChatUiState) {
                 }
             });
         });
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = 1024 * KB;
+    if bytes >= MB {
+        format!("{:.2} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.1} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{bytes} B")
+    }
 }

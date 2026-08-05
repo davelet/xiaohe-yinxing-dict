@@ -120,8 +120,14 @@ impl eframe::App for DictApp {
         if !self.show_help_panel {
             match self.current_view {
                 crate::types::ViewMode::Dict => styles::DictViewStyle::apply(ui.style_mut()),
-                crate::types::ViewMode::Manager => styles::ManagerViewStyle::apply(ui.style_mut()),
-                crate::types::ViewMode::Chat => styles::DictViewStyle::apply(ui.style_mut()),
+                crate::types::ViewMode::Manager => {
+                    styles::ManagerViewStyle::apply(ui.style_mut());
+                    ui.style_mut().visuals.panel_fill = egui::Color32::from_rgb(230, 224, 245);
+                }
+                crate::types::ViewMode::Chat => {
+                    styles::DictViewStyle::apply(ui.style_mut());
+                    ui.style_mut().visuals.panel_fill = egui::Color32::from_rgb(240, 248, 252);
+                }
             }
         }
 

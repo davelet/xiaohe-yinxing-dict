@@ -47,7 +47,7 @@ pub fn render_manager_top_panel(
 
 /// 渲染输入法数据视图的底部面板（使用 Panel::bottom 锚定）
 pub fn render_manager_bottom_panel(state: &ManagerState, ui: &mut egui::Ui) {
-    let status_bg = egui::Color32::from_rgb(245, 245, 250);
+    let status_bg = egui::Color32::from_rgb(230, 224, 245);
     egui::Panel::bottom("manager_status_panel")
         .frame(
             egui::Frame::new()
