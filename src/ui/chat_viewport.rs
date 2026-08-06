@@ -132,7 +132,7 @@ fn render_privacy_dialog(ui: &mut egui::Ui, chat: &mut ChatUiState) {
                 .show(ui, |ui| {
                     ui.label("1. 您的对话内容将发送至所选的 AI 服务提供商（如深度求索、智谱等）");
                     ui.add_space(4.0);
-                    ui.label("2. API Key 存储在您的操作系统钥匙串中，不会被本应用上传");
+                    ui.label("2. API Key 明文存储在本地配置文件中，不会被本应用上传");
                     ui.add_space(4.0);
                     ui.label("3. 本地词库数据不会自动发送至外部服务");
                     ui.add_space(4.0);
@@ -1034,7 +1034,7 @@ fn render_settings_tab(ui: &mut egui::Ui, chat: &mut ChatUiState) {
                 .fixed_size([360.0, 140.0])
                 .show(ui.ctx(), |ui| {
                     ui.label(format!("确定要删除模型 \"{}\" 吗？", name));
-                    ui.label("此操作无法撤销，API Key 将从钥匙串中删除。");
+                    ui.label("此操作无法撤销，该模型配置及其 API Key 将被彻底删除。");
                     ui.add_space(16.0);
                     ui.horizontal(|ui| {
                         if ui.button("取消").clicked() {
