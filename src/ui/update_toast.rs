@@ -267,7 +267,7 @@ impl UpdateUiState {
             let text_color = egui::Color32::from_rgb(220, 220, 220);
 
             // 完成/失败时读取 exe_path 和错误详情
-            let (_, fail_error) = if !in_progress {
+            let (done_exe_path, fail_error) = if !in_progress {
                 if let Ok(guard) = self.state.lock() {
                     match &*guard {
                         UpdateState::Done(path) => (Some(path.clone()), None),
