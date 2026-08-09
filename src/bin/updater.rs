@@ -1,5 +1,11 @@
 #[cfg(target_os = "windows")]
-use std::{env, fs, path::PathBuf, process::Command, thread, time::Duration};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    process::Command,
+    thread,
+    time::Duration,
+};
 
 #[cfg(target_os = "windows")]
 fn main() {
@@ -96,7 +102,7 @@ fn main() {
 }
 
 #[cfg(target_os = "windows")]
-fn wait_for_process_exit(exe_path: &PathBuf, pid: Option<u32>) -> bool {
+fn wait_for_process_exit(exe_path: &Path, pid: Option<u32>) -> bool {
     // 优先按 PID 精确等待当前 app 进程退出；若拿不到 PID，则回退到按进程名等待。
     // 按 PID 可避免用户同时开多个同名实例时，按进程名等待被其它实例拖死
     // （导致替换迟迟不执行）。

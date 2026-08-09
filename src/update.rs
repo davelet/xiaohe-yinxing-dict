@@ -612,10 +612,10 @@ fn find_exe_in_dir(dir: &Path) -> Result<PathBuf, String> {
         {
             return Ok(path);
         }
-        if path.is_dir() {
-            if let Ok(found) = find_exe_in_dir(&path) {
-                return Ok(found);
-            }
+        if path.is_dir()
+            && let Ok(found) = find_exe_in_dir(&path)
+        {
+            return Ok(found);
         }
     }
     Err("未找到 .exe 文件".to_string())
