@@ -367,7 +367,7 @@ pub fn apply_update(zip_path: &Path) -> Result<PathBuf, String> {
     }
     #[cfg(target_os = "windows")]
     {
-        apply_update_windows(zip_path)
+        apply_update_windows(zip_path, false)
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
@@ -476,7 +476,7 @@ use std::os::windows::process::CommandExt;
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[cfg(target_os = "windows")]
-fn apply_update_windows(zip_path: &Path) -> Result<PathBuf, String> {
+fn apply_update_windows(zip_path: &Path, relaunch: bool) -> Result<PathBuf, String> {
     let tmp_dir = std::env::temp_dir();
     let extract_dir = tmp_dir.join(format!("xiaohe-update-{}", std::process::id()));
     std::fs::create_dir_all(&extract_dir).map_err(|e| format!("创建解压目录失败: {}", e))?;
@@ -507,12 +507,27 @@ fn apply_update_windows(zip_path: &Path) -> Result<PathBuf, String> {
     let updater_exe = find_updater_in_dir(&extract_dir)
         .or_else(|| local_updater.exists().then_some(local_updater));
 
+    // 当前 app 的 PID，传给 updater 用于按 PID（而非进程名）精确等待旧进程退出，
+    // 避免用户同时开多个同名实例时按进程名等待被其它实例拖死。
+    let my_pid = std::process::id();
+
+    // 是否「立即重启」：写 relaunch 标记，updater（及 bat 回退）仅在标记存在时才
+    // 在文件替换后启动新版本；否则只替换文件、不自动重启。
+    let relaunch_marker = current_exe.with_extension("exe.relaunch");
+    if relaunch {
+        let _ = std::fs::write(&relaunch_marker, b"");
+    } else {
+        let _ = std::fs::remove_file(&relaunch_marker);
+    }
+
     if let Some(updater_exe) = updater_exe {
         let _ = std::process::Command::new(&updater_exe)
             .arg("--old")
             .arg(&current_exe)
             .arg("--new")
             .arg(&new_exe)
+            .arg("--pid")
+            .arg(my_pid.to_string())
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| format!("启动 updater 失败: {}", e))?;
@@ -529,6 +544,7 @@ fn apply_update_windows(zip_path: &Path) -> Result<PathBuf, String> {
         let new_str = new_exe.to_string_lossy().to_string();
 
         // BOM + chcp 65001 确保 cmd 能正确解析内容里的中文路径
+        // 替换完成后检查 relaunch 标记：存在则启动新版本，不存在则直接退出（不自动重启）。
         let bat_content = format!(
             "\u{FEFF}@echo off\r\n\
              chcp 65001 >nul\r\n\
@@ -541,7 +557,10 @@ fn apply_update_windows(zip_path: &Path) -> Result<PathBuf, String> {
              )\r\n\
              move /Y \"{old}\" \"{old}.bak\" >nul 2>&1\r\n\
              copy /Y \"{new}\" \"{old}\" >nul 2>&1\r\n\
-             start \"\" \"{old}\"\r\n\
+             if exist \"{old}.relaunch\" (\r\n\
+                 del \"{old}.relaunch\"\r\n\
+                 start \"\" \"{old}\"\r\n\
+             )\r\n\
              del \"%~f0\"\r\n",
             exe = exe_name,
             old = old_str,
@@ -625,6 +644,10 @@ pub fn cleanup_old_files_keep_previous() {
             let older_exe = current_exe.with_extension("exe.old.old");
             let _ = std::fs::remove_file(&older_exe);
             let _ = std::fs::rename(&old_exe, &older_exe);
+
+            // 清理可能残留的 relaunch 标记文件
+            let relaunch_marker = current_exe.with_extension("exe.relaunch");
+            let _ = std::fs::remove_file(&relaunch_marker);
 
             // 清理上次自动更新遗留的临时文件（解压目录和重启脚本）
             let tmp_dir = std::env::temp_dir();

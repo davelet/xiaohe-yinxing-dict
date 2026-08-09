@@ -1,3 +1,4 @@
+use std::fs;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -266,7 +267,7 @@ impl UpdateUiState {
             let text_color = egui::Color32::from_rgb(220, 220, 220);
 
             // 完成/失败时读取 exe_path 和错误详情
-            let (done_exe_path, fail_error) = if !in_progress {
+            let (_, fail_error) = if !in_progress {
                 if let Ok(guard) = self.state.lock() {
                     match &*guard {
                         UpdateState::Done(path) => (Some(path.clone()), None),
@@ -421,7 +422,6 @@ impl UpdateUiState {
                                 }
                             } else if is_done {
                                 // 完成：重启 + 稍后
-                                let exe_path = done_exe_path.clone();
                                 if ui
                                     .add(
                                         egui::Button::new(" 🔄 立即重启 ")
@@ -430,12 +430,22 @@ impl UpdateUiState {
                                     .clicked()
                                 {
                                     #[cfg(target_os = "macos")]
-                                    if let Some(ref p) = exe_path {
-                                        let _ = std::process::Command::new("open").arg(p).spawn();
+                                    {
+                                        // macOS 没有独立 updater 进程，需由 app 自己启动新版本
+                                        if let Some(p) = done_exe_path.clone() {
+                                            let _ =
+                                                std::process::Command::new("open").arg(p).spawn();
+                                        }
                                     }
-                                    #[cfg(target_os = "windows")]
-                                    if let Some(ref p) = exe_path {
-                                        let _ = std::process::Command::new(p).spawn();
+                                    // Windows 下不要在此处启动程序：updater.exe 已在 apply_update
+                                    // 时被 spawn，它会在旧进程（通过 PID）退出后完成文件替换并负责
+                                    // 启动新版本。若这里先 spawn current_exe（仍是旧版），其进程名与
+                                    // 旧进程相同，会导致 updater 按进程名等待时永远等不到退出，从而
+                                    // 不执行替换 —— 表现为「重启后是旧版，关闭后新版才起」。
+                                    // 这里只写 relaunch 标记：updater 检查到标记才启动新版本；
+                                    // 不写则仅替换、不自动重启（解决「关闭后仍自动重启」）。
+                                    if let Ok(exe) = std::env::current_exe() {
+                                        let _ = fs::write(exe.with_extension("exe.relaunch"), b"");
                                     }
                                     std::process::exit(0);
                                 }
