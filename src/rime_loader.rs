@@ -811,15 +811,12 @@ pub fn trigger_rime_deploy() -> Result<(), String> {
 
     if cfg!(target_os = "windows") {
         if let Some(p) = find_weasel_deployer() {
-            // 路径含空格，必须 quotes
-            let status = Command::new(&p)
+            // 使用 spawn 异步启动部署器，避免阻塞 UI 线程（部署可能耗时数秒）
+            Command::new(&p)
                 .arg("/deploy")
-                .status()
-                .or_else(|_| Command::new(&p).status())
+                .spawn()
+                .or_else(|_| Command::new(&p).spawn())
                 .map_err(|e| format!("调用 weasel-deployer 失败: {}", e))?;
-            if !status.success() {
-                return Err(format!("weasel-deployer 退出码 {:?}", status.code()));
-            }
             return Ok(());
         }
         return Err(

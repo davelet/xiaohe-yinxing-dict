@@ -37,7 +37,7 @@ use dict_data::DICT_ENTRIES;
 
 impl DictApp {
     fn new(engine: SearchEngine<DictEntry>, ctx: &egui::Context) -> Self {
-        update::cleanup_old_files_keep_previous();
+        update::cleanup_old_update_files();
 
         let categories = dict::DictEntry::all_categories();
         let help_image = Self::load_help_image(ctx);

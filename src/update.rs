@@ -580,7 +580,7 @@ fn apply_update_windows(zip_path: &Path, relaunch: bool) -> Result<PathBuf, Stri
 
     // 注意：不能在此处删除 extract_dir 和 zip —— updater/bat 脚本会在本进程
     // 退出后才从 new_exe（位于 extract_dir 内）拷贝新版本。
-    // 残留的临时文件由下次启动时的 cleanup_old_files_keep_previous() 清理。
+    // 残留的临时文件由下次启动时的 cleanup_old_update_files() 清理。
 
     Ok(current_exe)
 }
@@ -621,7 +621,7 @@ fn find_exe_in_dir(dir: &Path) -> Result<PathBuf, String> {
     Err("未找到 .exe 文件".to_string())
 }
 
-pub fn cleanup_old_files_keep_previous() {
+pub fn cleanup_old_update_files() {
     if let Ok(current_exe) = std::env::current_exe() {
         #[cfg(target_os = "macos")]
         {
@@ -634,7 +634,7 @@ pub fn cleanup_old_files_keep_previous() {
                 let old_app = app_parent.join(format!("{}.old", app_name));
                 let older_app = app_parent.join(format!("{}.old.old", app_name));
                 let _ = std::fs::remove_dir_all(&older_app);
-                let _ = std::fs::rename(&old_app, &older_app);
+                let _ = std::fs::remove_dir_all(&old_app);
             }
         }
 
@@ -643,7 +643,7 @@ pub fn cleanup_old_files_keep_previous() {
             let old_exe = current_exe.with_extension("exe.old");
             let older_exe = current_exe.with_extension("exe.old.old");
             let _ = std::fs::remove_file(&older_exe);
-            let _ = std::fs::rename(&old_exe, &older_exe);
+            let _ = std::fs::remove_file(&old_exe);
 
             // 清理可能残留的 relaunch 标记文件
             let relaunch_marker = current_exe.with_extension("exe.relaunch");

@@ -408,7 +408,7 @@ impl ManagerState {
             Err(e) => Some(format!("已写文件但 rime 重新部署失败: {}", e)),
         };
 
-        // 步骤 4：加进 software 内部配置
+        // 步骤 4：加进 software 内部配置（增量更新，避免全量重载导致 UI 卡顿）
         let already_added = self
             .config
             .external_dict_files
@@ -417,7 +417,23 @@ impl ManagerState {
         if !already_added {
             self.add_external_dict(dict_path.clone(), "flypy_custom".to_string());
         } else {
-            self.reload_external_dicts();
+            // 增量添加：直接将新条目追加到内存列表，无需从磁盘重读所有词典文件
+            self.external_entries.push(ExternalDictEntry::new(
+                text.clone(),
+                code.clone(),
+                crate::dict::Category::External,
+                false,
+                "flypy_custom".to_string(),
+            ));
+            // 同步文件 mtime：步骤 1 已写入 flypy_custom.dict.yaml，其 mtime 已变化。
+            // 若不更新，check_and_reload_changed_files 会在下一帧误判为文件变更，
+            // 触发全量 reload_external_dicts()，抵消本次增量优化。
+            if let Ok(metadata) = std::fs::metadata(&dict_path)
+                && let Ok(mtime) = metadata.modified()
+            {
+                self.file_mtimes.insert(dict_path.clone(), mtime);
+            }
+            self.rebuild_external_engine();
         }
 
         // 反馈信息
