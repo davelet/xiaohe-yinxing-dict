@@ -35,6 +35,16 @@ impl eframe::App for DictApp {
             crate::menu::setup_menu();
         }
 
+        // 启动时把主窗口居中：等拿到 monitor_size 后执行一次。
+        // macOS 上 winit 已自动居中，跳过。
+        #[cfg(not(target_os = "macos"))]
+        if !self.window_centered
+            && let Some(cmd) = egui::ViewportCommand::center_on_screen(&ctx)
+        {
+            ctx.send_viewport_cmd(cmd);
+            self.window_centered = true;
+        }
+
         // 处理菜单事件
         while let Some(event) = crate::menu::poll_menu_events() {
             crate::menu::handle_menu_event(self, event);
@@ -105,8 +115,10 @@ impl eframe::App for DictApp {
             }
         }
 
-        // Cmd/Ctrl + , 切换 AI 助手
-        if ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Comma)) {
+        // Ctrl+;（Win）/ Cmd+;（Mac）切换 AI 助手
+        // 注：不使用 Ctrl+, 因为 Windows 上中文 IME 会拦截逗号键（VK_PROCESSKEY），
+        // egui-winit 会过滤掉该事件，导致 key_pressed(Key::Comma) 永远为 false。
+        if ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Semicolon)) {
             self.chat.show_viewport = !self.chat.show_viewport;
             if self.chat.show_viewport {
                 // 打开 Chat 时退出帮助，保持与菜单 OpenAi 一致

@@ -134,10 +134,7 @@ pub fn setup_menu() {
             MENU_AI,
             "AI 助手",
             true,
-            Some(Accelerator::new(
-                Some(Modifiers::SUPER | Modifiers::SHIFT),
-                Code::KeyA,
-            )),
+            Some(Accelerator::new(Some(Modifiers::SUPER), Code::Semicolon)),
         );
         view_menu.append(&open_ai).unwrap();
 

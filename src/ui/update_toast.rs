@@ -267,7 +267,7 @@ impl UpdateUiState {
             let text_color = egui::Color32::from_rgb(220, 220, 220);
 
             // 完成/失败时读取 exe_path 和错误详情
-            let (done_exe_path, fail_error) = if !in_progress {
+            let (_done_exe_path, fail_error) = if !in_progress {
                 if let Ok(guard) = self.state.lock() {
                     match &*guard {
                         UpdateState::Done(path) => (Some(path.clone()), None),
@@ -432,7 +432,7 @@ impl UpdateUiState {
                                     #[cfg(target_os = "macos")]
                                     {
                                         // macOS 没有独立 updater 进程，需由 app 自己启动新版本
-                                        if let Some(p) = done_exe_path.clone() {
+                                        if let Some(p) = _done_exe_path.clone() {
                                             let _ =
                                                 std::process::Command::new("open").arg(p).spawn();
                                         }

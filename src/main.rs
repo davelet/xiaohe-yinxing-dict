@@ -87,6 +87,8 @@ impl DictApp {
                 chat
             },
             menu_initialized: false,
+            #[cfg(not(target_os = "macos"))]
+            window_centered: false,
         }
     }
 
@@ -161,6 +163,10 @@ struct DictApp {
     ///
     /// 详见 src/ui/mod.rs 和 src/menu.rs 中的相关笔记。
     menu_initialized: bool,
+    /// 启动时将窗口居中（只执行一次，避免用户手动移动后又被拉回）。
+    /// macOS 上 winit 在未指定 position 时已自动调用 `window.center()`，无需再处理。
+    #[cfg(not(target_os = "macos"))]
+    window_centered: bool,
 }
 
 fn create_app_icon() -> egui::IconData {

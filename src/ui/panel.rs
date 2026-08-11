@@ -64,7 +64,7 @@ pub(crate) fn render_top_panel(app: &mut DictApp, ui: &mut egui::Ui, _ctx: &egui
 
             // AI 对话 toggle button
             let ai_btn_label = format!(
-                "✨ AI 助手[{}+,]",
+                "✨ AI 助手[{}+;]",
                 if cfg!(target_os = "macos") {
                     "cmd"
                 } else {
